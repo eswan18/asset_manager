@@ -8,6 +8,8 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
+from storage import write_string_to_object
+
 CONFIG_FILE = 'config.ini'
 config = configparser.ConfigParser()
 config.read(CONFIG_FILE)
@@ -130,3 +132,5 @@ grouped = full_df.groupby('Type')
 equity = grouped[['Amount', 'Precision (+/-)']].sum()
 equity_amt = equity.loc['asset', 'Amount'] - equity.loc['liability', 'Amount']
 equity_precision = equity['Precision (+/-)'].sum()
+
+write_string_to_object(object_name='data.csv', string=full_df.to_csv())
