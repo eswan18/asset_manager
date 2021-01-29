@@ -113,3 +113,20 @@ def convert_dollar_cols_to_float(df):
 
 asset_df = convert_dollar_cols_to_float(asset_df)
 liability_df = convert_dollar_cols_to_float(liability_df)
+
+# Merge into a single DF so we can group and sum.
+asset_df['Type'] = 'asset'
+liability_df['Type'] = 'liability'
+liability_df['Accessible'] = 'Y'
+full_df = pd.concat([asset_df, liability_df])
+# Sum accessible assets and liabilities.
+grouped = full_df[full_df['Accessible'] == 'Y'].groupby('Type')
+accessible = grouped[['Amount', 'Precision (+/-)']].sum()
+accessible_amt = accessible.loc['asset', 'Amount'] - accessible.loc['liability', 'Amount']
+accessible_precision = accessible['Precision (+/-)'].sum()
+
+# Sum *all* assets and liabilities.
+grouped = full_df.groupby('Type')
+equity = grouped[['Amount', 'Precision (+/-)']].sum()
+equity_amt = equity.loc['asset', 'Amount'] - equity.loc['liability', 'Amount']
+equity_precision = equity['Precision (+/-)'].sum()
