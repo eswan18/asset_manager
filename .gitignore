@@ -1,3 +1,4 @@
 credentials.json
 env/
 token.pickle
+*.ini

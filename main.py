@@ -1,14 +1,18 @@
 import os.path
 import re
 import pickle
+import configparser
 
 import pandas as pd
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
-SHEET_ID = '1gv8CaVp7LsvaK4bXT566DDoAQ0bvadvRfBNvhhDHT9E'
-SAMPLE_RANGE_NAME = 'Summary'
+CONFIG_FILE = 'config.ini'
+config = configparser.ConfigParser()
+config.read(CONFIG_FILE)
+SHEET_ID = config['DEFAULT']['SHEET_ID']
+SHEET_RANGE = config['DEFAULT']['SHEET_RANGE']
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
@@ -43,7 +47,7 @@ service = setup_service()
 sheets = service.spreadsheets()
 my_sheet = sheets.values().get(
         spreadsheetId=SHEET_ID,
-        range=SAMPLE_RANGE_NAME
+        range=SHEET_RANGE
         ).execute()
 raw_table = my_sheet['values'] 
 
