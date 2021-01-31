@@ -4,8 +4,9 @@ import base64
 import boto3
 from botocore.exceptions import ClientError
 
+CONFIG_FILE = 'config.ini'
 config = ConfigParser()
-config.read('config.ini')
+config.read(CONFIG_FILE)
 conf = config['DEFAULT']
 
 s3 = boto3.resource(
