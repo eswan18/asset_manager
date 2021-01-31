@@ -1,7 +1,8 @@
-import os.path
+import os
 import re
 import pickle
 import configparser
+import datetime
 
 import pandas as pd
 from googleapiclient.discovery import build
@@ -133,4 +134,6 @@ equity = grouped[['Amount', 'Precision (+/-)']].sum()
 equity_amt = equity.loc['asset', 'Amount'] - equity.loc['liability', 'Amount']
 equity_precision = equity['Precision (+/-)'].sum()
 
-write_string_to_object(object_name='data.csv', string=full_df.to_csv())
+todays_date = datetime.date.today().isoformat().replace('-', '_')
+object_name = f'summaries_{todays_date}.csv'
+write_string_to_object(object_name=object_name, string=full_df.to_csv())
