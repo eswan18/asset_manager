@@ -1,4 +1,5 @@
 from configparser import ConfigParser
+from io import BytesIO
 import base64
 
 import boto3
@@ -15,10 +16,24 @@ s3 = boto3.resource(
         aws_secret_access_key=conf['S3_SECRET_ACCESS_KEY']
 )
 
-def write_string_to_object(object_name, string):
+def write_string_to_object(object_name: str, string: str) -> None:
     bucket = s3.Bucket(conf['S3_BUCKET'])
     bucket.put_object(Key=object_name, Body=string)
 
+def read_string_from_object(object_name: str) -> str:
+    bucket = s3.Bucket(conf['S3_BUCKET'])
+    b = BytesIO()
+    bucket.download_fileobj(Key=object_name, Fileobj=b)
+    # Must return to the beginning of the file before reading.
+    b.seek(0)
+    result_bytes = b.read()
+    result_str = result_bytes.decode()
+    return result_str
+
+def list_objects_in_bucket():
+    bucket = s3.Bucket(conf['S3_BUCKET'])
+    objects = [o.key for o in bucket.objects.all()]
+    return objects
 
 def get_secret():
     secret_name = "asset-manager-s3"
