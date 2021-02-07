@@ -2,3 +2,6 @@ credentials.json
 env/
 token.pickle
 *.ini
+.coverage
+.hypothesis
+*.egg-info
