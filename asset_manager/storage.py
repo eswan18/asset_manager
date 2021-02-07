@@ -10,18 +10,18 @@ config = ConfigParser()
 config.read(CONFIG_FILE)
 conf = config['DEFAULT']
 
-s3 = boto3.resource(
+_s3 = boto3.resource(
         service_name='s3',
         aws_access_key_id=conf['S3_ACCESS_KEY_ID'],
         aws_secret_access_key=conf['S3_SECRET_ACCESS_KEY']
 )
 
 def write_string_to_object(object_name: str, string: str) -> None:
-    bucket = s3.Bucket(conf['S3_BUCKET'])
+    bucket = _s3.Bucket(conf['S3_BUCKET'])
     bucket.put_object(Key=object_name, Body=string)
 
 def read_string_from_object(object_name: str) -> str:
-    bucket = s3.Bucket(conf['S3_BUCKET'])
+    bucket = _s3.Bucket(conf['S3_BUCKET'])
     b = BytesIO()
     bucket.download_fileobj(Key=object_name, Fileobj=b)
     # Must return to the beginning of the file before reading.
@@ -31,7 +31,7 @@ def read_string_from_object(object_name: str) -> str:
     return result_str
 
 def list_objects_in_bucket():
-    bucket = s3.Bucket(conf['S3_BUCKET'])
+    bucket = _s3.Bucket(conf['S3_BUCKET'])
     objects = [o.key for o in bucket.objects.all()]
     return objects
 
