@@ -136,4 +136,7 @@ equity_precision = equity['Precision (+/-)'].sum()
 
 todays_date = datetime.date.today().isoformat().replace('-', '_')
 object_name = f'summaries_{todays_date}.csv'
-write_string_to_object(object_name=object_name, string=full_df.to_csv(index=False))
+write_string_to_object(
+    object_name=object_name,
+    text=full_df.to_csv(index=False)
+)
