@@ -15,7 +15,7 @@ jobs:
           python-version: "3.7"
       - name: Install Package
         run:
-          pip install -e . && pip install mypy
+          pip install -e .[tests]
       - name: Run mypy
         run:
           mypy asset_manager
@@ -34,7 +34,7 @@ jobs:
           python-version: "${{ matrix.python-version }}"
       - name: Install Package
         run:
-          pip install -e . && pip install pytest
+          pip install -e .[tests]
       - name: Run pytest
         run:
           pytest
