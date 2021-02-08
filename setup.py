@@ -4,9 +4,9 @@ requires = [
     'altair',
     'pandas',
     'boto3',
-    'google-api-core',
-    'google-auth-oathlib',
-    'googleapis-common-props'
+    'google-api-python-client',
+    'google-auth-httplib2',
+    'google-auth-oauthlib
 ]
 
 tests_require = requires + [
