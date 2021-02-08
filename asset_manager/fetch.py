@@ -14,6 +14,7 @@ from google.auth.transport.requests import Request
 from .storage import write_string_to_object
 
 
+# Custom Types
 GroupedType = Union[DataFrameGroupBy, SeriesGroupBy]
 
 
@@ -25,6 +26,7 @@ SHEET_RANGE = config['DEFAULT']['SHEET_RANGE']
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+
 
 def setup_service() -> Resource:
     '''
@@ -52,6 +54,7 @@ def setup_service() -> Resource:
     service = build('sheets', 'v4', credentials=creds)
     return service
 
+
 # The Google API package has some janky dynamic typing, thus the annotations...
 service = setup_service()
 sheets: Resource = service.spreadsheets()  # type: ignore
@@ -67,6 +70,7 @@ liability_cols = slice(4, 7)
 # The first row is just the headings: "Assets" & "Liabilities"
 raw_table = raw_table[1:]
 
+
 def table_from_cells(
     raw_table: List[List[str]],
     col_idx: slice
@@ -80,6 +84,7 @@ def table_from_cells(
     # Now we know the desired column range *and* row range, so we can build
     # the table.
     rows_in_range = raw_table[:first_blank]
+
     def row_from_slice(row, _slice):
         if len(row) < _slice.start:
             slice_len = _slice.stop - _slice.start
@@ -87,24 +92,30 @@ def table_from_cells(
         else:
             if len(row) < _slice.stop:
                 return row[_slice]
-            else: # there are some elements in the range but not enough to get to "stop"
+            # Else, there are some elements in the range but not enough to get to "stop"
+            else:
                 n_missing = _slice.stop - len(row) - 1
                 filled_row = row + [] * n_missing
                 return filled_row[_slice]
+
     rows_in_range = [row_from_slice(r, col_idx) for r in rows_in_range]
     col_headers, *values = rows_in_range
     return pd.DataFrame(values, columns=col_headers)
 
+
 asset_df = table_from_cells(raw_table, asset_cols)
 liability_df = table_from_cells(raw_table, liability_cols)
+
 
 # On the chance some blank rows slip in, get rid of them.
 def drop_blank_rows(df):
     bad_rows = df.isnull().sum(axis=1) == df.shape[1]
     return df.loc[~bad_rows]
 
+
 asset_df = drop_blank_rows(asset_df)
 liability_df = drop_blank_rows(liability_df)
+
 
 def convert_dollar_cols_to_float(df):
     def dollars_to_float(dollar_str):
@@ -124,6 +135,7 @@ def convert_dollar_cols_to_float(df):
             df2[col] = df[col].apply(dollars_to_float)
     return df2
 
+
 asset_df = convert_dollar_cols_to_float(asset_df)
 liability_df = convert_dollar_cols_to_float(liability_df)
 
@@ -135,7 +147,9 @@ full_df = pd.concat([asset_df, liability_df])
 # Sum accessible assets and liabilities.
 grouped: GroupedType = full_df[full_df['Accessible'] == 'Y'].groupby('Type')
 accessible = grouped[['Amount', 'Precision (+/-)']].sum()
-accessible_amt = accessible.loc['asset', 'Amount'] - accessible.loc['liability', 'Amount']
+accessible_amt = (
+    accessible.loc['asset', 'Amount'] - accessible.loc['liability', 'Amount']
+)
 accessible_precision = accessible['Precision (+/-)'].sum()
 
 # Sum *all* assets and liabilities.
@@ -150,4 +164,4 @@ csv_text = full_df.to_csv(index=False)
 if not csv_text:
     msg = 'CSV text is empty'
     raise ValueError(msg)
-write_string_to_object(object_name=object_name,text=csv_text)
+write_string_to_object(object_name=object_name, text=csv_text)

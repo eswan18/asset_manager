@@ -1,6 +1,5 @@
 import re
 from io import StringIO
-from functools import reduce
 from typing import Optional
 
 import pandas as pd
@@ -79,7 +78,9 @@ def make_charts() -> alt.Chart:
         suffixes=('_net', '_inaccessible'),
         on='Date',
     )
-    net_access_data['Amount'] = net_access_data.Amount_net - net_access_data.Amount_inaccessible
+    net_access_data['Amount'] = (
+        net_access_data.Amount_net - net_access_data.Amount_inaccessible
+    )
     net_access_data['Type'] = 'Accessible'
     net_worth_data = pd.concat([net_data, net_access_data])
     # Make charts.

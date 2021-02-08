@@ -22,6 +22,10 @@ typecheck_requires = requires + [
     'google-api-python-client-stubs'
 ]
 
+lint_requires = requires + [
+    'flake8'
+]
+
 setup(
     name='asset_manager',
     version='0.0.9',
@@ -29,7 +33,8 @@ setup(
     install_requires=requires,
     extras_require={
         'tests': tests_require,
-        'typecheck': typecheck_requires
+        'typecheck': typecheck_requires,
+        'lint': lint_requires
     },
     license='MIT',
     long_description=open('README.md').read(),
