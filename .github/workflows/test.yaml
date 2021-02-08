@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Install Package
         run: |
-          pip install -e .
+          pip install -e . && pip install mypy
       - name: Run mypy
         run: |
           mypy asset_manager
@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Install Package
         run: |
-          pip install -e .
+          pip install -e . && pip install pytest
       - name: Run pytest
         run: |
           pytest
