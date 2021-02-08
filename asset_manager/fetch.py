@@ -3,13 +3,19 @@ import re
 import pickle
 import configparser
 import datetime
+from typing import Any, Union, List, Mapping
 
 import pandas as pd
-from googleapiclient.discovery import build
+from pandas.core.groupby import DataFrameGroupBy, SeriesGroupBy
+from googleapiclient.discovery import build, Resource
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 from .storage import write_string_to_object
+
+
+GroupedType = Union[DataFrameGroupBy, SeriesGroupBy]
+
 
 CONFIG_FILE = 'config.ini'
 config = configparser.ConfigParser()
@@ -20,7 +26,7 @@ SHEET_RANGE = config['DEFAULT']['SHEET_RANGE']
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 
-def setup_service():
+def setup_service() -> Resource:
     '''
     From https://developers.google.com/sheets/api/quickstart/python
     '''
@@ -46,13 +52,14 @@ def setup_service():
     service = build('sheets', 'v4', credentials=creds)
     return service
 
+# The Google API package has some janky dynamic typing, thus the annotations...
 service = setup_service()
-sheets = service.spreadsheets()
-my_sheet = sheets.values().get(
-        spreadsheetId=SHEET_ID,
-        range=SHEET_RANGE
-        ).execute()
-raw_table = my_sheet['values'] 
+sheets: Resource = service.spreadsheets()  # type: ignore
+my_sheet: Mapping[str, Any] = sheets.values().get(  # type: ignore
+    spreadsheetId=SHEET_ID,
+    range=SHEET_RANGE
+).execute()
+raw_table: List[List[str]] = my_sheet['values']
 
 # Some sad hard-coding...
 asset_cols = slice(0, 4)
@@ -60,7 +67,10 @@ liability_cols = slice(4, 7)
 # The first row is just the headings: "Assets" & "Liabilities"
 raw_table = raw_table[1:]
 
-def table_from_cells(raw_table, col_idx):
+def table_from_cells(
+    raw_table: List[List[str]],
+    col_idx: slice
+) -> pd.DataFrame:
     # See where the first blank row occurs in the given columns.
     first_blank = len(raw_table)
     for i, row in enumerate(raw_table):
@@ -123,7 +133,7 @@ liability_df['Type'] = 'liability'
 liability_df['Accessible'] = 'Y'
 full_df = pd.concat([asset_df, liability_df])
 # Sum accessible assets and liabilities.
-grouped = full_df[full_df['Accessible'] == 'Y'].groupby('Type')
+grouped: GroupedType = full_df[full_df['Accessible'] == 'Y'].groupby('Type')
 accessible = grouped[['Amount', 'Precision (+/-)']].sum()
 accessible_amt = accessible.loc['asset', 'Amount'] - accessible.loc['liability', 'Amount']
 accessible_precision = accessible['Precision (+/-)'].sum()
@@ -136,7 +146,8 @@ equity_precision = equity['Precision (+/-)'].sum()
 
 todays_date = datetime.date.today().isoformat().replace('-', '_')
 object_name = f'summaries_{todays_date}.csv'
-write_string_to_object(
-    object_name=object_name,
-    text=full_df.to_csv(index=False)
-)
+csv_text = full_df.to_csv(index=False)
+if not csv_text:
+    msg = 'CSV text is empty'
+    raise ValueError(msg)
+write_string_to_object(object_name=object_name,text=csv_text)

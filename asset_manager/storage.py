@@ -1,7 +1,7 @@
 from configparser import ConfigParser
 from io import BytesIO
 import base64
-from typing import Union, List
+from typing import Any, Union, List
 
 import boto3
 from botocore.exceptions import ClientError
@@ -16,6 +16,7 @@ _s3 = boto3.resource(
         aws_access_key_id=conf['S3_ACCESS_KEY_ID'],
         aws_secret_access_key=conf['S3_SECRET_ACCESS_KEY']
 )
+
 
 def write_string_to_object(
     object_name: str,
@@ -46,7 +47,7 @@ def list_objects_in_bucket() -> List[str]:
     return objects
 
 
-def get_secret():
+def get_secret() -> Any:
     secret_name = "asset-manager-s3"
     region_name = "us-east-2"
     # Create a Secrets Manager client
