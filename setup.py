@@ -13,7 +13,13 @@ tests_require = requires + [
     'hypothesis',
     'pytest',
     'pytest-cov',
-    'mypy'
+]
+
+typecheck_requires = requires + [
+    'mypy',
+    'boto3-stubs[essential]',
+    'pandas-stubs',
+    'google-api-python-client-stubs'
 ]
 
 setup(
@@ -21,7 +27,10 @@ setup(
     version='0.0.9',
     packages=['asset_manager'],
     install_requires=requires,
-    extras_require={'tests': tests_require},
+    extras_require={
+        'tests': tests_require,
+        'typecheck': typecheck_requires
+    },
     license='MIT',
     long_description=open('README.md').read(),
 )

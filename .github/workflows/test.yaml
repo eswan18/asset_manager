@@ -15,7 +15,7 @@ jobs:
           python-version: "3.7"
       - name: Install Package
         run:
-          pip install -e .[tests]
+          pip install -e .[typecheck]
       - name: Run mypy
         run:
           mypy asset_manager
