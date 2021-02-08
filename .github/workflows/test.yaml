@@ -1,0 +1,29 @@
+name: QA
+
+on: push
+
+jobs:
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+      - name: Install Package
+        run: |
+          pip install -e .
+      - name: Run mypy
+        run: |
+          mypy asset_manager
+  test-all:
+    name: Test All
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+      - name: Install Package
+        run: |
+          pip install -e .
+      - name: Run pytest
+        run: |
+          pytest
