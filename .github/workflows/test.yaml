@@ -1,4 +1,4 @@
-name: QA
+name: Continuous Integration
 
 on: push
 
@@ -9,21 +9,32 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.7"
       - name: Install Package
-        run: |
+        run:
           pip install -e . && pip install mypy
       - name: Run mypy
-        run: |
+        run:
           mypy asset_manager
-  test-all:
+  test:
     name: Test All
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.6", "3.7", "3.8", "3.9"]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "${{ matrix.python-version }}"
       - name: Install Package
-        run: |
+        run:
           pip install -e . && pip install pytest
       - name: Run pytest
-        run: |
+        run:
           pytest
