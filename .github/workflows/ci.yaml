@@ -18,8 +18,7 @@ jobs:
           pip install -e .[lint]
       - name: Run flake8
         run:
-          flake8 asset_manager
-          flake8 tests
+          flake8 asset_manager tests
   type-check:
     name: Type Check
     runs-on: ubuntu-latest
