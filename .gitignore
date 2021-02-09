@@ -1,5 +1,5 @@
 credentials.json
-env/
+env*/
 token.pickle
 .coverage
 .hypothesis
