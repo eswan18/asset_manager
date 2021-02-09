@@ -30,6 +30,7 @@ setup(
     name='asset_manager',
     version='0.0.9',
     packages=['asset_manager'],
+    python_requires='>=3.8',
     install_requires=requires,
     extras_require={
         'tests': tests_require,
