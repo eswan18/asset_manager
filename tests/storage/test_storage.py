@@ -1,8 +1,9 @@
 from unittest.mock import MagicMock, patch
 from typing import Union
+from contextlib import ExitStack
 
 # from _pytest.monkeypatch import MonkeyPatch
-from hypothesis import given, strategies as st
+from hypothesis import given, example, strategies as st
 
 from asset_manager import storage
 
@@ -14,13 +15,17 @@ S3_NAME_REGEX = r'[a-z0-9]([a-z0-9]|[-.]){1,61}[a-z0-9]'
     key_id=st.text(max_size=50),
     access_key=st.text(max_size=150)
 )
+@example(
+    key_id='abc',
+    access_key='def'
+)
 def test_s3_service_builder(key_id, access_key):
     secret = {'S3_ACCESS_KEY_ID': key_id,
               'S3_SECRET_ACCESS_KEY': access_key}
-    with (
-        patch.object(storage, 'get_secret', return_value=secret),
-        patch.object(storage.boto3, 'resource', return_value='result')
-    ):
+    # This (oddly) is the nicest way to do multiple context managers before Python 3.9.
+    with ExitStack() as es:
+        es.enter_context(patch.object(storage, 'get_secret', return_value=secret))
+        es.enter_context(patch.object(storage.boto3, 'resource', return_value='result'))
         # Relevant function call.
         s3 = storage._s3()
         # Assertions.
