@@ -6,7 +6,6 @@ from typing import Any, Union, List, Dict, Literal, cast, overload
 
 import boto3
 
-from .custom_types import JSON
 
 CONFIG_FILE = 'config.ini'
 config = ConfigParser()
@@ -55,11 +54,17 @@ def list_objects_in_bucket() -> List[str]:
 
 
 @overload
-def get_secret(secret_name: str, assume_json: Literal[True] = True) -> JSON: ...
+def get_secret(
+    secret_name: str,
+    assume_json: Literal[True] = True
+) -> Dict[str, str]: ...
 
 
 @overload
-def get_secret(secret_name: str, assume_json: Literal[False]) -> Union[str, bytes]: ...
+def get_secret(
+    secret_name: str,
+    assume_json: Literal[False]
+) -> Union[str, bytes]: ...
 
 
 def get_secret(secret_name: str, assume_json: bool = True):
@@ -73,7 +78,8 @@ def get_secret(secret_name: str, assume_json: bool = True):
     secret_name
         The name of the secret
     assume_json
-        Whether to treat the secret as JSON and return a decoded object from it.
+        Whether to treat the secret as a simple JSON dictionary of {str: str} and return
+        a decoded object from it.
 
     Returns
     -------
