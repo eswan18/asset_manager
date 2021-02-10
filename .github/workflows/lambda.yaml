@@ -7,7 +7,7 @@ on:
       - completed
 jobs:
   deploy:
-  if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
     name: Deploy Lambda Function
     runs-on: ubuntu-latest
     steps:
