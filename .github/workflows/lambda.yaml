@@ -14,6 +14,7 @@ jobs:
     - name: Zip up Dependencies
       if: github.ref == 'refs/heads/master'
       run:
+        ls && pwd
         bash build_deps.sh
     - name: AWS Lambda Deploy
       if: github.ref == 'refs/heads/master'
@@ -23,4 +24,5 @@ jobs:
         aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws_region: ${{ secrets.AWS_REGION }}
         function_name: asset-manager-altair-dashboard
+        source: deployment-package.zip
         handler: lambda_entrypoint.lambda_handler
