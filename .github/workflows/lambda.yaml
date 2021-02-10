@@ -1,5 +1,10 @@
 name: Deploy to Lambda
-on: [push]
+on:
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    branches: [master]
+    types:
+      - completed
 jobs:
   deploy:
     name: Deploy Lambda Function
