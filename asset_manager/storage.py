@@ -8,7 +8,7 @@ import pkg_resources
 import boto3
 
 
-config_contents = pkg_resources.resource_string(__name__, "config.ini")
+config_contents = pkg_resources.resource_string(__name__, "data/config.ini")
 config = ConfigParser()
 config.read_string(config_contents.decode())
 conf = config['DEFAULT']

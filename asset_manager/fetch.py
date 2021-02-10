@@ -19,7 +19,7 @@ from .storage import write_string_to_object
 GroupedType = Union[DataFrameGroupBy, SeriesGroupBy]
 
 
-config_contents = pkg_resources.resource_string(__name__, "config.ini")
+config_contents = pkg_resources.resource_string(__name__, "data/config.ini")
 config = configparser.ConfigParser()
 config.read_string(config_contents.decode())
 SHEET_ID = config['DEFAULT']['SHEET_ID']

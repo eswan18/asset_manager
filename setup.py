@@ -38,6 +38,7 @@ setup(
         'lint': lint_requires
     },
     include_package_data=True,
+    package_data={'': ['data/*']},
     license='MIT',
     long_description=open('README.md').read(),
 )
