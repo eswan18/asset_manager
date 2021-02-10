@@ -4,6 +4,7 @@ import pickle
 import configparser
 import datetime
 from typing import Any, Union, List, Mapping
+import pkg_resources
 
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy, SeriesGroupBy
