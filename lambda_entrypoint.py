@@ -1,4 +1,4 @@
-from .dashboard import make_charts
+from asset_manager.dashboard import make_charts
 
 def lambda_handler(event, context):
     return {
