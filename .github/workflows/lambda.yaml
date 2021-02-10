@@ -16,3 +16,4 @@ jobs:
         aws_region: ${{ secrets.AWS_REGION }}
         function_name: asset-manager-altair-dashboard
         source: asset_manager
+        handler: asset_manager.lambda_entrypoint.lambda_handler
