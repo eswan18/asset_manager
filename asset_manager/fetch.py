@@ -18,9 +18,9 @@ from .storage import write_string_to_object
 GroupedType = Union[DataFrameGroupBy, SeriesGroupBy]
 
 
-CONFIG_FILE = 'config.ini'
+config_contents = pkg_resources.resource_string(__name__, "config.ini")
 config = configparser.ConfigParser()
-config.read(CONFIG_FILE)
+config.read_string(config_contents.decode())
 SHEET_ID = config['DEFAULT']['SHEET_ID']
 SHEET_RANGE = config['DEFAULT']['SHEET_RANGE']
 

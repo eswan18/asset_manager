@@ -3,13 +3,14 @@ from io import BytesIO
 import base64
 import json
 from typing import Any, Union, List, Dict, Literal, cast, overload
+import pkg_resources
 
 import boto3
 
 
-CONFIG_FILE = 'config.ini'
+config_contents = pkg_resources.resource_string(__name__, "config.ini")
 config = ConfigParser()
-config.read(CONFIG_FILE)
+config.read_string(config_contents.decode())
 conf = config['DEFAULT']
 
 
