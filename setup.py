@@ -37,6 +37,7 @@ setup(
         'typecheck': typecheck_requires,
         'lint': lint_requires
     },
+    include_package_data=True,
     license='MIT',
     long_description=open('README.md').read(),
 )
