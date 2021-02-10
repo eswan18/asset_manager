@@ -10,7 +10,7 @@ jobs:
     - name: Zip dependencies
       if: github.ref == 'refs/heads/master'
       run:
-        pip install -r requirements.txt --target ./package
+        bash build_deps.sh
     - name: AWS Lambda Deploy
       if: github.ref == 'refs/heads/master'
       uses: appleboy/lambda-action@master
@@ -19,5 +19,4 @@ jobs:
         aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws_region: ${{ secrets.AWS_REGION }}
         function_name: asset-manager-altair-dashboard
-        source: asset_manager
-        handler: asset_manager.lambda_entrypoint.lambda_handler
+        handler: lambda_entrypoint.lambda_handler
