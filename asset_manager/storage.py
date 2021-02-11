@@ -15,8 +15,6 @@ conf = config['DEFAULT']
 
 
 def _s3() -> Any:
-    s3_secret = get_secret(conf['S3_SECRET_NAME'])
-    s3_secret = cast(Dict[str, str], s3_secret)
     s3 = boto3.resource(service_name='s3')
     return s3
 
