@@ -29,11 +29,7 @@ def test_s3_service_builder(key_id, access_key):
         # Relevant function call.
         s3 = storage._s3()
         # Assertions.
-        storage.boto3.resource.assert_called_with(
-            service_name='s3',
-            aws_access_key_id=key_id,
-            aws_secret_access_key=access_key
-        )
+        storage.boto3.resource.assert_called_with(service_name='s3')
         assert s3 == 'result'
 
 
