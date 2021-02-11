@@ -2,7 +2,7 @@ from configparser import ConfigParser
 from io import BytesIO
 import base64
 import json
-from typing import Any, Union, List, Dict, Literal, cast, overload
+from typing import Any, Union, List, Dict, Literal, overload
 import pkg_resources
 
 import boto3
