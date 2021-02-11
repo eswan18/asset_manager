@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from configparser import ConfigParser
 from io import BytesIO
 import base64
@@ -12,7 +14,7 @@ import boto3
 
 if TYPE_CHECKING:
     from mypy_boto3_s3.service_resource import S3ServiceResource, Bucket
-BucketLikeType = Union[str, Bucket]
+    BucketLikeType = Union[str, Bucket]
 
 
 config_contents = pkg_resources.resource_string(__name__, "data/config.ini")
@@ -21,7 +23,7 @@ config.read_string(config_contents.decode())
 conf = config['DEFAULT']
 
 
-def _s3() -> 'S3ServiceResource':
+def _s3() -> S3ServiceResource:
     s3 = boto3.resource(service_name='s3')
     return s3
 
