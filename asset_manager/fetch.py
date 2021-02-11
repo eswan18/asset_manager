@@ -1,22 +1,25 @@
+from __future__ import annotations
+
 import os
 import re
 import pickle
 import configparser
 import datetime
-from typing import Any, Union, List, Mapping
+from typing import Union, List, TYPE_CHECKING
 import pkg_resources
 
 import pandas as pd
 from pandas.core.groupby import DataFrameGroupBy, SeriesGroupBy
-from googleapiclient.discovery import build, Resource
+from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 from .storage import write_string_to_object
 
 
-# Custom Types
-GroupedType = Union[DataFrameGroupBy, SeriesGroupBy]
+if TYPE_CHECKING:
+    GroupedType = Union[DataFrameGroupBy, SeriesGroupBy]
+    from googleapiclient._apis.sheets.v4.resources import SheetsResource
 
 
 config_contents = pkg_resources.resource_string(__name__, "data/config.ini")
@@ -29,7 +32,7 @@ SHEET_RANGE = config['DEFAULT']['SHEET_RANGE']
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 
 
-def setup_service() -> Resource:
+def setup_service() -> SheetsResource:
     '''
     From https://developers.google.com/sheets/api/quickstart/python
     '''
@@ -58,12 +61,12 @@ def setup_service() -> Resource:
 
 # The Google API package has some janky dynamic typing, thus the annotations...
 service = setup_service()
-sheets: Resource = service.spreadsheets()  # type: ignore
-my_sheet: Mapping[str, Any] = sheets.values().get(  # type: ignore
+sheets = service.spreadsheets()
+my_sheet = sheets.values().get(
     spreadsheetId=SHEET_ID,
     range=SHEET_RANGE
 ).execute()
-raw_table: List[List[str]] = my_sheet['values']
+raw_table = my_sheet['values']
 
 # Some sad hard-coding...
 asset_cols = slice(0, 4)
