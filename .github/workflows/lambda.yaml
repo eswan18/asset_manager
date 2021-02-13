@@ -1,10 +1,6 @@
 name: Deploy to Lambda
 on:
-  workflow_run:
-    workflows: ["Continuous Integration"]
-    branches: [master]
-    types:
-      - completed
+  workflow_dispatch
 jobs:
   deploy:
     if: github.ref == 'refs/heads/master'

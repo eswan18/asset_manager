@@ -54,3 +54,12 @@ jobs:
       - name: Run pytest and Generate Coverage Report
         run:
           pytest --cov-report=xml
+  kickoff-deployment:
+    name: Kickoff Deployment
+    needs: [lint, type-check, test]
+    steps:
+      - run: |
+          curl \
+          -X POST -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/eswan18/asset_manager/actions/workflows/lambda/dispatches \
+          -d '{"ref":"ref"}'
