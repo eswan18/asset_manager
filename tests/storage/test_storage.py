@@ -11,21 +11,8 @@ from asset_manager import storage
 S3_NAME_REGEX = r'[a-z0-9]([a-z0-9]|[-.]){1,61}[a-z0-9]'
 
 
-@given(
-    key_id=st.text(max_size=50),
-    access_key=st.text(max_size=150)
-)
-@example(
-    key_id='abc',
-    access_key='def'
-)
-def test_s3_service_builder(key_id, access_key):
-    secret = {'S3_ACCESS_KEY_ID': key_id,
-              'S3_SECRET_ACCESS_KEY': access_key}
-    # This (oddly) is the nicest way to do multiple context managers before Python 3.9.
-    with ExitStack() as es:
-        es.enter_context(patch.object(storage, 'get_secret', return_value=secret))
-        es.enter_context(patch.object(storage.boto3, 'resource', return_value='result'))
+def test_s3_service_builder():
+    with patch.object(storage.boto3, 'resource', return_value='result'):
         # Relevant function call.
         s3 = storage._s3()
         # Assertions.
@@ -50,3 +37,4 @@ def test_write_string_to_object(obj_name: str, text: Union[str, bytes]):
         mock_s3_service.Bucket.assert_called_with(storage.conf['S3_BUCKET'])
         text_as_bytes = text.encode() if isinstance(text, str) else text
         mock_bucket.put_object.assert_called_with(Key=obj_name, Body=text_as_bytes)
+
