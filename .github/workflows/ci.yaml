@@ -59,6 +59,7 @@ jobs:
         with:
           files: ./coverage.xml
           fail_ci_if_error: true
+          name: Coverage
   deploy:
     if: github.ref == 'refs/heads/master'
     name: Deploy Lambda Function
