@@ -1,9 +1,7 @@
 from unittest.mock import MagicMock, patch
 from typing import Union
-from contextlib import ExitStack
 
-# from _pytest.monkeypatch import MonkeyPatch
-from hypothesis import given, example, strategies as st
+from hypothesis import given, strategies as st
 
 from asset_manager import storage
 
@@ -37,4 +35,3 @@ def test_write_string_to_object(obj_name: str, text: Union[str, bytes]):
         mock_s3_service.Bucket.assert_called_with(storage.conf['S3_BUCKET'])
         text_as_bytes = text.encode() if isinstance(text, str) else text
         mock_bucket.put_object.assert_called_with(Key=obj_name, Body=text_as_bytes)
-
