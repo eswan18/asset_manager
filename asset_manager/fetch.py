@@ -114,6 +114,8 @@ liability_df = table_from_cells(raw_table, liability_cols)
 # On the chance some blank rows slip in, get rid of them.
 def drop_blank_rows(df):
     bad_rows = df.isnull().sum(axis=1) == df.shape[1]
+    # Another heuristic: Description should never be blank.
+    bad_rows |= df['Description'].str.len() == 0
     return df.loc[~bad_rows]
 
 
