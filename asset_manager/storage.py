@@ -64,7 +64,7 @@ def read_string_from_object(
     bucket: Optional[BucketLikeType] = None
 ) -> str:
     '''
-    sdf
+    Get the contents of an object as a string.
 
     Parameters
     ----------
