@@ -1,3 +1,25 @@
 [tool.pytest.ini_options]
 minversion = "4.0"
 addopts = " --cov=asset_manager"
+
+[tool.poetry]
+name = "asset-manager"
+version = "0.1.0"
+description = ""
+authors = ["Ethan Swan <ethanpswan@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "asset_manager"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+boto3 = "^1.26.13"
+pandas = "^1.5.1"
+altair = "^4.2.0"
+google-api-python-client = "^2.66.0"
+google-auth-oauthlib = "^0.7.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
