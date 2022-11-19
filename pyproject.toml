@@ -3,7 +3,7 @@ minversion = "4.0"
 addopts = " --cov=asset_manager"
 
 [tool.poetry]
-name = "asset-manager"
+name = "asset_manager"
 version = "0.1.0"
 description = ""
 authors = ["Ethan Swan <ethanpswan@gmail.com>"]
@@ -25,6 +25,7 @@ pytest-cov = "^4.0.0"
 mypy = "^0.991"
 flake8 = "^5.0.4"
 ipython = "^8.6.0"
+hypothesis = "^6.57.1"
 
 [build-system]
 requires = ["poetry-core"]
