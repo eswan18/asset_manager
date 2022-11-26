@@ -54,27 +54,3 @@ jobs:
         with:
           files: ./coverage.xml
           fail_ci_if_error: true
-  deploy:
-    if: github.ref == 'refs/heads/master'
-    name: Deploy Lambda Function
-    needs: [lint, type-check, test]
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.10"
-    - name: Zip up Dependencies
-      run:
-        bash build_deps.sh
-    - name: AWS Lambda Deploy
-      uses: appleboy/lambda-action@master
-      with:
-        aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws_region: ${{ secrets.AWS_REGION }}
-        function_name: asset-manager-altair-dashboard
-        zip_file: deployment-package.zip
-        handler: lambda_entrypoint.lambda_handler
