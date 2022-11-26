@@ -5,7 +5,7 @@ import re
 import pickle
 import configparser
 import datetime
-from typing import Union, List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 import pkg_resources
 
 import pandas as pd
