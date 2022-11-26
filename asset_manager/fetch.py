@@ -120,8 +120,9 @@ liability_df = drop_blank_rows(liability_df)
 
 def convert_dollar_cols_to_float(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Find string cols in a DataFrame that represent dollar amounts and convert them to float types.
+    Find string cols in a DF that contain dollar amounts and convert them to float types
     """
+
     def dollars_to_float(dollar_str):
         pattern = r"\d+(,\d{3})*(.\d\d)?"
         matches = re.search(pattern, dollar_str)
