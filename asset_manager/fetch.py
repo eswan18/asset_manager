@@ -56,20 +56,6 @@ def setup_service() -> SheetsResource:
     return service
 
 
-# The Google API package has some janky dynamic typing, thus the annotations...
-service = setup_service()
-sheets = service.spreadsheets()
-print("Pulling spreadsheet...")
-my_sheet = sheets.values().get(spreadsheetId=SHEET_ID, range=SHEET_RANGE).execute()
-raw_table = my_sheet["values"]
-
-# Some sad hard-coding...
-asset_cols = slice(0, 4)
-liability_cols = slice(4, 7)
-# The first row is just the headings: "Assets" & "Liabilities"
-raw_table = raw_table[1:]
-
-
 def table_from_cells(raw_table: List[List[str]], col_idx: slice) -> pd.DataFrame:
     """
     Create a DataFrame from a table and a group of columns in it.
@@ -102,20 +88,11 @@ def table_from_cells(raw_table: List[List[str]], col_idx: slice) -> pd.DataFrame
     return pd.DataFrame(values, columns=col_headers)
 
 
-asset_df = table_from_cells(raw_table, asset_cols)
-liability_df = table_from_cells(raw_table, liability_cols)
-
-
-# On the chance some blank rows slip in, get rid of them.
-def drop_blank_rows(df):
+def drop_blank_rows(df: pd.DataFrame) -> pd.DataFrame:
     bad_rows = df.isnull().sum(axis=1) == df.shape[1]
     # Another heuristic: Description should never be blank.
     bad_rows |= df["Description"].str.len() == 0
     return df.loc[~bad_rows]
-
-
-asset_df = drop_blank_rows(asset_df)
-liability_df = drop_blank_rows(liability_df)
 
 
 def convert_dollar_cols_to_float(df: pd.DataFrame) -> pd.DataFrame:
@@ -141,22 +118,52 @@ def convert_dollar_cols_to_float(df: pd.DataFrame) -> pd.DataFrame:
     return df2
 
 
-asset_df = convert_dollar_cols_to_float(asset_df)
-liability_df = convert_dollar_cols_to_float(liability_df)
+def save_df(df: pd.DataFrame, name: str | None = None) -> None:
+    """
+    Save a DataFrame to S3.
 
-# Merge into a single DF so we can group and sum.
-asset_df["Type"] = "asset"
-liability_df["Type"] = "liability"
-liability_df["Accessible"] = "Y"
-full_df = pd.concat([asset_df, liability_df])
+    If `name` param is None, will use today's date to create a csv name like
+    `summaries_2022_01_01.csv`.
+    """
+    if name is None:
+        today = datetime.date.today().isoformat().replace("-", "_")
+        name = f"summaries_{today}.csv"
+    print("Writing DataFrame...")
+    print(df.reset_index(drop=True).to_string())
+    csv_text = df.to_csv(index=False)
+    if not csv_text:
+        msg = "CSV text is empty"
+        raise ValueError(msg)
+    write_string_to_object(object_name=name, text=csv_text)
 
-# Save to S3.
-todays_date = datetime.date.today().isoformat().replace("-", "_")
-object_name = f"summaries_{todays_date}.csv"
-print("Writing DataFrame...")
-print(full_df.reset_index(drop=True).to_string())
-csv_text = full_df.to_csv(index=False)
-if not csv_text:
-    msg = "CSV text is empty"
-    raise ValueError(msg)
-write_string_to_object(object_name=object_name, text=csv_text)
+
+if __name__ == '__main__':
+    service = setup_service()
+    sheets = service.spreadsheets()
+    print("Pulling spreadsheet...")
+    my_sheet = sheets.values().get(spreadsheetId=SHEET_ID, range=SHEET_RANGE).execute()
+    raw_table = my_sheet["values"]
+
+    # Some sad hard-coding...
+    asset_cols = slice(0, 4)
+    liability_cols = slice(4, 7)
+    # The first row is just the headings: "Assets" & "Liabilities"
+    raw_table = raw_table[1:]
+
+    asset_df = table_from_cells(raw_table, asset_cols)
+    liability_df = table_from_cells(raw_table, liability_cols)
+
+    # On the chance some blank rows slip in, get rid of them.
+    asset_df = drop_blank_rows(asset_df)
+    liability_df = drop_blank_rows(liability_df)
+
+    asset_df = convert_dollar_cols_to_float(asset_df)
+    liability_df = convert_dollar_cols_to_float(liability_df)
+
+    # Merge into a single DF so we can group and sum.
+    asset_df["Type"] = "asset"
+    liability_df["Type"] = "liability"
+    liability_df["Accessible"] = "Y"
+    full_df = pd.concat([asset_df, liability_df])
+
+    save_df(full_df)
