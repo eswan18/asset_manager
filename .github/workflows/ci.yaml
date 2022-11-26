@@ -4,82 +4,53 @@ on: push
 
 jobs:
   lint:
-    name: Lint
+    name: Lint & Typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
-          python-version: "3.8"
-      - name: Install Package
-        run:
-          pip install -e .[lint]
-      - name: Run flake8
-        run:
-          flake8 asset_manager tests
-  type-check:
-    name: Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
+          python-version: "3.10"
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2.1.6
         with:
-          python-version: "3.8"
-      - name: Install Package
+          poetry-version: 1.2.2
+      - name: Install Package and Dependencies
         run:
-          pip install -e .[typecheck]
-      - name: Run mypy
+          poetry install
+      - name: Lint
         run:
-          mypy asset_manager
+          poetry run flake8 asset_manager tests
+      - name: Typecheck
+        run:
+          poetry run mypy asset_manager
   test:
     name: Test All
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9"]
+        python-version: ["3.10", "3.11"]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: "${{ matrix.python-version }}"
-      - name: Install Package
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2.1.6
+        with:
+          poetry-version: 1.2.2
+      - name: Install Package and Dependencies
         run:
-          pip install -e .[tests]
+          poetry install
       - name: Run pytest and Generate Coverage Report
         run:
-          pytest --cov-report=xml
+          poetry run pytest --cov-report=xml
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v1
         with:
           files: ./coverage.xml
           fail_ci_if_error: true
-  deploy:
-    if: github.ref == 'refs/heads/master'
-    name: Deploy Lambda Function
-    needs: [lint, type-check, test]
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: "3.8"
-    - name: Zip up Dependencies
-      run:
-        bash build_deps.sh
-    - name: AWS Lambda Deploy
-      uses: appleboy/lambda-action@master
-      with:
-        aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws_region: ${{ secrets.AWS_REGION }}
-        function_name: asset-manager-altair-dashboard
-        zip_file: deployment-package.zip
-        handler: lambda_entrypoint.lambda_handler
