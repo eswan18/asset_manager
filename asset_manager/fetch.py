@@ -9,7 +9,6 @@ from typing import Union, List, TYPE_CHECKING
 import pkg_resources
 
 import pandas as pd
-from pandas.core.groupby import DataFrameGroupBy, SeriesGroupBy
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -18,7 +17,6 @@ from .storage import write_string_to_object
 
 
 if TYPE_CHECKING:
-    GroupedType = Union[DataFrameGroupBy, SeriesGroupBy]
     from googleapiclient._apis.sheets.v4.resources import SheetsResource
 
 
@@ -144,20 +142,8 @@ asset_df["Type"] = "asset"
 liability_df["Type"] = "liability"
 liability_df["Accessible"] = "Y"
 full_df = pd.concat([asset_df, liability_df])
-# Sum accessible assets and liabilities.
-grouped: GroupedType = full_df[full_df["Accessible"] == "Y"].groupby("Type")
-accessible = grouped[["Amount", "Precision (+/-)"]].sum()
-accessible_amt = (
-    accessible.loc["asset", "Amount"] - accessible.loc["liability", "Amount"]
-)
-accessible_precision = accessible["Precision (+/-)"].sum()
 
-# Sum *all* assets and liabilities.
-grouped = full_df.groupby("Type")
-equity = grouped[["Amount", "Precision (+/-)"]].sum()
-equity_amt = equity.loc["asset", "Amount"] - equity.loc["liability", "Amount"]
-equity_precision = equity["Precision (+/-)"].sum()
-
+# Save to S3.
 todays_date = datetime.date.today().isoformat().replace("-", "_")
 object_name = f"summaries_{todays_date}.csv"
 print("Writing DataFrame...")
