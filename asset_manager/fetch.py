@@ -150,17 +150,15 @@ if __name__ == '__main__':
     # The first row is just the headings: "Assets" & "Liabilities"
     raw_table = raw_table[1:]
 
+    # Extract the right cells and clean up dollar columns.
     asset_df = table_from_cells(raw_table, asset_cols)
-    liability_df = table_from_cells(raw_table, liability_cols)
-
-    # On the chance some blank rows slip in, get rid of them.
     asset_df = drop_blank_rows(asset_df)
-    liability_df = drop_blank_rows(liability_df)
-
     asset_df = convert_dollar_cols_to_float(asset_df)
+    liability_df = table_from_cells(raw_table, liability_cols)
+    liability_df = drop_blank_rows(liability_df)
     liability_df = convert_dollar_cols_to_float(liability_df)
 
-    # Merge into a single DF so we can group and sum.
+    # Union into a single DataFrame.
     asset_df["Type"] = "asset"
     liability_df["Type"] = "liability"
     liability_df["Accessible"] = "Y"
