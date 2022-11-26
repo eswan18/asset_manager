@@ -78,7 +78,10 @@ def read_string_from_object(
     """
     bucket = _bucket_from_argument(bucket)
     b = BytesIO()
-    bucket.download_fileobj(Key=object_name, Fileobj=b)
+    try:
+        bucket.download_fileobj(Key=object_name, Fileobj=b)
+    except NoCredentialsError as exc:
+        raise Exception("No s3 credentials, you may need to sign in") from exc
     # Must return to the beginning of the file before reading.
     b.seek(0)
     result_bytes = b.read()
@@ -96,7 +99,10 @@ def list_objects_in_bucket(bucket: Any = None) -> List[str]:
         An S3 bucket object. Defaults to the bucket in the configuration file.
     """
     bucket = _bucket_from_argument(bucket)
-    objects = [o.key for o in bucket.objects.all()]
+    try:
+        objects = [o.key for o in bucket.objects.all()]
+    except NoCredentialsError as exc:
+        raise Exception("No s3 credentials, you may need to sign in") from exc
     return objects
 
 
