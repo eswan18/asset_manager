@@ -20,8 +20,7 @@ from .s3 import list_objects_in_bucket, read_string_from_object
 DAILY_SUMMARY_NAME_REGEX = re.compile(r"summaries_(\d{4}_\d{2}_\d{2}).csv")
 YEARLY_SUMMARY_NAME_REGEX = re.compile(r"summaries_(\d{4}).csv")
 
-
-logger = logging.Logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _read_df(object_name: str) -> pd.DataFrame:
