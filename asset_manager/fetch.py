@@ -71,6 +71,9 @@ raw_table = raw_table[1:]
 
 
 def table_from_cells(raw_table: List[List[str]], col_idx: slice) -> pd.DataFrame:
+    """
+    Create a DataFrame from a table and a group of columns in it.
+    """
     # See where the first blank row occurs in the given columns.
     first_blank = len(raw_table)
     for i, row in enumerate(raw_table):
@@ -115,7 +118,10 @@ asset_df = drop_blank_rows(asset_df)
 liability_df = drop_blank_rows(liability_df)
 
 
-def convert_dollar_cols_to_float(df):
+def convert_dollar_cols_to_float(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Find string cols in a DataFrame that represent dollar amounts and convert them to float types.
+    """
     def dollars_to_float(dollar_str):
         pattern = r"\d+(,\d{3})*(.\d\d)?"
         matches = re.search(pattern, dollar_str)
