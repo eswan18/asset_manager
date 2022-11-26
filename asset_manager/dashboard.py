@@ -6,6 +6,8 @@ from .datastore import get_all_data
 
 def make_charts() -> alt.Chart:
     data = get_all_data()
+    if data is None:
+        raise ValueError("No data to display")
     asset_data = data[data.Type == "asset"]
     liability_data = data[data.Type == "liability"]
     # Prepare a dataset of net assets by day.
