@@ -32,10 +32,20 @@ def _read_df(object_name: str) -> pd.DataFrame:
     return df
 
 
-def get_all_data() -> pd.DataFrame:
+def get_all_data() -> pd.DataFrame | None:
+    """
+    Get all stored records as a single DataFrame.
+    """
+    dfs = []
     daily_data = get_daily_data()
+    if daily_data is not None:
+        dfs.append(daily_data)
     yearly_data = get_yearly_data()
-    all_data = pd.concat([daily_data, yearly_data])
+    if yearly_data is not None:
+        dfs.append(yearly_data)
+    if len(dfs) == 0:
+        return None
+    all_data = pd.concat(dfs)
     return all_data
 
 
@@ -48,7 +58,7 @@ def _daily_object_names() -> Iterator[str]:
     return daily_object_names
 
 
-def get_daily_data() -> pd.DataFrame:
+def get_daily_data() -> pd.DataFrame | None:
     """
     Get all day-level data merged into a single DataFrame.
     """
@@ -63,6 +73,8 @@ def get_daily_data() -> pd.DataFrame:
         df["Date"] = date.replace("_", "-")
         dfs.append(df)
     # Merge them all into one, since the new Date column will make them distinct.
+    if len(dfs) == 0:
+        return None
     full_df = pd.concat(dfs)
     # Some of the data may have had an dummy column from its original index values.
     bad_col = "Unnamed: 0"
@@ -81,15 +93,17 @@ def _yearly_object_names() -> Iterator[str]:
     return yearly_object_names
 
 
-def get_yearly_data() -> pd.DataFrame:
+def get_yearly_data() -> pd.DataFrame | None:
     """
     Get all year-level data merged into a single DataFrame.
     """
     # Get all objects and limit down to the names that look like daily data.
     # Pull out a DataFrame in each object.
-    dfs = (_read_df(name) for name in _yearly_object_names())
+    dfs = [_read_df(name) for name in _yearly_object_names()]
     # No need to add a date column like we do for daily data; yearly data already has
     # one. We can just merge them together as they are.
+    if len(dfs) == 0:
+        return None
     full_df = pd.concat(dfs)
     # Convert the date column into a Pandas date.
     full_df["Date"] = pd.to_datetime(full_df["Date"])
