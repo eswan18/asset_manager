@@ -66,25 +66,12 @@ def get_daily_data() -> pd.DataFrame | None:
     """
     Get all day-level data merged into a single DataFrame.
     """
-    dfs = []
-    for name in _daily_object_names():
-        df = _read_df(name)
-        # Daily data doesn't have a Date column; we have to infer it from the name.
-        match = DAILY_SUMMARY_NAME_REGEX.match(name)
-        if match is None:
-            raise ValueError(f"name {name} does not resemble a daily file.")
-        date = match.groups()[0]
-        df["Date"] = date.replace("_", "-")
-        dfs.append(df)
+    dfs = [_read_df(name) for name in _daily_object_names()]
     # Merge them all into one, since the new Date column will make them distinct.
     if len(dfs) == 0:
         logger.info("No daily data found")
         return None
     full_df = pd.concat(dfs)
-    # Some of the data may have had an dummy column from its original index values.
-    bad_col = "Unnamed: 0"
-    if bad_col in full_df.columns:
-        full_df = full_df.drop(bad_col, axis=1)
     # Convert the date column into a Pandas date.
     full_df["Date"] = pd.to_datetime(full_df["Date"])
     return full_df
@@ -102,13 +89,10 @@ def get_yearly_data() -> pd.DataFrame | None:
     """
     Get all year-level data merged into a single DataFrame.
     """
-    # Get all objects and limit down to the names that look like daily data.
     # Pull out a DataFrame in each object.
     dfs = [_read_df(name) for name in _yearly_object_names()]
-    # No need to add a date column like we do for daily data; yearly data already has
-    # one. We can just merge them together as they are.
     if len(dfs) == 0:
-        logger.info("No daily data found")
+        logger.info("No yearly data found")
         return None
     full_df = pd.concat(dfs)
     # Convert the date column into a Pandas date.
