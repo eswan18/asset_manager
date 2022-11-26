@@ -1,41 +1,48 @@
 import re
 from io import StringIO
-from typing import Optional
 
 import pandas as pd
 import altair as alt
 
-from .storage import read_string_from_object, list_objects_in_bucket
+from .s3 import read_string_from_object, list_objects_in_bucket
 
 
-OBJECT_NAME_REGEX = r"summaries_(\d\d\d\d_\d\d_\d\d)\.csv"
+DAILY_SUMMARY_NAME_REGEX = re.compile(r"summaries_(\d{4}_\d{2}_\d{2}).csv")
 
 
-def prep_df_from_name(name: str) -> Optional[pd.DataFrame]:
+def add_date_column_from_name(df: pd.DataFrame, name: str) -> pd.DataFrame:
+    match = DAILY_SUMMARY_NAME_REGEX.match(name)
+    if match is None:
+        raise ValueError(f"name {name} does not resemble a daily file.")
+    date = match.groups()[0]
+    df2 = df.copy()
+    df2["Date"] = date.replace("_", "-")
+    return df2
+
+
+def extract_df_from_object(name: str) -> pd.DataFrame | None:
     """
     Given an object name, extract the DataFrame stored in it.
 
     If the object name doesn't match our expected convention, None will be
     returned.
     """
-    match = re.match(OBJECT_NAME_REGEX, name)
-    if match is None:
-        return None
-    date = match.groups()[0]
     string_io = StringIO()
     string_io.write(read_string_from_object(name))
     string_io.seek(0)
-    df: pd.DataFrame = pd.read_csv(string_io)
+    df = pd.read_csv(string_io)
     string_io.close()
-    # Add a column holding the date
-    df["Date"] = date.replace("_", "-")
     return df
 
 
-def get_summary_data() -> pd.DataFrame:
-    summary_names = list_objects_in_bucket()
-    results = (prep_df_from_name(name) for name in summary_names)
-    dfs = (result for result in results if result is not None)
+def get_daily_data() -> pd.DataFrame:
+    # Get all objects and limit down to the names that look like daily data.
+    object_names = list_objects_in_bucket()
+    daily_object_names = (name for name in object_names if DAILY_SUMMARY_NAME_REGEX.match(name)) 
+    # Pull out a DataFrame in each object and add a date column.
+    dfs = (extract_df_from_object(name) for name in daily_object_names)
+    dfs = (add_date_column_from_name(df, name) for df, name in zip(dfs, daily_object_names))
+    # Merge them all into one, since the new Date column will make them distinct.
     full_df = pd.concat(dfs)
     # Some of the data may have had an dummy column from its original index values.
     bad_col = "Unnamed: 0"
@@ -47,7 +54,7 @@ def get_summary_data() -> pd.DataFrame:
 
 
 def make_charts() -> alt.Chart:
-    data = get_summary_data()
+    data = get_daily_data()
     asset_data = data[data.Type == "asset"]
     liability_data = data[data.Type == "liability"]
     # Prepare a dataset of net assets by day.

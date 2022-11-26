@@ -12,7 +12,7 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
-from .storage import write_string_to_object
+from .s3 import write_string_to_object
 from .clean import drop_blank_rows, convert_dollar_cols_to_float
 
 
