@@ -4,6 +4,7 @@ A wrapper over writing and reading data.
 The current underlying datastore is s3 but that could change, and the interface for this
 module should be unaffected.
 """
+import logging
 import re
 from io import StringIO
 from typing import Iterator
@@ -18,6 +19,9 @@ from .s3 import list_objects_in_bucket, read_string_from_object
 # the object name.
 DAILY_SUMMARY_NAME_REGEX = re.compile(r"summaries_(\d{4}_\d{2}_\d{2}).csv")
 YEARLY_SUMMARY_NAME_REGEX = re.compile(r"summaries_(\d{4}).csv")
+
+
+logger = logging.Logger(__name__)
 
 
 def _read_df(object_name: str) -> pd.DataFrame:
@@ -44,6 +48,7 @@ def get_all_data() -> pd.DataFrame | None:
     if yearly_data is not None:
         dfs.append(yearly_data)
     if len(dfs) == 0:
+        logger.warning("No data (yearly or daily) found")
         return None
     all_data = pd.concat(dfs)
     return all_data
@@ -74,6 +79,7 @@ def get_daily_data() -> pd.DataFrame | None:
         dfs.append(df)
     # Merge them all into one, since the new Date column will make them distinct.
     if len(dfs) == 0:
+        logger.info("No daily data found")
         return None
     full_df = pd.concat(dfs)
     # Some of the data may have had an dummy column from its original index values.
@@ -103,6 +109,7 @@ def get_yearly_data() -> pd.DataFrame | None:
     # No need to add a date column like we do for daily data; yearly data already has
     # one. We can just merge them together as they are.
     if len(dfs) == 0:
+        logger.info("No daily data found")
         return None
     full_df = pd.concat(dfs)
     # Convert the date column into a Pandas date.
