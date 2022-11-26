@@ -55,8 +55,8 @@ def write_string_to_object(
     try:
         bucket.put_object(Key=object_name, Body=text)
     except NoCredentialsError as exc:
-        raise Exception('No s3 credentials, you may need to sign in') from exc
-        
+        raise Exception("No s3 credentials, you may need to sign in") from exc
+
 
 def read_string_from_object(
     object_name: str, bucket: Optional[BucketLikeType] = None

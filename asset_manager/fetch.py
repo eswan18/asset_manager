@@ -61,7 +61,7 @@ def setup_service() -> SheetsResource:
 # The Google API package has some janky dynamic typing, thus the annotations...
 service = setup_service()
 sheets = service.spreadsheets()
-print('Pulling spreadsheet...')
+print("Pulling spreadsheet...")
 my_sheet = sheets.values().get(spreadsheetId=SHEET_ID, range=SHEET_RANGE).execute()
 raw_table = my_sheet["values"]
 
@@ -160,7 +160,7 @@ equity_precision = equity["Precision (+/-)"].sum()
 
 todays_date = datetime.date.today().isoformat().replace("-", "_")
 object_name = f"summaries_{todays_date}.csv"
-print('Writing DataFrame...')
+print("Writing DataFrame...")
 print(full_df.reset_index(drop=True).to_string())
 csv_text = full_df.to_csv(index=False)
 if not csv_text:
