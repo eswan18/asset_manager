@@ -137,7 +137,7 @@ def save_df(df: pd.DataFrame, name: str | None = None) -> None:
     write_string_to_object(object_name=name, text=csv_text)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     service = setup_service()
     sheets = service.spreadsheets()
     print("Pulling spreadsheet...")
