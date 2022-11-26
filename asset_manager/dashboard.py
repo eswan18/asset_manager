@@ -1,53 +1,13 @@
-import re
-from io import StringIO
-from typing import Optional
-
 import pandas as pd
 import altair as alt
 
-from .storage import read_string_from_object, list_objects_in_bucket
-
-
-OBJECT_NAME_REGEX = r"summaries_(\d\d\d\d_\d\d_\d\d)\.csv"
-
-
-def prep_df_from_name(name: str) -> Optional[pd.DataFrame]:
-    """
-    Given an object name, extract the DataFrame stored in it.
-
-    If the object name doesn't match our expected convention, None will be
-    returned.
-    """
-    match = re.match(OBJECT_NAME_REGEX, name)
-    if match is None:
-        return None
-    date = match.groups()[0]
-    string_io = StringIO()
-    string_io.write(read_string_from_object(name))
-    string_io.seek(0)
-    df: pd.DataFrame = pd.read_csv(string_io)
-    string_io.close()
-    # Add a column holding the date
-    df["Date"] = date.replace("_", "-")
-    return df
-
-
-def get_summary_data() -> pd.DataFrame:
-    summary_names = list_objects_in_bucket()
-    results = (prep_df_from_name(name) for name in summary_names)
-    dfs = (result for result in results if result is not None)
-    full_df = pd.concat(dfs)
-    # Some of the data may have had an dummy column from its original index values.
-    bad_col = "Unnamed: 0"
-    if bad_col in full_df.columns:
-        full_df = full_df.drop(bad_col, axis=1)
-    # Convert the date column into a Pandas date.
-    full_df["Date"] = pd.to_datetime(full_df["Date"])
-    return full_df
+from .datastore import get_all_data
 
 
 def make_charts() -> alt.Chart:
-    data = get_summary_data()
+    data = get_all_data()
+    if data is None:
+        raise ValueError("No data to display")
     asset_data = data[data.Type == "asset"]
     liability_data = data[data.Type == "liability"]
     # Prepare a dataset of net assets by day.

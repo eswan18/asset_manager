@@ -1,3 +1,3 @@
-from . import storage
+from . import s3
 
-__all__ = ["storage"]
+__all__ = ["s3"]

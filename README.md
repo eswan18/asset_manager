@@ -20,3 +20,8 @@ poetry run python -m asset_manager.fetch
 
 View finances over time in a notebook:
 - Open `Charts.ipynb` and run it
+
+Consolidate a year's worth of daily file into a single file:
+```
+poetry run python scripts/consolidate_by_year.py <year>
+```
