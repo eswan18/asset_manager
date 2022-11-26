@@ -1,9 +1,13 @@
+import os
+
+import pytest
 import pandas as pd
 from pandas.testing import assert_series_equal
 
 from asset_manager.fetch import setup_service, convert_dollar_cols_to_float
 
 
+@pytest.mark.skipif(os.getenv("CI") is not None, reason="no Google credentials")
 def test_setup_service_runs_without_error():
     _ = setup_service()
 
