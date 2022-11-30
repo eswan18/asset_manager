@@ -133,5 +133,8 @@ if __name__ == "__main__":
     liability_df["Type"] = "liability"
     liability_df["Accessible"] = "Y"
     full_df = pd.concat([asset_df, liability_df])
+    # Add a date column.
+    date = pd.to_datetime(datetime.date.today().isoformat())
+    full_df["Date"] = date
 
     save_df(full_df)
