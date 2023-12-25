@@ -27,7 +27,6 @@ to_consolidate: list[pd.DataFrame] = []
 existing_object = None
 for yearly_object_name in _yearly_object_names():
     match = YEARLY_SUMMARY_NAME_REGEX.match(yearly_object_name)
-    print(found_year)
     found_year = match.groups()[0]
     if found_year == year:
         existing_object = yearly_object_name
