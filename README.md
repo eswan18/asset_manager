@@ -15,7 +15,8 @@ poetry install
 
 Pull finances from Google Sheets and store a record for that day in S3:
 ```
-poetry run python -m asset_manager.fetch
+# Update the path to the google service account credentials file.
+GOOGLE_APPLICATION_CREDENTIALS="asset-manager-369122-7861d911d7b5.json" poetry run python -m asset_manager.fetch
 ```
 
 View finances over time in a notebook:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import pickle
 import configparser
 import datetime
 from typing import List, TYPE_CHECKING
@@ -9,8 +8,7 @@ import pkg_resources
 
 import pandas as pd
 from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
+from google.oauth2.service_account import Credentials
 
 from .s3 import write_string_to_object
 from .clean import drop_blank_rows, convert_dollar_cols_to_float
@@ -20,38 +18,24 @@ if TYPE_CHECKING:
     from googleapiclient._apis.sheets.v4.resources import SheetsResource
 
 
+SERVICE_ACCOUNT_FILE = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+
 config_contents = pkg_resources.resource_string(__name__, "data/config.ini")
 config = configparser.ConfigParser()
 config.read_string(config_contents.decode())
 SHEET_ID = config["DEFAULT"]["SHEET_ID"]
 SHEET_RANGE = config["DEFAULT"]["SHEET_RANGE"]
 
-# If modifying these scopes, delete the file token.pickle.
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
-
-def setup_service() -> SheetsResource:
+def get_service() -> SheetsResource:
     """
     From https://developers.google.com/sheets/api/quickstart/python
     """
-    creds = None
-    # The file token.pickle stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists("token.pickle"):
-        with open("token.pickle", "rb") as token:
-            creds = pickle.load(token)
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
-        with open("token.pickle", "wb") as token:
-            pickle.dump(creds, token)
-
+    creds = Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE,
+        scopes=SCOPES,
+    )
     service = build("sheets", "v4", credentials=creds)
     return service
 
@@ -108,7 +92,7 @@ def save_df(df: pd.DataFrame, name: str | None = None) -> None:
 
 
 if __name__ == "__main__":
-    service = setup_service()
+    service = get_service()
     sheets = service.spreadsheets()
     print("Pulling spreadsheet...")
     my_sheet = sheets.values().get(spreadsheetId=SHEET_ID, range=SHEET_RANGE).execute()
