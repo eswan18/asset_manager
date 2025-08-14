@@ -22,7 +22,7 @@ jobs:
           uv sync --extra dev
       - name: Lint
         run:
-          uv run flake8 asset_manager tests
+          uv run ruff check
       - name: Typecheck
         run:
           uv run mypy asset_manager

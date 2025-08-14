@@ -23,7 +23,6 @@ dev = [
     "pytest>=7.2.0",
     "pytest-cov>=4.0.0",
     "mypy>=0.991",
-    "flake8>=5.0.4",
     "ipython>=8.6.0",
     "hypothesis>=6.57.1",
     "google-api-python-client-stubs>=1.13.0",
@@ -37,3 +36,8 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.9",
+]

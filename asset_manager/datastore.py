@@ -4,6 +4,7 @@ A wrapper over writing and reading data.
 The current underlying datastore is s3 but that could change, and the interface for this
 module should be unaffected.
 """
+
 import logging
 import re
 from io import StringIO
