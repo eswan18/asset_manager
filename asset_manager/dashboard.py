@@ -1,3 +1,4 @@
+from typing import cast
 import pandas as pd
 import altair as alt
 
@@ -82,4 +83,8 @@ def make_charts() -> alt.Chart:
         )
         .properties(title="Net Worth")
     )
-    return (asset_chart | liability_chart) & (totals_chart | net_chart)
+    top_row = (asset_chart | liability_chart)
+    bottom_row = (totals_chart | net_chart)
+    result = top_row & bottom_row
+    # Not sure why this is needed, but mypy thinks result is Any otherwise.
+    return cast(alt.Chart, result)

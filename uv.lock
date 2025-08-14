@@ -132,7 +132,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "altair", specifier = ">=4.2.0" },
+    { name = "altair", specifier = ">=5.4.0" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=22.10.0" },
     { name = "boto3", specifier = ">=1.26.13" },
     { name = "boto3-stubs", extras = ["essential"], marker = "extra == 'dev'", specifier = ">=1.26.13" },
