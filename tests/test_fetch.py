@@ -6,12 +6,12 @@ import pytest
 import pandas as pd
 
 from asset_manager import fetch
-from asset_manager.fetch import setup_service, save_df
+from asset_manager.fetch import get_service, save_df
 
 
 @pytest.mark.skipif(os.getenv("CI") is not None, reason="no Google credentials")
-def test_setup_service_runs_without_error():
-    _ = setup_service()
+def test_get_service_runs_without_error():
+    _ = get_service()
 
 
 def test_save_df():

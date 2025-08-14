@@ -11,15 +11,14 @@ def make_charts() -> alt.Chart:
     asset_data = data[data.Type == "asset"]
     liability_data = data[data.Type == "liability"]
     # Prepare a dataset of net assets by day.
-    assets_by_day = asset_data.groupby("Date", as_index=False)[["Date", "Amount"]].sum()
+    assets_by_day = asset_data.groupby("Date", as_index=False)["Amount"].sum().reset_index()
     inaccessible_by_day = (
         asset_data[asset_data["Accessible"] == "N"]
-        .groupby("Date", as_index=False)[["Date", "Amount"]]
+        .groupby("Date", as_index=False)["Amount"]
         .sum()
+        .reset_index()
     )
-    liabilities_by_day = liability_data.groupby("Date", as_index=False)[
-        ["Date", "Amount"]
-    ].sum()
+    liabilities_by_day = liability_data.groupby("Date", as_index=False)["Amount"].sum().reset_index()
     net_data = pd.merge(
         assets_by_day, liabilities_by_day, suffixes=("_asset", "_liability"), on="Date"
     )

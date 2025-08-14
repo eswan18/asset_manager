@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from googleapiclient._apis.sheets.v4.resources import SheetsResource
 
 
-SERVICE_ACCOUNT_FILE = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
 config_contents = pkg_resources.resource_string(__name__, "data/config.ini")
@@ -32,8 +31,9 @@ def get_service() -> SheetsResource:
     """
     From https://developers.google.com/sheets/api/quickstart/python
     """
+    service_account_file = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
     creds = Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE,
+        service_account_file,
         scopes=SCOPES,
     )
     service = build("sheets", "v4", credentials=creds)

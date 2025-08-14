@@ -6,9 +6,9 @@
 
 ## Setup
 
-Using Poetry is simplest. Install Poetry, then:
+Using uv is simplest. Install uv, then:
 ```bash
-poetry install
+uv sync --extra dev
 ```
 
 ## Things you can do
@@ -16,7 +16,7 @@ poetry install
 Pull finances from Google Sheets and store a record for that day in S3:
 ```
 # Update the path to the google service account credentials file.
-GOOGLE_APPLICATION_CREDENTIALS="credentials/asset-manager-369122-7861d911d7b5.json" poetry run python -m asset_manager.fetch
+GOOGLE_APPLICATION_CREDENTIALS="credentials/asset-manager-369122-7861d911d7b5.json" uv run python -m asset_manager.fetch
 ```
 
 View finances over time in a notebook:
@@ -24,5 +24,5 @@ View finances over time in a notebook:
 
 Consolidate a year's worth of daily file into a single file:
 ```
-poetry run python scripts/consolidate_by_year.py <year>
+uv run python scripts/consolidate_by_year.py <year>
 ```
