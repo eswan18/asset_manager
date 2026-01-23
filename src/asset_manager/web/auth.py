@@ -101,13 +101,15 @@ def create_session_response(
 
 def clear_session_response(redirect_url: str) -> RedirectResponse:
     """Create a redirect response that clears the session cookie."""
-    secure = _is_secure()
     response = RedirectResponse(url=redirect_url, status_code=302)
-    response.delete_cookie(
+    # Set cookie with empty value and immediate expiration
+    response.set_cookie(
         key=SESSION_COOKIE_NAME,
+        value="",
+        max_age=0,
         path="/",
-        secure=secure,
         httponly=True,
+        secure=_is_secure(),
         samesite="lax",
     )
     return response
