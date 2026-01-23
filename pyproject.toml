@@ -34,15 +34,6 @@ dependencies = [
 [project.scripts]
 asset-manager = "asset_manager.cli:main"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.2.0",
-    "pytest-cov>=4.0.0",
-    "ipython>=8.6.0",
-    "hypothesis>=6.57.1",
-    "testcontainers[postgres]>=4.0.0",
-]
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -52,6 +43,11 @@ packages = ["src/asset_manager"]
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.57.1",
+    "ipython>=8.6.0",
+    "pytest>=7.2.0",
+    "pytest-cov>=4.0.0",
     "ruff>=0.12.9",
+    "testcontainers[postgres]>=4.0.0",
     "ty>=0.0.13",
 ]

@@ -11,7 +11,7 @@ Asset Manager is a Python application for tracking personal financial assets and
 This project uses uv for dependency management. To set up the development environment:
 
 ```bash
-uv sync --extra dev
+uv sync
 ```
 
 ### Prerequisites
