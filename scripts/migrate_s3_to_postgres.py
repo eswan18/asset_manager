@@ -8,9 +8,8 @@ Usage:
 This script:
 1. Lists all CSV files in the S3 bucket
 2. Reads each file and parses the records
-3. Converts Y/N accessible flags to boolean
-4. Inserts records into PostgreSQL (with upsert handling)
-5. Reports migration statistics
+3. Inserts records into PostgreSQL (with upsert handling)
+4. Reports migration statistics
 
 IMPORTANT: This script only READS from S3. It does not modify S3 data.
 """
@@ -33,15 +32,6 @@ from asset_manager.s3 import list_objects_in_bucket, read_string_from_object
 
 DAILY_SUMMARY_NAME_REGEX = re.compile(r"summaries_(\d{4}_\d{2}_\d{2}).csv")
 YEARLY_SUMMARY_NAME_REGEX = re.compile(r"summaries_(\d{4}).csv")
-
-
-def parse_accessible(value: str | float) -> bool:
-    """Convert Y/N or NaN to boolean."""
-    if pd.isna(value):
-        return True  # Default to accessible if not specified
-    if isinstance(value, str):
-        return value.strip().upper() == "Y"
-    return True
 
 
 def parse_amount(value: float | str) -> Decimal:
@@ -93,7 +83,6 @@ def records_from_dataframe(df: pd.DataFrame, record_date: date | None = None) ->
                 type=parse_record_type(row["Type"]),
                 description=str(row["Description"]).strip(),
                 amount=parse_amount(row["Amount"]),
-                accessible=parse_accessible(row.get("Accessible", "Y")),
             )
             records.append(record)
         except Exception as e:

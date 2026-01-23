@@ -16,7 +16,6 @@ def records_to_dataframe(records: list[Record]) -> pd.DataFrame:
             "Type": r.type.value,
             "Description": r.description,
             "Amount": float(r.amount),
-            "Accessible": r.accessible,
         }
         for r in records
     ])
@@ -45,40 +44,14 @@ def make_charts() -> alt.Chart:
     assets_by_day = (
         asset_data.groupby("Date", as_index=False)["Amount"].sum().reset_index()
     )
-    inaccessible_by_day = (
-        asset_data[~asset_data["Accessible"]]
-        .groupby("Date", as_index=False)["Amount"]
-        .sum()
-        .reset_index()
-    )
     liabilities_by_day = (
         liability_data.groupby("Date", as_index=False)["Amount"].sum().reset_index()
     )
 
-    net_data = pd.merge(
+    net_worth_data = pd.merge(
         assets_by_day, liabilities_by_day, suffixes=("_asset", "_liability"), on="Date"
     )
-    net_data["Amount"] = net_data.Amount_asset - net_data.Amount_liability
-    net_data["Type"] = "All"
-
-    # Accessible funds
-    if not inaccessible_by_day.empty:
-        net_access_data = pd.merge(
-            net_data,
-            inaccessible_by_day,
-            suffixes=("_net", "_inaccessible"),
-            on="Date",
-        )
-        net_access_data["Amount"] = (
-            net_access_data.Amount_net - net_access_data.Amount_inaccessible
-        )
-        net_access_data["Type"] = "Accessible"
-        net_worth_data = pd.concat([net_data, net_access_data])
-    else:
-        # No inaccessible assets, so accessible net worth equals total net worth
-        net_access_data = net_data.copy()
-        net_access_data["Type"] = "Accessible"
-        net_worth_data = pd.concat([net_data, net_access_data])
+    net_worth_data["Amount"] = net_worth_data.Amount_asset - net_worth_data.Amount_liability
 
     # Make charts.
     asset_chart = (
@@ -118,7 +91,6 @@ def make_charts() -> alt.Chart:
         .encode(
             x="Date:T",
             y="Amount",
-            color="Type:N",
         )
         .properties(title="Net Worth")
     )

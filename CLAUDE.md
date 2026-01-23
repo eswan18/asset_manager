@@ -114,7 +114,6 @@ CREATE TABLE snapshots (
     type VARCHAR(10) NOT NULL CHECK (type IN ('asset', 'liability')),
     description TEXT NOT NULL,
     amount DECIMAL(15, 2) NOT NULL,
-    accessible BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

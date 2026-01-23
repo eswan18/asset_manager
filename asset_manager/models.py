@@ -16,7 +16,6 @@ class Record(BaseModel):
     type: RecordType
     description: str
     amount: Decimal
-    accessible: bool = True
     created_at: datetime | None = None
 
 

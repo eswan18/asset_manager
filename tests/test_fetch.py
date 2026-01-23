@@ -47,13 +47,11 @@ def test_parse_records_from_table_assets():
     assert len(records) == 2
     assert records[0].description == "Savings"
     assert records[0].amount == Decimal("1000.00")
-    assert records[0].accessible is True
     assert records[0].type == RecordType.ASSET
     assert records[0].date == record_date
 
     assert records[1].description == "401k"
     assert records[1].amount == Decimal("5000.00")
-    assert records[1].accessible is False
 
 
 def test_parse_records_from_table_liabilities():
@@ -68,9 +66,8 @@ def test_parse_records_from_table_liabilities():
     records = parse_records_from_table(raw_table, col_idx, RecordType.LIABILITY, record_date)
 
     assert len(records) == 2
-    # Liabilities always have accessible=True
-    assert records[0].accessible is True
-    assert records[1].accessible is True
+    assert records[0].description == "Credit Card"
+    assert records[1].description == "Mortgage"
 
 
 def test_parse_records_from_table_skips_blank_rows():

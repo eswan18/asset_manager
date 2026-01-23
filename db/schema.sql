@@ -38,7 +38,6 @@ CREATE TABLE public.snapshots (
     type character varying(10) NOT NULL,
     description text NOT NULL,
     amount numeric(15,2) NOT NULL,
-    accessible boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT snapshots_type_check CHECK (((type)::text = ANY ((ARRAY['asset'::character varying, 'liability'::character varying])::text[])))
 );
@@ -92,13 +91,6 @@ ALTER TABLE ONLY public.snapshots
 --
 
 CREATE INDEX idx_snapshots_date ON public.snapshots USING btree (date);
-
-
---
--- Name: idx_snapshots_type_accessible_date; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_snapshots_type_accessible_date ON public.snapshots USING btree (type, accessible, date);
 
 
 --

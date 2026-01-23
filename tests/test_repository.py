@@ -6,7 +6,6 @@ import pytest
 from asset_manager.models import Record, RecordType
 from asset_manager.repository import (
     get_all_records,
-    get_inaccessible_assets_by_date,
     get_records_by_date_range,
     get_summary_by_date,
     insert_records,
@@ -22,14 +21,12 @@ class TestRepository:
                 type=RecordType.ASSET,
                 description="Savings Account",
                 amount=Decimal("10000.00"),
-                accessible=True,
             ),
             Record(
                 date=date(2024, 1, 15),
                 type=RecordType.LIABILITY,
                 description="Credit Card",
                 amount=Decimal("500.00"),
-                accessible=True,
             ),
         ]
 
@@ -50,7 +47,6 @@ class TestRepository:
                 type=RecordType.ASSET,
                 description="Savings Account",
                 amount=Decimal("10000.00"),
-                accessible=True,
             ),
         ]
         insert_records(db_connection, records)
@@ -62,7 +58,6 @@ class TestRepository:
                 type=RecordType.ASSET,
                 description="Savings Account",
                 amount=Decimal("15000.00"),
-                accessible=True,
             ),
         ]
         insert_records(db_connection, updated_records)
@@ -131,29 +126,6 @@ class TestRepository:
 
         assert asset_summary.total_amount == Decimal("3000.00")
         assert liability_summary.total_amount == Decimal("500.00")
-
-    def test_get_inaccessible_assets_by_date(self, db_connection):
-        records = [
-            Record(
-                date=date(2024, 1, 15),
-                type=RecordType.ASSET,
-                description="Accessible Asset",
-                amount=Decimal("1000.00"),
-                accessible=True,
-            ),
-            Record(
-                date=date(2024, 1, 15),
-                type=RecordType.ASSET,
-                description="Inaccessible Asset",
-                amount=Decimal("5000.00"),
-                accessible=False,
-            ),
-        ]
-        insert_records(db_connection, records)
-
-        summaries = get_inaccessible_assets_by_date(db_connection)
-        assert len(summaries) == 1
-        assert summaries[0].total_amount == Decimal("5000.00")
 
     def test_insert_empty_list(self, db_connection):
         inserted = insert_records(db_connection, [])

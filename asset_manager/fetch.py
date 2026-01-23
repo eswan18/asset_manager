@@ -94,12 +94,9 @@ def parse_records_from_table(
     desc_idx = col_headers.index("Description") if "Description" in col_headers else 0
     # Amount is typically the column with dollar values
     amount_idx = None
-    accessible_idx = None
     for idx, header in enumerate(col_headers):
-        if header == "Accessible":
-            accessible_idx = idx
-        elif header not in ("Description", "Liquidity") and amount_idx is None:
-            # First non-Description, non-Liquidity column is likely the amount
+        if header not in ("Description", "Liquidity", "Accessible") and amount_idx is None:
+            # First non-Description, non-Liquidity, non-Accessible column is likely the amount
             amount_idx = idx
 
     if amount_idx is None:
@@ -114,14 +111,6 @@ def parse_records_from_table(
         description = row[desc_idx].strip()
         amount_str = row[amount_idx] if len(row) > amount_idx else "$ -"
 
-        # Parse accessible flag (default True for liabilities)
-        if record_type == RecordType.LIABILITY:
-            accessible = True
-        elif accessible_idx is not None and len(row) > accessible_idx:
-            accessible = row[accessible_idx].strip().upper() == "Y"
-        else:
-            accessible = True
-
         try:
             amount = dollars_to_decimal(amount_str)
         except ValueError:
@@ -134,7 +123,6 @@ def parse_records_from_table(
                 type=record_type,
                 description=description,
                 amount=amount,
-                accessible=accessible,
             )
         )
 
