@@ -43,6 +43,10 @@ jobs:
       - name: Install Package and Dependencies
         run:
           uv sync --extra dev
+      - name: Install dbmate
+        run: |
+          curl -fsSL https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 -o /usr/local/bin/dbmate
+          chmod +x /usr/local/bin/dbmate
       - name: Run pytest and Generate Coverage Report
         run:
           CI=true uv run pytest --cov=asset_manager --cov-report=xml
