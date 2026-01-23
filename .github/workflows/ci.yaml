@@ -25,7 +25,7 @@ jobs:
           uv run ruff check
       - name: Typecheck
         run:
-          uv run mypy asset_manager
+          uv run ty check asset_manager
   test:
     name: Test All
     runs-on: ubuntu-latest
@@ -43,6 +43,10 @@ jobs:
       - name: Install Package and Dependencies
         run:
           uv sync --extra dev
+      - name: Install dbmate
+        run: |
+          sudo curl -fsSL https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 -o /usr/local/bin/dbmate
+          sudo chmod +x /usr/local/bin/dbmate
       - name: Run pytest and Generate Coverage Report
         run:
           CI=true uv run pytest --cov=asset_manager --cov-report=xml
