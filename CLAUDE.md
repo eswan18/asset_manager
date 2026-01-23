@@ -89,11 +89,7 @@ uv run dotenv -f .env.dev run dbmate status
 - **`repository.py`**: Database query functions (insert, fetch, summarize)
 - **`fetch.py`**: Main data fetching module that connects to Google Sheets API, extracts asset/liability data, and saves to PostgreSQL
 - **`dashboard.py`**: Altair-based chart generation for financial data visualization
-- **`clean.py`**: Data cleaning utilities (legacy, used for S3 migration)
-
-### Legacy Modules (kept for S3 migration)
-- **`s3.py`**: AWS S3 wrapper (deprecated, used only for migration)
-- **`datastore.py`**: S3 data access layer (deprecated, used only for migration)
+- **`s3.py`**: AWS S3 read-only wrapper (used only for migration script)
 
 ### Data Flow
 
@@ -130,10 +126,9 @@ CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, type, description);
 ### Testing
 
 Tests are organized by module with pytest:
-- `test_clean.py`: Data cleaning function tests
 - `test_fetch.py`: Google Sheets fetching and parsing tests
 - `test_repository.py`: Database operations tests (uses testcontainers)
-- `test_s3.py`: S3 operations tests (legacy)
+- `test_s3.py`: S3 operations tests
 
 The project uses:
 - **testcontainers**: Spins up real PostgreSQL containers for database tests

@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 minversion = "4.0"
 addopts = " --cov=asset_manager"
+markers = [
+    "db: marks tests as database tests (require testcontainers)",
+]
 
 [project]
 name = "asset_manager"
