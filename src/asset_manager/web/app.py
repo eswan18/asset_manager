@@ -187,7 +187,7 @@ async def login(request: Request):
     return await handle_login(request, oauth)
 
 
-@app.get("/callback")
+@app.get("/auth/callback")
 async def auth_callback(request: Request):
     """Handle the OAuth callback."""
     oauth = get_oauth_client()
