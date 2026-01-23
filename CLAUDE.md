@@ -38,9 +38,9 @@ GOOGLE_APPLICATION_CREDENTIALS=credentials/asset-manager-369122-7861d911d7b5.jso
 
 1. **Apply migrations** to create the database schema:
    ```bash
-   export $(grep -v '^#' .env.dev | xargs) && dbmate up
+   uv run dotenv -f .env.dev run dbmate up
    # Or for production:
-   export $(grep -v '^#' .env.prod | xargs) && dbmate up
+   uv run dotenv -f .env.prod run dbmate up
    ```
 
 2. **Migrate existing S3 data** (one-time, if you have historical data in S3):
@@ -53,16 +53,16 @@ GOOGLE_APPLICATION_CREDENTIALS=credentials/asset-manager-369122-7861d911d7b5.jso
 ### Database Migrations (dbmate)
 ```bash
 # Apply pending migrations
-export $(grep -v '^#' .env.dev | xargs) && dbmate up
+uv run dotenv -f .env.dev run dbmate up
 
 # Rollback last migration
-export $(grep -v '^#' .env.dev | xargs) && dbmate down
+uv run dotenv -f .env.dev run dbmate down
 
 # Create a new migration
 dbmate new <migration_name>
 
 # Check migration status
-export $(grep -v '^#' .env.dev | xargs) && dbmate status
+uv run dotenv -f .env.dev run dbmate status
 ```
 
 ### Data Operations

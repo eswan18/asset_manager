@@ -32,7 +32,7 @@ A Python application for tracking personal financial assets and liabilities by f
 
 3. Run database migrations:
    ```bash
-   export $(grep -v '^#' .env.dev | xargs) && dbmate up
+   uv run dotenv -f .env.dev run dbmate up
    ```
 
 ## Usage
@@ -53,16 +53,16 @@ Open `Charts.ipynb` and run it to visualize your finances over time.
 
 ```bash
 # Apply pending migrations
-export $(grep -v '^#' .env.dev | xargs) && dbmate up
+uv run dotenv -f .env.dev run dbmate up
 
 # Rollback last migration
-export $(grep -v '^#' .env.dev | xargs) && dbmate down
+uv run dotenv -f .env.dev run dbmate down
 
 # Create a new migration
 dbmate new <migration_name>
 
 # Check migration status
-export $(grep -v '^#' .env.dev | xargs) && dbmate status
+uv run dotenv -f .env.dev run dbmate status
 ```
 
 ## Development
