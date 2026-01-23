@@ -33,6 +33,7 @@ dependencies = [
 
 [project.scripts]
 asset-manager = "asset_manager.cli:main"
+app = "asset_manager.web.app:app"
 
 [build-system]
 requires = ["hatchling"]

@@ -114,13 +114,10 @@ asset_manager/
 │           ├── auth.py         # OAuth/OIDC authentication
 │           └── templates/
 │               └── dashboard.html
-├── api/
-│   └── index.py                # Vercel serverless entry point
 ├── tests/
 ├── db/
 │   └── migrations/
-├── pyproject.toml
-├── vercel.json                 # Vercel deployment config
+├── pyproject.toml              # Includes Vercel app entrypoint
 └── README.md
 ```
 
