@@ -1,5 +1,6 @@
 credentials/
 env*/
+.env*
 token.pickle
 .coverage
 .hypothesis

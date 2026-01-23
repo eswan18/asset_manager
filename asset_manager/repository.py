@@ -1,0 +1,133 @@
+from datetime import date
+from decimal import Decimal
+
+from psycopg import Connection
+
+from asset_manager.models import DailySummary, Record, RecordType
+
+
+def insert_records(conn: Connection, records: list[Record]) -> int:
+    """Insert records into the database. Returns the number of records inserted."""
+    if not records:
+        return 0
+
+    query = """
+        INSERT INTO records (date, type, description, amount, accessible)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (date, type, description) DO UPDATE SET
+            amount = EXCLUDED.amount,
+            accessible = EXCLUDED.accessible
+    """
+
+    with conn.cursor() as cur:
+        cur.executemany(
+            query,
+            [
+                (r.date, r.type.value, r.description, r.amount, r.accessible)
+                for r in records
+            ],
+        )
+    conn.commit()
+    return len(records)
+
+
+def get_all_records(conn: Connection) -> list[Record]:
+    """Fetch all records from the database."""
+    query = """
+        SELECT id, date, type, description, amount, accessible, created_at
+        FROM records
+        ORDER BY date, type, description
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+
+    return [
+        Record(
+            id=row[0],
+            date=row[1],
+            type=RecordType(row[2]),
+            description=row[3],
+            amount=Decimal(str(row[4])),
+            accessible=row[5],
+            created_at=row[6],
+        )
+        for row in rows
+    ]
+
+
+def get_records_by_date_range(
+    conn: Connection, start_date: date, end_date: date
+) -> list[Record]:
+    """Fetch records within a date range."""
+    query = """
+        SELECT id, date, type, description, amount, accessible, created_at
+        FROM records
+        WHERE date >= %s AND date <= %s
+        ORDER BY date, type, description
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(query, (start_date, end_date))
+        rows = cur.fetchall()
+
+    return [
+        Record(
+            id=row[0],
+            date=row[1],
+            type=RecordType(row[2]),
+            description=row[3],
+            amount=Decimal(str(row[4])),
+            accessible=row[5],
+            created_at=row[6],
+        )
+        for row in rows
+    ]
+
+
+def get_summary_by_date(conn: Connection) -> list[DailySummary]:
+    """Get aggregated totals by date and type."""
+    query = """
+        SELECT date, type, SUM(amount) as total_amount
+        FROM records
+        GROUP BY date, type
+        ORDER BY date, type
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+
+    return [
+        DailySummary(
+            date=row[0],
+            type=RecordType(row[1]),
+            total_amount=Decimal(str(row[2])),
+        )
+        for row in rows
+    ]
+
+
+def get_inaccessible_assets_by_date(conn: Connection) -> list[DailySummary]:
+    """Get aggregated totals for inaccessible assets by date."""
+    query = """
+        SELECT date, type, SUM(amount) as total_amount
+        FROM records
+        WHERE type = 'asset' AND accessible = FALSE
+        GROUP BY date, type
+        ORDER BY date
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+
+    return [
+        DailySummary(
+            date=row[0],
+            type=RecordType(row[1]),
+            total_amount=Decimal(str(row[2])),
+        )
+        for row in rows
+    ]
