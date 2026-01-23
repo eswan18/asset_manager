@@ -1,4 +1,5 @@
 """Tests for the CLI module."""
+
 from typer.testing import CliRunner
 
 from asset_manager import __version__
