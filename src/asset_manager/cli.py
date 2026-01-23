@@ -16,7 +16,12 @@ app = typer.Typer(
 @app.command()
 def fetch() -> None:
     """Fetch data from Google Sheets and save to the database."""
-    count = fetch_and_save()
+    try:
+        count = fetch_and_save()
+    except Exception as exc:
+        typer.echo(f"Error fetching data: {exc}", err=True)
+        raise typer.Exit(code=1)
+
     if count > 0:
         typer.echo(f"Successfully saved {count} records.")
     else:
