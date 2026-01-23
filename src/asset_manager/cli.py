@@ -62,6 +62,29 @@ def report(
 
 
 @app.command()
+def serve(
+    port: Annotated[
+        int,
+        typer.Option("--port", "-p", help="Port to run the server on"),
+    ] = 8000,
+    host: Annotated[
+        str,
+        typer.Option("--host", "-h", help="Host to bind to"),
+    ] = "127.0.0.1",
+) -> None:
+    """Run the web dashboard locally for development."""
+    import uvicorn
+
+    typer.echo(f"Starting dashboard at http://{host}:{port}")
+    uvicorn.run(
+        "asset_manager.web.app:app",
+        host=host,
+        port=port,
+        reload=True,
+    )
+
+
+@app.command()
 def version() -> None:
     """Show the version and exit."""
     typer.echo(f"asset-manager {__version__}")
