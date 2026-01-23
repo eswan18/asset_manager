@@ -138,7 +138,11 @@ def fetch_and_save() -> int:
     sheets = service.spreadsheets()
     print("Pulling spreadsheet...")
     my_sheet = sheets.values().get(spreadsheetId=SHEET_ID, range=SHEET_RANGE).execute()
-    raw_table: list[list[str]] = my_sheet["values"]
+    raw_table: list[list[str]] = my_sheet.get("values", [])
+
+    if not raw_table:
+        print("No data found in the spreadsheet")
+        return 0
 
     # Some sad hard-coding...
     asset_cols = slice(0, 4)
