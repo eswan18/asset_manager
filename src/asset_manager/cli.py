@@ -1,10 +1,12 @@
 """CLI for asset_manager using Typer."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from dotenv import load_dotenv
 
 from . import __version__
 from .db import get_connection_context
@@ -92,6 +94,18 @@ def version() -> None:
 
 def main() -> None:
     """Entry point for the CLI."""
+    # Load environment file based on ENV variable
+    env = os.environ.get("ENV")
+    if env:
+        env_file = Path(f".env.{env}")
+        if env_file.exists():
+            load_dotenv(env_file)
+        else:
+            typer.echo(f"Warning: {env_file} not found", err=True)
+    else:
+        # Fall back to .env if it exists
+        load_dotenv()
+
     app()
 
 
