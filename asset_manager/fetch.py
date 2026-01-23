@@ -95,7 +95,10 @@ def parse_records_from_table(
     # Amount is typically the column with dollar values
     amount_idx = None
     for idx, header in enumerate(col_headers):
-        if header not in ("Description", "Liquidity", "Accessible") and amount_idx is None:
+        if (
+            header not in ("Description", "Liquidity", "Accessible")
+            and amount_idx is None
+        ):
             # First non-Description, non-Liquidity, non-Accessible column is likely the amount
             amount_idx = idx
 

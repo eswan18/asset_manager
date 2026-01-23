@@ -21,10 +21,7 @@ def insert_records(conn: Connection, records: list[Record]) -> int:
     with conn.cursor() as cur:
         cur.executemany(
             query,
-            [
-                (r.date, r.type.value, r.description, r.amount)
-                for r in records
-            ],
+            [(r.date, r.type.value, r.description, r.amount) for r in records],
         )
     conn.commit()
     return len(records)

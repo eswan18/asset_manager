@@ -1,7 +1,6 @@
 import os
 from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -15,7 +14,7 @@ from asset_manager.models import RecordType
 
 @pytest.mark.skipif(
     os.getenv("CI") is not None or os.getenv("GOOGLE_APPLICATION_CREDENTIALS") is None,
-    reason="no Google credentials"
+    reason="no Google credentials",
 )
 def test_get_service_runs_without_error():
     _ = get_service()
@@ -42,7 +41,9 @@ def test_parse_records_from_table_assets():
     col_idx = slice(0, 4)
     record_date = date(2024, 1, 15)
 
-    records = parse_records_from_table(raw_table, col_idx, RecordType.ASSET, record_date)
+    records = parse_records_from_table(
+        raw_table, col_idx, RecordType.ASSET, record_date
+    )
 
     assert len(records) == 2
     assert records[0].description == "Savings"
@@ -63,7 +64,9 @@ def test_parse_records_from_table_liabilities():
     col_idx = slice(0, 3)
     record_date = date(2024, 1, 15)
 
-    records = parse_records_from_table(raw_table, col_idx, RecordType.LIABILITY, record_date)
+    records = parse_records_from_table(
+        raw_table, col_idx, RecordType.LIABILITY, record_date
+    )
 
     assert len(records) == 2
     assert records[0].description == "Credit Card"
@@ -80,7 +83,9 @@ def test_parse_records_from_table_skips_blank_rows():
     col_idx = slice(0, 3)
     record_date = date(2024, 1, 15)
 
-    records = parse_records_from_table(raw_table, col_idx, RecordType.ASSET, record_date)
+    records = parse_records_from_table(
+        raw_table, col_idx, RecordType.ASSET, record_date
+    )
 
     assert len(records) == 2
     assert records[0].description == "Savings"
@@ -94,6 +99,8 @@ def test_parse_records_from_table_empty():
     col_idx = slice(0, 3)
     record_date = date(2024, 1, 15)
 
-    records = parse_records_from_table(raw_table, col_idx, RecordType.ASSET, record_date)
+    records = parse_records_from_table(
+        raw_table, col_idx, RecordType.ASSET, record_date
+    )
 
     assert len(records) == 0

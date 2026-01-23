@@ -10,15 +10,17 @@ from .repository import get_all_records
 
 def records_to_dataframe(records: list[Record]) -> pd.DataFrame:
     """Convert a list of Record models to a pandas DataFrame for Altair."""
-    return pd.DataFrame([
-        {
-            "Date": r.date,
-            "Type": r.type.value,
-            "Description": r.description,
-            "Amount": float(r.amount),
-        }
-        for r in records
-    ])
+    return pd.DataFrame(
+        [
+            {
+                "Date": r.date,
+                "Type": r.type.value,
+                "Description": r.description,
+                "Amount": float(r.amount),
+            }
+            for r in records
+        ]
+    )
 
 
 def get_all_data() -> pd.DataFrame | None:
@@ -51,7 +53,9 @@ def make_charts() -> alt.Chart:
     net_worth_data = pd.merge(
         assets_by_day, liabilities_by_day, suffixes=("_asset", "_liability"), on="Date"
     )
-    net_worth_data["Amount"] = net_worth_data.Amount_asset - net_worth_data.Amount_liability
+    net_worth_data["Amount"] = (
+        net_worth_data.Amount_asset - net_worth_data.Amount_liability
+    )
 
     # Make charts.
     asset_chart = (

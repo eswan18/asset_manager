@@ -51,7 +51,9 @@ def parse_record_type(value: str) -> RecordType:
         raise ValueError(f"Unknown record type: {value}")
 
 
-def records_from_dataframe(df: pd.DataFrame, record_date: date | None = None) -> list[Record]:
+def records_from_dataframe(
+    df: pd.DataFrame, record_date: date | None = None
+) -> list[Record]:
     """
     Convert a pandas DataFrame to a list of Record objects.
 
@@ -74,7 +76,11 @@ def records_from_dataframe(df: pd.DataFrame, record_date: date | None = None) ->
             continue
 
         # Skip rows without a description
-        if "Description" not in row or pd.isna(row["Description"]) or not str(row["Description"]).strip():
+        if (
+            "Description" not in row
+            or pd.isna(row["Description"])
+            or not str(row["Description"]).strip()
+        ):
             continue
 
         try:
@@ -105,7 +111,9 @@ def migrate_daily_files() -> tuple[int, int]:
     Returns (files_processed, records_migrated).
     """
     object_names = list_objects_in_bucket()
-    daily_files = [name for name in object_names if DAILY_SUMMARY_NAME_REGEX.match(name)]
+    daily_files = [
+        name for name in object_names if DAILY_SUMMARY_NAME_REGEX.match(name)
+    ]
 
     print(f"Found {len(daily_files)} daily files to migrate")
 
@@ -148,7 +156,9 @@ def migrate_yearly_files() -> tuple[int, int]:
     Returns (files_processed, records_migrated).
     """
     object_names = list_objects_in_bucket()
-    yearly_files = [name for name in object_names if YEARLY_SUMMARY_NAME_REGEX.match(name)]
+    yearly_files = [
+        name for name in object_names if YEARLY_SUMMARY_NAME_REGEX.match(name)
+    ]
 
     print(f"Found {len(yearly_files)} yearly files to migrate")
 
