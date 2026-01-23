@@ -19,7 +19,7 @@ jobs:
           version: "latest"
       - name: Install Package and Dependencies
         run:
-          uv sync --extra dev
+          uv sync
       - name: Lint
         run:
           uv run ruff check
@@ -42,7 +42,7 @@ jobs:
           version: "latest"
       - name: Install Package and Dependencies
         run:
-          uv sync --extra dev
+          uv sync
       - name: Install dbmate
         run: |
           sudo curl -fsSL https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 -o /usr/local/bin/dbmate
