@@ -51,13 +51,18 @@ def get_oauth_client():
     return _oauth
 
 
-def _build_chart_html(records) -> dict[str, str]:
-    """Build Plotly chart HTML snippets for embedding."""
+def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
+    """Build Plotly chart HTML snippets for embedding.
+
+    Returns:
+        Tuple of (charts dict, totals dict with current net_worth, assets, liabilities)
+    """
     import plotly.graph_objects as go
 
     assets_data, liabilities_data, summary_data = _transform_data(records)
 
     charts = {}
+    totals = {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
 
     # Assets chart
     fig_assets = go.Figure()
@@ -68,13 +73,13 @@ def _build_chart_html(records) -> dict[str, str]:
             go.Scatter(x=dates, y=amounts, name=description, mode="lines+markers")
         )
     fig_assets.update_layout(
-        title="Assets by Item",
+        title="Assets over Time",
         xaxis_title="Date",
         yaxis_title="Amount ($)",
         yaxis_tickprefix="$",
         yaxis_tickformat=",.0f",
         hovermode="x unified",
-        height=350,
+        height=300,
         margin={"t": 40, "b": 40, "l": 60, "r": 20},
     )
     charts["assets"] = fig_assets.to_html(full_html=False, include_plotlyjs=False)
@@ -88,26 +93,31 @@ def _build_chart_html(records) -> dict[str, str]:
             go.Scatter(x=dates, y=amounts, name=description, mode="lines+markers")
         )
     fig_liabilities.update_layout(
-        title="Liabilities by Item",
+        title="Liabilities over Time",
         xaxis_title="Date",
         yaxis_title="Amount ($)",
         yaxis_tickprefix="$",
         yaxis_tickformat=",.0f",
         hovermode="x unified",
-        height=350,
+        height=300,
         margin={"t": 40, "b": 40, "l": 60, "r": 20},
     )
     charts["liabilities"] = fig_liabilities.to_html(
         full_html=False, include_plotlyjs=False
     )
 
-    # Summary chart
+    # Summary chart (Net Worth over Time)
     fig_summary = go.Figure()
     if summary_data:
         dates = [point[0] for point in summary_data]
         total_assets = [float(point[1]) for point in summary_data]
         total_liabilities = [float(point[2]) for point in summary_data]
         net_worth = [float(point[3]) for point in summary_data]
+
+        # Get latest totals for summary cards
+        totals["assets"] = total_assets[-1] if total_assets else 0.0
+        totals["liabilities"] = total_liabilities[-1] if total_liabilities else 0.0
+        totals["net_worth"] = net_worth[-1] if net_worth else 0.0
 
         fig_summary.add_trace(
             go.Scatter(
@@ -137,18 +147,18 @@ def _build_chart_html(records) -> dict[str, str]:
             )
         )
     fig_summary.update_layout(
-        title="Net Worth Summary",
+        title="Net Worth over Time",
         xaxis_title="Date",
         yaxis_title="Amount ($)",
         yaxis_tickprefix="$",
         yaxis_tickformat=",.0f",
         hovermode="x unified",
-        height=350,
+        height=400,
         margin={"t": 40, "b": 40, "l": 60, "r": 20},
     )
     charts["summary"] = fig_summary.to_html(full_html=False, include_plotlyjs=False)
 
-    return charts
+    return charts, totals
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -174,7 +184,10 @@ async def dashboard(request: Request):
             },
         )
 
-    charts = _build_chart_html(records) if records else {}
+    if records:
+        charts, totals = _build_chart_html(records)
+    else:
+        charts, totals = {}, {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -182,6 +195,7 @@ async def dashboard(request: Request):
             "request": request,
             "user": user,
             "charts": charts,
+            "totals": totals,
             "record_count": len(records),
         },
     )
