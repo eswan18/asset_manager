@@ -5,9 +5,9 @@ import datetime
 import os
 import re
 from decimal import Decimal
+from importlib import resources
 from typing import Any
 
-import pkg_resources
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
@@ -17,9 +17,9 @@ from .repository import insert_records
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
-config_contents = pkg_resources.resource_string(__name__, "data/config.ini")
+config_contents = resources.files("asset_manager").joinpath("data/config.ini").read_text()
 config = configparser.ConfigParser()
-config.read_string(config_contents.decode())
+config.read_string(config_contents)
 SHEET_ID = config["DEFAULT"]["SHEET_ID"]
 SHEET_RANGE = config["DEFAULT"]["SHEET_RANGE"]
 
@@ -174,5 +174,3 @@ def fetch_and_save() -> int:
     return count
 
 
-if __name__ == "__main__":
-    fetch_and_save()
