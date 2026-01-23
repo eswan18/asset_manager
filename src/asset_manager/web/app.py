@@ -220,4 +220,9 @@ async def logout():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok"}
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        content={"status": "ok"},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
