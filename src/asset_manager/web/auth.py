@@ -71,6 +71,12 @@ def get_session_user(request: Request) -> dict[str, Any] | None:
         return None
 
 
+def _is_secure() -> bool:
+    """Check if we should use secure cookies (production)."""
+    # Use secure cookies unless explicitly in dev mode
+    return os.environ.get("ENV") != "dev"
+
+
 def create_session_response(
     redirect_url: str,
     user_data: dict[str, Any],
@@ -78,6 +84,7 @@ def create_session_response(
     """Create a redirect response with a session cookie."""
     serializer = get_serializer()
     session_data = serializer.dumps(user_data)
+    secure = _is_secure()
 
     response = RedirectResponse(url=redirect_url, status_code=302)
     response.set_cookie(
@@ -85,7 +92,7 @@ def create_session_response(
         value=session_data,
         max_age=SESSION_MAX_AGE,
         httponly=True,
-        secure=True,
+        secure=secure,
         samesite="lax",
     )
     return response
@@ -93,8 +100,13 @@ def create_session_response(
 
 def clear_session_response(redirect_url: str) -> RedirectResponse:
     """Create a redirect response that clears the session cookie."""
+    secure = _is_secure()
     response = RedirectResponse(url=redirect_url, status_code=302)
-    response.delete_cookie(key=SESSION_COOKIE_NAME)
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        secure=secure,
+        samesite="lax",
+    )
     return response
 
 
