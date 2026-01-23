@@ -1,6 +1,7 @@
 """FastAPI web application for the asset dashboard."""
 from __future__ import annotations
 
+import logging
 from importlib import resources
 
 from fastapi import FastAPI, Request
@@ -20,6 +21,8 @@ from .auth import (
     handle_login,
     handle_logout,
 )
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Asset Dashboard", docs_url=None, redoc_url=None)
 
@@ -157,12 +160,13 @@ async def dashboard(request: Request):
         with get_connection_context() as conn:
             records = get_all_records(conn)
     except Exception as e:
+        logger.exception("Database error in dashboard: %s", e)
         return templates.TemplateResponse(
             "dashboard.html",
             {
                 "request": request,
                 "user": user,
-                "error": f"Database error: {e}",
+                "error": "An error occurred while loading your data. Please try again later.",
                 "charts": {},
             },
         )
@@ -194,7 +198,8 @@ async def auth_callback(request: Request):
     try:
         return await handle_callback(request, oauth)
     except Exception as e:
-        return HTMLResponse(f"Authentication failed: {e}", status_code=400)
+        logger.exception("OAuth callback failed: %s", e)
+        return HTMLResponse("Authentication failed. Please try again.", status_code=400)
 
 
 @app.get("/logout")

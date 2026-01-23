@@ -66,6 +66,14 @@ uv run dotenv -f .env.dev run dbmate status
 ENV=dev uv run asset-manager fetch
 ENV=prod uv run asset-manager fetch
 
+# Generate interactive HTML report
+ENV=dev uv run asset-manager report
+ENV=dev uv run asset-manager report --output report.html --no-open
+
+# Run web dashboard locally
+ENV=dev uv run asset-manager serve
+ENV=dev uv run asset-manager serve --port 8080
+
 # Show version
 uv run asset-manager version
 
@@ -95,14 +103,24 @@ asset_manager/
 │       ├── db.py               # Database connections
 │       ├── models.py           # Pydantic models
 │       ├── repository.py       # Database operations
+│       ├── report.py           # Interactive HTML report generation
 │       ├── sheets.py           # Google Sheets fetching
 │       ├── py.typed            # PEP 561 marker
-│       └── data/
-│           └── config.ini      # Sheet ID and range
+│       ├── data/
+│       │   └── config.ini      # Sheet ID and range
+│       └── web/                # Web dashboard
+│           ├── __init__.py
+│           ├── app.py          # FastAPI application
+│           ├── auth.py         # OAuth/OIDC authentication
+│           └── templates/
+│               └── dashboard.html
+├── api/
+│   └── index.py                # Vercel serverless entry point
 ├── tests/
 ├── db/
 │   └── migrations/
 ├── pyproject.toml
+├── vercel.json                 # Vercel deployment config
 └── README.md
 ```
 
@@ -113,7 +131,10 @@ asset_manager/
 - **`db.py`**: Database connection management using psycopg3
 - **`repository.py`**: Database query functions (insert, fetch, summarize)
 - **`sheets.py`**: Google Sheets API integration for fetching asset/liability data
-- **`cli.py`**: Typer CLI with `fetch` and `version` commands
+- **`report.py`**: Interactive HTML report generation using Plotly
+- **`cli.py`**: Typer CLI with `fetch`, `report`, `serve`, and `version` commands
+- **`web/app.py`**: FastAPI web dashboard application
+- **`web/auth.py`**: OAuth/OIDC authentication with PKCE support
 
 ### Data Flow
 
@@ -145,6 +166,17 @@ CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, type, description);
 - **`.env.dev` / `.env.prod`**: Database URL and Google credentials per environment
 - **`data/config.ini`**: Contains Google Sheets ID and sheet range
 - **Environment variable `ENV`**: Controls which `.env` file is loaded (default: `dev`)
+
+#### Web Dashboard Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `IDP_URL` | OAuth identity provider URL (e.g., `https://identity.ethanswan.com`) |
+| `CLIENT_ID` | OAuth client ID |
+| `CLIENT_SECRET` | OAuth client secret |
+| `SECRET_KEY` | Random secret for signing session cookies |
+| `ENV` | Set to `dev` for local development (disables secure cookies)
 
 ### Testing
 
