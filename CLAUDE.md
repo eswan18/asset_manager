@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Asset Manager is a Python application for tracking personal financial assets and liabilities by fetching data from Google Sheets and storing it in PostgreSQL. The system generates daily snapshots and provides visualization capabilities through Jupyter notebooks.
+Asset Manager is a Python application for tracking personal financial assets and liabilities by fetching data from Google Sheets and storing it in PostgreSQL.
 
 ## Development Setup
 
@@ -36,17 +36,12 @@ GOOGLE_APPLICATION_CREDENTIALS=credentials/asset-manager-369122-7861d911d7b5.jso
 
 ### Database Setup
 
-1. **Apply migrations** to create the database schema:
-   ```bash
-   uv run dotenv -f .env.dev run dbmate up
-   # Or for production:
-   uv run dotenv -f .env.prod run dbmate up
-   ```
-
-2. **Migrate existing S3 data** (one-time, if you have historical data in S3):
-   ```bash
-   ENV=dev uv run python scripts/migrate_s3_to_postgres.py
-   ```
+Apply migrations to create the database schema:
+```bash
+uv run dotenv -f .env.dev run dbmate up
+# Or for production:
+uv run dotenv -f .env.prod run dbmate up
+```
 
 ## Common Commands
 
@@ -65,21 +60,51 @@ dbmate new <migration_name>
 uv run dotenv -f .env.dev run dbmate status
 ```
 
-### Data Operations
-- **Fetch data from Google Sheets and save to database**:
-  ```bash
-  ENV=dev uv run python -m asset_manager.fetch
-  ENV=prod uv run python -m asset_manager.fetch
-  ```
+### CLI Commands
+```bash
+# Fetch data from Google Sheets and save to database
+ENV=dev uv run asset-manager fetch
+ENV=prod uv run asset-manager fetch
+
+# Show version
+uv run asset-manager version
+
+# Or use python -m invocation
+ENV=dev uv run python -m asset_manager fetch
+```
 
 ### Development Commands
 - **Run tests**: `uv run pytest`
 - **Run tests with coverage**: `uv run pytest --cov=asset_manager`
-- **Type checking**: `uv run ty check asset_manager`
-- **Linting**: `uv run ruff check asset_manager`
-- **Code formatting**: `uv run ruff format asset_manager`
+- **Type checking**: `uv run ty check src/asset_manager`
+- **Linting**: `uv run ruff check src tests`
+- **Code formatting**: `uv run ruff format src tests`
 
 ## Architecture
+
+### Project Structure
+
+```
+asset_manager/
+├── src/
+│   └── asset_manager/
+│       ├── __init__.py         # Package version
+│       ├── __main__.py         # python -m support
+│       ├── cli.py              # Typer CLI application
+│       ├── config.py           # pydantic-settings configuration
+│       ├── db.py               # Database connections
+│       ├── models.py           # Pydantic models
+│       ├── repository.py       # Database operations
+│       ├── sheets.py           # Google Sheets fetching
+│       ├── py.typed            # PEP 561 marker
+│       └── data/
+│           └── config.ini      # Sheet ID and range
+├── tests/
+├── db/
+│   └── migrations/
+├── pyproject.toml
+└── README.md
+```
 
 ### Core Modules
 
@@ -87,17 +112,15 @@ uv run dotenv -f .env.dev run dbmate status
 - **`models.py`**: Pydantic models for `Record` and `DailySummary`
 - **`db.py`**: Database connection management using psycopg3
 - **`repository.py`**: Database query functions (insert, fetch, summarize)
-- **`fetch.py`**: Main data fetching module that connects to Google Sheets API, extracts asset/liability data, and saves to PostgreSQL
-- **`dashboard.py`**: Altair-based chart generation for financial data visualization
-- **`s3.py`**: AWS S3 read-only wrapper (used only for migration script)
+- **`sheets.py`**: Google Sheets API integration for fetching asset/liability data
+- **`cli.py`**: Typer CLI with `fetch` and `version` commands
 
 ### Data Flow
 
 1. Google Sheets contains asset/liability data in a specific format (columns 0-3 for assets, 4-6 for liabilities)
-2. `fetch.py` extracts data using Google Sheets API and service account authentication
+2. `sheets.py` extracts data using Google Sheets API and service account authentication
 3. Data is cleaned and converted to Pydantic `Record` models
 4. Records are inserted into PostgreSQL via `repository.py`
-5. Jupyter notebook `Charts.ipynb` visualizes the data using charts from `dashboard.py`
 
 ### Database Schema
 
@@ -126,13 +149,12 @@ CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, type, description);
 ### Testing
 
 Tests are organized by module with pytest:
-- `test_fetch.py`: Google Sheets fetching and parsing tests
+- `test_sheets.py`: Google Sheets fetching and parsing tests
 - `test_repository.py`: Database operations tests (uses testcontainers)
-- `test_s3.py`: S3 operations tests
+- `test_cli.py`: CLI command tests
 
 The project uses:
 - **testcontainers**: Spins up real PostgreSQL containers for database tests
 - **hypothesis**: Property-based testing
-- Type stubs for external libraries
 
 To run tests: `uv run pytest`

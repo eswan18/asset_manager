@@ -1,7 +1,6 @@
 # Asset Manager
 
 [![CI Status](https://github.com/eswan18/asset_manager/workflows/Continuous%20Integration/badge.svg)](https://github.com/eswan18/asset_manager/actions)
-[![codecov](https://codecov.io/gh/eswan18/asset_manager/branch/main/graph/badge.svg?token=JI0605RMSO)](https://codecov.io/gh/eswan18/asset_manager)
 
 A Python application for tracking personal financial assets and liabilities by fetching data from Google Sheets and storing it in PostgreSQL.
 
@@ -41,13 +40,26 @@ A Python application for tracking personal financial assets and liabilities by f
 
 Pull finances from Google Sheets and store in PostgreSQL:
 ```bash
-ENV=dev uv run python -m asset_manager.fetch
-ENV=prod uv run python -m asset_manager.fetch
+# Using the CLI
+ENV=dev uv run asset-manager fetch
+ENV=prod uv run asset-manager fetch
+
+# Or using python -m
+ENV=dev uv run python -m asset_manager fetch
 ```
 
-### View finances
+### CLI Commands
 
-Open `Charts.ipynb` and run it to visualize your finances over time.
+```bash
+# Show help
+uv run asset-manager --help
+
+# Fetch data
+uv run asset-manager fetch
+
+# Show version
+uv run asset-manager version
+```
 
 ### Database Migrations
 
@@ -74,9 +86,12 @@ uv run pytest
 # Run tests with coverage
 uv run pytest --cov=asset_manager
 
+# Type checking
+uv run ty check src/asset_manager
+
 # Linting
-uv run ruff check asset_manager
+uv run ruff check src tests
 
 # Formatting
-uv run ruff format asset_manager
+uv run ruff format src tests
 ```

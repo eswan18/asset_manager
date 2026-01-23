@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from asset_manager.fetch import (
+from asset_manager.sheets import (
     dollars_to_decimal,
     get_service,
     parse_records_from_table,
