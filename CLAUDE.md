@@ -75,7 +75,7 @@ uv run dotenv -f .env.dev run dbmate status
 ### Development Commands
 - **Run tests**: `uv run pytest`
 - **Run tests with coverage**: `uv run pytest --cov=asset_manager`
-- **Type checking**: `uv run mypy asset_manager`
+- **Type checking**: `uv run ty check asset_manager`
 - **Linting**: `uv run ruff check asset_manager`
 - **Code formatting**: `uv run ruff format asset_manager`
 

@@ -2,17 +2,11 @@ from __future__ import annotations
 
 from configparser import ConfigParser
 from io import BytesIO
-from typing import Any, Optional, Union, List, TYPE_CHECKING
+from typing import Any
 import pkg_resources
 
 import boto3
 from botocore.exceptions import NoCredentialsError
-
-
-if TYPE_CHECKING:
-    from mypy_boto3_s3.service_resource import S3ServiceResource, Bucket
-
-    BucketLikeType = Union[str, Bucket]
 
 
 config_contents = pkg_resources.resource_string(__name__, "data/config.ini")
@@ -21,16 +15,16 @@ config.read_string(config_contents.decode())
 conf = config["DEFAULT"]
 
 
-def _s3() -> S3ServiceResource:
+def _s3() -> Any:
     s3 = boto3.resource(service_name="s3")
     return s3
 
 
-def _default_bucket() -> Bucket:
+def _default_bucket() -> Any:
     return _s3().Bucket(conf["S3_BUCKET"])
 
 
-def _bucket_from_argument(bucket: Optional[BucketLikeType]) -> Bucket:
+def _bucket_from_argument(bucket: str | Any | None) -> Any:
     if bucket is None:
         return _default_bucket()
     if isinstance(bucket, str):
@@ -40,7 +34,7 @@ def _bucket_from_argument(bucket: Optional[BucketLikeType]) -> Bucket:
 
 
 def read_string_from_object(
-    object_name: str, bucket: Optional[BucketLikeType] = None
+    object_name: str, bucket: str | Any | None = None
 ) -> str:
     """
     Get the contents of an object as a string.
@@ -70,7 +64,7 @@ def read_string_from_object(
     return result_str
 
 
-def list_objects_in_bucket(bucket: Any = None) -> List[str]:
+def list_objects_in_bucket(bucket: str | Any | None = None) -> list[str]:
     """
     Get the names of all objects in a bucket.
 

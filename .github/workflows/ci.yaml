@@ -25,7 +25,7 @@ jobs:
           uv run ruff check
       - name: Typecheck
         run:
-          uv run mypy asset_manager
+          uv run ty check asset_manager
   test:
     name: Test All
     runs-on: ubuntu-latest
