@@ -39,23 +39,6 @@ def _bucket_from_argument(bucket: Optional[BucketLikeType]) -> Bucket:
         return bucket
 
 
-def write_string_to_object(
-    object_name: str, text: Union[str, bytes], bucket: Optional[BucketLikeType] = None
-) -> None:
-    """
-    Write a string into an object in S3.
-    """
-    bucket = _bucket_from_argument(bucket)
-    if isinstance(text, str):
-        text = text.encode()
-    bucket = _s3().Bucket(conf["S3_BUCKET"])
-    _default_bucket()
-    try:
-        bucket.put_object(Key=object_name, Body=text)
-    except NoCredentialsError as exc:
-        raise Exception("No s3 credentials, you may need to sign in") from exc
-
-
 def read_string_from_object(
     object_name: str, bucket: Optional[BucketLikeType] = None
 ) -> str:
