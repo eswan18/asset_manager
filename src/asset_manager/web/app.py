@@ -187,8 +187,14 @@ async def dashboard(request: Request):
     )
 
 
-@app.get("/login")
+@app.get("/login", response_class=HTMLResponse)
 async def login(request: Request):
+    """Show the login page."""
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.get("/auth/start")
+async def auth_start(request: Request):
     """Redirect to the IDP for authentication."""
     oauth = get_oauth_client()
     return await handle_login(request, oauth)
@@ -214,4 +220,9 @@ async def logout():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok"}
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        content={"status": "ok"},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
