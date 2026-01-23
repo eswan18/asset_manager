@@ -14,6 +14,10 @@ This project uses uv for dependency management. To set up the development enviro
 uv sync --extra dev
 ```
 
+### Prerequisites
+
+- **dbmate**: Database migration tool. Install with `brew install dbmate`
+
 ### Environment Configuration
 
 The project uses `.env` files for configuration. Copy the example and configure for your environment:
@@ -34,7 +38,9 @@ GOOGLE_APPLICATION_CREDENTIALS=credentials/asset-manager-369122-7861d911d7b5.jso
 
 1. **Apply migrations** to create the database schema:
    ```bash
-   ENV=dev uv run python scripts/apply_migrations.py
+   export $(grep -v '^#' .env.dev | xargs) && dbmate up
+   # Or for production:
+   export $(grep -v '^#' .env.prod | xargs) && dbmate up
    ```
 
 2. **Migrate existing S3 data** (one-time, if you have historical data in S3):
@@ -44,16 +50,26 @@ GOOGLE_APPLICATION_CREDENTIALS=credentials/asset-manager-369122-7861d911d7b5.jso
 
 ## Common Commands
 
+### Database Migrations (dbmate)
+```bash
+# Apply pending migrations
+export $(grep -v '^#' .env.dev | xargs) && dbmate up
+
+# Rollback last migration
+export $(grep -v '^#' .env.dev | xargs) && dbmate down
+
+# Create a new migration
+dbmate new <migration_name>
+
+# Check migration status
+export $(grep -v '^#' .env.dev | xargs) && dbmate status
+```
+
 ### Data Operations
 - **Fetch data from Google Sheets and save to database**:
   ```bash
   ENV=dev uv run python -m asset_manager.fetch
   ENV=prod uv run python -m asset_manager.fetch
-  ```
-
-- **Apply database migrations**:
-  ```bash
-  ENV=dev uv run python scripts/apply_migrations.py
   ```
 
 ### Development Commands
@@ -88,6 +104,8 @@ GOOGLE_APPLICATION_CREDENTIALS=credentials/asset-manager-369122-7861d911d7b5.jso
 5. Jupyter notebook `Charts.ipynb` visualizes the data using charts from `dashboard.py`
 
 ### Database Schema
+
+Migrations are managed by dbmate and stored in `db/migrations/`.
 
 ```sql
 CREATE TABLE records (

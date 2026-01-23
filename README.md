@@ -3,26 +3,80 @@
 [![CI Status](https://github.com/eswan18/asset_manager/workflows/Continuous%20Integration/badge.svg)](https://github.com/eswan18/asset_manager/actions)
 [![codecov](https://codecov.io/gh/eswan18/asset_manager/branch/main/graph/badge.svg?token=JI0605RMSO)](https://codecov.io/gh/eswan18/asset_manager)
 
+A Python application for tracking personal financial assets and liabilities by fetching data from Google Sheets and storing it in PostgreSQL.
+
+## Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) for Python dependency management
+- [dbmate](https://github.com/amacneil/dbmate) for database migrations: `brew install dbmate`
+- PostgreSQL database (local or hosted)
 
 ## Setup
 
-Using uv is simplest. Install uv, then:
+1. Install Python dependencies:
+   ```bash
+   uv sync --extra dev
+   ```
+
+2. Configure environment variables by copying the example file:
+   ```bash
+   cp .env.example .env.dev   # For development
+   cp .env.example .env.prod  # For production
+   ```
+
+   Edit the `.env.dev` and `.env.prod` files with your database credentials:
+   ```
+   DATABASE_URL=postgresql://user:password@host:5432/dbname
+   GOOGLE_APPLICATION_CREDENTIALS=credentials/your-service-account.json
+   ```
+
+3. Run database migrations:
+   ```bash
+   export $(grep -v '^#' .env.dev | xargs) && dbmate up
+   ```
+
+## Usage
+
+### Fetch data from Google Sheets
+
+Pull finances from Google Sheets and store in PostgreSQL:
 ```bash
-uv sync --extra dev
+ENV=dev uv run python -m asset_manager.fetch
+ENV=prod uv run python -m asset_manager.fetch
 ```
 
-## Things you can do
+### View finances
 
-Pull finances from Google Sheets and store a record for that day in S3:
-```
-# Update the path to the google service account credentials file.
-GOOGLE_APPLICATION_CREDENTIALS="credentials/asset-manager-369122-7861d911d7b5.json" uv run python -m asset_manager.fetch
+Open `Charts.ipynb` and run it to visualize your finances over time.
+
+### Database Migrations
+
+```bash
+# Apply pending migrations
+export $(grep -v '^#' .env.dev | xargs) && dbmate up
+
+# Rollback last migration
+export $(grep -v '^#' .env.dev | xargs) && dbmate down
+
+# Create a new migration
+dbmate new <migration_name>
+
+# Check migration status
+export $(grep -v '^#' .env.dev | xargs) && dbmate status
 ```
 
-View finances over time in a notebook:
-- Open `Charts.ipynb` and run it
+## Development
 
-Consolidate a year's worth of daily file into a single file:
-```
-uv run python scripts/consolidate_by_year.py <year>
+```bash
+# Run tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov=asset_manager
+
+# Linting
+uv run ruff check asset_manager
+
+# Formatting
+uv run ruff format asset_manager
 ```

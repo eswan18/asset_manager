@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 import psycopg
@@ -19,29 +20,39 @@ def db_url(postgres_container):
     return postgres_container.get_connection_url()
 
 
+def extract_up_migration(sql_content: str) -> str:
+    """Extract the 'up' migration section from dbmate format."""
+    # Find content between -- migrate:up and -- migrate:down
+    match = re.search(
+        r"--\s*migrate:up\s*\n(.*?)(?:--\s*migrate:down|$)",
+        sql_content,
+        re.DOTALL,
+    )
+    if match:
+        return match.group(1).strip()
+    return sql_content
+
+
 @pytest.fixture(scope="session")
 def _run_migrations(db_url):
-    """Run yoyo migrations against the test database."""
+    """Run dbmate migrations against the test database."""
     # Convert SQLAlchemy URL to psycopg format
     # testcontainers returns: postgresql+psycopg2://user:pass@host:port/db
     # We need: postgresql://user:pass@host:port/db
     psycopg_url = db_url.replace("postgresql+psycopg2://", "postgresql://")
 
-    migrations_dir = Path(__file__).parent.parent / "migrations"
+    migrations_dir = Path(__file__).parent.parent / "db" / "migrations"
 
-    # Read and execute the migration SQL directly
-    migration_file = migrations_dir / "0001_create_records_table.sql"
-    with open(migration_file) as f:
-        migration_sql = f.read()
-
-    # Remove the yoyo header comment
-    lines = migration_sql.split("\n")
-    sql_lines = [line for line in lines if not line.strip().startswith("-- depends:")]
-    migration_sql = "\n".join(sql_lines)
+    # Find and sort all migration files
+    migration_files = sorted(migrations_dir.glob("*.sql"))
 
     with psycopg.connect(psycopg_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(migration_sql)
+        for migration_file in migration_files:
+            sql_content = migration_file.read_text()
+            up_sql = extract_up_migration(sql_content)
+
+            with conn.cursor() as cur:
+                cur.execute(up_sql)
         conn.commit()
 
 
