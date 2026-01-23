@@ -91,6 +91,7 @@ def create_session_response(
         key=SESSION_COOKIE_NAME,
         value=session_data,
         max_age=SESSION_MAX_AGE,
+        path="/",
         httponly=True,
         secure=secure,
         samesite="lax",
@@ -104,7 +105,9 @@ def clear_session_response(redirect_url: str) -> RedirectResponse:
     response = RedirectResponse(url=redirect_url, status_code=302)
     response.delete_cookie(
         key=SESSION_COOKIE_NAME,
+        path="/",
         secure=secure,
+        httponly=True,
         samesite="lax",
     )
     return response
