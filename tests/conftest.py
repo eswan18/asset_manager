@@ -66,7 +66,7 @@ def db_connection(db_url, _run_migrations):
 
     # Clean up: truncate tables after each test
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE TABLE records RESTART IDENTITY")
+        cur.execute("TRUNCATE TABLE snapshots RESTART IDENTITY")
     conn.commit()
     conn.close()
 

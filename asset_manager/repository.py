@@ -12,7 +12,7 @@ def insert_records(conn: Connection, records: list[Record]) -> int:
         return 0
 
     query = """
-        INSERT INTO records (date, type, description, amount, accessible)
+        INSERT INTO snapshots (date, type, description, amount, accessible)
         VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (date, type, description) DO UPDATE SET
             amount = EXCLUDED.amount,
@@ -35,7 +35,7 @@ def get_all_records(conn: Connection) -> list[Record]:
     """Fetch all records from the database."""
     query = """
         SELECT id, date, type, description, amount, accessible, created_at
-        FROM records
+        FROM snapshots
         ORDER BY date, type, description
     """
 
@@ -63,7 +63,7 @@ def get_records_by_date_range(
     """Fetch records within a date range."""
     query = """
         SELECT id, date, type, description, amount, accessible, created_at
-        FROM records
+        FROM snapshots
         WHERE date >= %s AND date <= %s
         ORDER BY date, type, description
     """
@@ -90,7 +90,7 @@ def get_summary_by_date(conn: Connection) -> list[DailySummary]:
     """Get aggregated totals by date and type."""
     query = """
         SELECT date, type, SUM(amount) as total_amount
-        FROM records
+        FROM snapshots
         GROUP BY date, type
         ORDER BY date, type
     """
@@ -113,7 +113,7 @@ def get_inaccessible_assets_by_date(conn: Connection) -> list[DailySummary]:
     """Get aggregated totals for inaccessible assets by date."""
     query = """
         SELECT date, type, SUM(amount) as total_amount
-        FROM records
+        FROM snapshots
         WHERE type = 'asset' AND accessible = FALSE
         GROUP BY date, type
         ORDER BY date

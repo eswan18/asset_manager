@@ -108,7 +108,7 @@ uv run dotenv -f .env.dev run dbmate status
 Migrations are managed by dbmate and stored in `db/migrations/`.
 
 ```sql
-CREATE TABLE records (
+CREATE TABLE snapshots (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,
     type VARCHAR(10) NOT NULL CHECK (type IN ('asset', 'liability')),
@@ -118,8 +118,8 @@ CREATE TABLE records (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Unique constraint prevents duplicate records
-CREATE UNIQUE INDEX idx_records_unique ON records(date, type, description);
+-- Unique constraint prevents duplicate snapshots
+CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, type, description);
 ```
 
 ### Configuration
