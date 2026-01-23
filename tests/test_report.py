@@ -1,4 +1,5 @@
 """Tests for the report module."""
+
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -41,16 +42,25 @@ def test_transform_data_single_asset():
     assert liabilities == {}
 
     assert len(summary) == 1
-    assert summary[0] == (date(2024, 1, 1), Decimal("1000"), Decimal("0"), Decimal("1000"))
+    assert summary[0] == (
+        date(2024, 1, 1),
+        Decimal("1000"),
+        Decimal("0"),
+        Decimal("1000"),
+    )
 
 
 def test_transform_data_multiple_records():
     records = [
         _make_record(date(2024, 1, 1), RecordType.ASSET, "Savings", Decimal("1000")),
         _make_record(date(2024, 1, 1), RecordType.ASSET, "401k", Decimal("5000")),
-        _make_record(date(2024, 1, 1), RecordType.LIABILITY, "Credit Card", Decimal("500")),
+        _make_record(
+            date(2024, 1, 1), RecordType.LIABILITY, "Credit Card", Decimal("500")
+        ),
         _make_record(date(2024, 1, 15), RecordType.ASSET, "Savings", Decimal("1200")),
-        _make_record(date(2024, 1, 15), RecordType.LIABILITY, "Credit Card", Decimal("600")),
+        _make_record(
+            date(2024, 1, 15), RecordType.LIABILITY, "Credit Card", Decimal("600")
+        ),
     ]
     assets, liabilities, summary = _transform_data(records)
 
@@ -88,7 +98,9 @@ def test_transform_data_sorts_by_date():
 def test_generate_report_creates_file(tmp_path: Path):
     records = [
         _make_record(date(2024, 1, 1), RecordType.ASSET, "Savings", Decimal("1000")),
-        _make_record(date(2024, 1, 1), RecordType.LIABILITY, "Credit Card", Decimal("500")),
+        _make_record(
+            date(2024, 1, 1), RecordType.LIABILITY, "Credit Card", Decimal("500")
+        ),
     ]
     output_path = tmp_path / "report.html"
 

@@ -1,4 +1,5 @@
 """Generate interactive HTML reports for financial data."""
+
 from __future__ import annotations
 
 import tempfile
@@ -52,7 +53,12 @@ def _transform_data(
 
     # Build summary data
     summary = [
-        (d, totals["assets"], totals["liabilities"], totals["assets"] - totals["liabilities"])
+        (
+            d,
+            totals["assets"],
+            totals["liabilities"],
+            totals["assets"] - totals["liabilities"],
+        )
         for d, totals in sorted(by_date.items())
     ]
 

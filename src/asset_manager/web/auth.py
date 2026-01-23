@@ -1,4 +1,5 @@
 """OIDC authentication for the web dashboard."""
+
 from __future__ import annotations
 
 import os
@@ -39,7 +40,9 @@ def get_oauth() -> OAuth:
     client_id = os.environ.get("CLIENT_ID")
     client_secret = os.environ.get("CLIENT_SECRET")
     if not client_id or not client_secret:
-        raise RuntimeError("CLIENT_ID and CLIENT_SECRET environment variables are required")
+        raise RuntimeError(
+            "CLIENT_ID and CLIENT_SECRET environment variables are required"
+        )
 
     # Register the OIDC provider with auto-discovery
     oauth.register(

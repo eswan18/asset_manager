@@ -1,4 +1,5 @@
 """FastAPI web application for the asset dashboard."""
+
 from __future__ import annotations
 
 import logging
@@ -96,7 +97,9 @@ def _build_chart_html(records) -> dict[str, str]:
         height=350,
         margin={"t": 40, "b": 40, "l": 60, "r": 20},
     )
-    charts["liabilities"] = fig_liabilities.to_html(full_html=False, include_plotlyjs=False)
+    charts["liabilities"] = fig_liabilities.to_html(
+        full_html=False, include_plotlyjs=False
+    )
 
     # Summary chart
     fig_summary = go.Figure()

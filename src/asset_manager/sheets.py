@@ -17,7 +17,9 @@ from .repository import insert_records
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
-config_contents = resources.files("asset_manager").joinpath("data/config.ini").read_text()
+config_contents = (
+    resources.files("asset_manager").joinpath("data/config.ini").read_text()
+)
 config = configparser.ConfigParser()
 config.read_string(config_contents)
 SHEET_ID = config["DEFAULT"]["SHEET_ID"]
@@ -172,5 +174,3 @@ def fetch_and_save() -> int:
         print(f"Saved {count} records to database")
 
     return count
-
-
