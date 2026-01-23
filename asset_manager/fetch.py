@@ -5,7 +5,7 @@ import datetime
 import os
 import re
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import Any
 
 import pkg_resources
 from google.oauth2.service_account import Credentials
@@ -14,10 +14,6 @@ from googleapiclient.discovery import build
 from .db import get_connection_context
 from .models import Record, RecordType
 from .repository import insert_records
-
-if TYPE_CHECKING:
-    from googleapiclient._apis.sheets.v4.resources import SheetsResource
-
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
@@ -28,7 +24,7 @@ SHEET_ID = config["DEFAULT"]["SHEET_ID"]
 SHEET_RANGE = config["DEFAULT"]["SHEET_RANGE"]
 
 
-def get_service() -> SheetsResource:
+def get_service() -> Any:
     """
     From https://developers.google.com/sheets/api/quickstart/python
     """
