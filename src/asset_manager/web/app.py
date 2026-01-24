@@ -51,11 +51,17 @@ def get_oauth_client():
     return _oauth
 
 
-def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
+def _build_chart_html(
+    records,
+) -> tuple[dict[str, str], dict[str, float], dict[str, float], dict[str, float]]:
     """Build Plotly chart HTML snippets for embedding.
 
     Returns:
-        Tuple of (charts dict, totals dict with current net_worth, assets, liabilities)
+        Tuple of (charts dict, totals dict, assets_breakdown dict, liabilities_breakdown dict)
+        - charts: HTML snippets for each chart
+        - totals: current net_worth, assets, liabilities
+        - assets_breakdown: description -> latest amount for each asset
+        - liabilities_breakdown: description -> latest amount for each liability
     """
     import plotly.graph_objects as go
 
@@ -63,6 +69,18 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
 
     charts = {}
     totals = {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
+
+    # Extract latest value for each asset/liability for breakdown display
+    assets_breakdown = {}
+    for description, series in sorted(assets_data.items()):
+        if series:
+            # Series is sorted by date, last entry is most recent
+            assets_breakdown[description] = float(series[-1][1])
+
+    liabilities_breakdown = {}
+    for description, series in sorted(liabilities_data.items()):
+        if series:
+            liabilities_breakdown[description] = float(series[-1][1])
 
     # Assets chart
     fig_assets = go.Figure()
@@ -161,7 +179,7 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
     )
     charts["summary"] = fig_summary.to_html(full_html=False, include_plotlyjs=False)
 
-    return charts, totals
+    return charts, totals, assets_breakdown, liabilities_breakdown
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -188,9 +206,12 @@ async def dashboard(request: Request):
         )
 
     if records:
-        charts, totals = _build_chart_html(records)
+        charts, totals, assets_breakdown, liabilities_breakdown = _build_chart_html(
+            records
+        )
     else:
         charts, totals = {}, {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
+        assets_breakdown, liabilities_breakdown = {}, {}
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -199,6 +220,8 @@ async def dashboard(request: Request):
             "user": user,
             "charts": charts,
             "totals": totals,
+            "assets_breakdown": assets_breakdown,
+            "liabilities_breakdown": liabilities_breakdown,
             "record_count": len(records),
         },
     )
