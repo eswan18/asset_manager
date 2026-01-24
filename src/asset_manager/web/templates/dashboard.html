@@ -89,6 +89,12 @@
             color: #666;
             font-size: 1rem;
         }
+        .summary-card .chevron {
+            margin-left: auto;
+            color: #999;
+            font-size: 1.25rem;
+            line-height: 1;
+        }
         .summary-card.net-worth .value {
             color: #0066cc;
         }
@@ -160,10 +166,20 @@
             <div class="summary-card assets">
                 <div class="value">${{ "{:,.0f}".format(totals.assets) }}</div>
                 <div class="label">Assets</div>
+                <span class="chevron">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M4 6l4 4 4-4z"/>
+                    </svg>
+                </span>
             </div>
             <div class="summary-card liabilities">
                 <div class="value">${{ "{:,.0f}".format(totals.liabilities) }}</div>
                 <div class="label">Liabilities</div>
+                <span class="chevron">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M4 6l4 4 4-4z"/>
+                    </svg>
+                </span>
             </div>
         </div>
 
