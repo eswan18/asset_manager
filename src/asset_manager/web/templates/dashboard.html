@@ -71,6 +71,7 @@
             grid-template-columns: repeat(3, 1fr);
             gap: 1rem;
             margin-bottom: 1.5rem;
+            align-items: start;
         }
         .summary-card {
             background-color: #fff;
@@ -88,6 +89,51 @@
         .summary-card .label {
             color: #666;
             font-size: 1rem;
+        }
+        .summary-card .chevron {
+            margin-left: auto;
+            color: #999;
+            font-size: 1.25rem;
+            line-height: 1;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .summary-card .chevron:hover {
+            color: #666;
+        }
+        .summary-card .chevron.expanded {
+            transform: rotate(180deg);
+        }
+        .card-wrapper {
+            position: relative;
+        }
+        .breakdown {
+            display: none;
+            background-color: #fff;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-top: -8px;
+            padding: 0.75rem 1.5rem;
+            padding-top: 1rem;
+        }
+        .breakdown.show {
+            display: block;
+        }
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .breakdown-item:last-child {
+            border-bottom: none;
+        }
+        .breakdown-item .description {
+            color: #666;
+        }
+        .breakdown-item .amount {
+            font-weight: 500;
         }
         .summary-card.net-worth .value {
             color: #0066cc;
@@ -157,13 +203,43 @@
                 <div class="value">${{ "{:,.0f}".format(totals.net_worth) }}</div>
                 <div class="label">Net Worth</div>
             </div>
-            <div class="summary-card assets">
-                <div class="value">${{ "{:,.0f}".format(totals.assets) }}</div>
-                <div class="label">Assets</div>
+            <div class="card-wrapper">
+                <div class="summary-card assets">
+                    <div class="value">${{ "{:,.0f}".format(totals.assets) }}</div>
+                    <div class="label">Assets</div>
+                    <span class="chevron" onclick="toggleBreakdown('assets-breakdown', this)">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M4 6l4 4 4-4z"/>
+                        </svg>
+                    </span>
+                </div>
+                <div id="assets-breakdown" class="breakdown">
+                    {% for description, amount in assets_breakdown.items() %}
+                    <div class="breakdown-item">
+                        <span class="description">{{ description }}</span>
+                        <span class="amount">${{ "{:,.0f}".format(amount) }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
-            <div class="summary-card liabilities">
-                <div class="value">${{ "{:,.0f}".format(totals.liabilities) }}</div>
-                <div class="label">Liabilities</div>
+            <div class="card-wrapper">
+                <div class="summary-card liabilities">
+                    <div class="value">${{ "{:,.0f}".format(totals.liabilities) }}</div>
+                    <div class="label">Liabilities</div>
+                    <span class="chevron" onclick="toggleBreakdown('liabilities-breakdown', this)">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M4 6l4 4 4-4z"/>
+                        </svg>
+                    </span>
+                </div>
+                <div id="liabilities-breakdown" class="breakdown">
+                    {% for description, amount in liabilities_breakdown.items() %}
+                    <div class="breakdown-item">
+                        <span class="description">{{ description }}</span>
+                        <span class="amount">${{ "{:,.0f}".format(amount) }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
 
@@ -185,5 +261,13 @@
         </div>
         {% endif %}
     </div>
+
+    <script>
+        function toggleBreakdown(breakdownId, chevron) {
+            const breakdown = document.getElementById(breakdownId);
+            breakdown.classList.toggle('show');
+            chevron.classList.toggle('expanded');
+        }
+    </script>
 </body>
 </html>
