@@ -70,7 +70,7 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
         dates = [point[0] for point in series]
         amounts = [float(point[1]) for point in series]
         fig_assets.add_trace(
-            go.Scatter(x=dates, y=amounts, name=description, mode="lines+markers")
+            go.Scatter(x=dates, y=amounts, name=description, mode="lines")
         )
     fig_assets.update_layout(
         title="Assets over Time",
@@ -90,7 +90,7 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
         dates = [point[0] for point in series]
         amounts = [float(point[1]) for point in series]
         fig_liabilities.add_trace(
-            go.Scatter(x=dates, y=amounts, name=description, mode="lines+markers")
+            go.Scatter(x=dates, y=amounts, name=description, mode="lines")
         )
     fig_liabilities.update_layout(
         title="Liabilities over Time",
@@ -124,8 +124,8 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
                 x=dates,
                 y=total_assets,
                 name="Total Assets",
-                mode="lines+markers",
-                line={"color": "green"},
+                mode="lines",
+                line={"color": "rgba(34, 139, 34, 0.4)"},
             )
         )
         fig_summary.add_trace(
@@ -133,8 +133,8 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
                 x=dates,
                 y=total_liabilities,
                 name="Total Liabilities",
-                mode="lines+markers",
-                line={"color": "red"},
+                mode="lines",
+                line={"color": "rgba(220, 20, 60, 0.4)"},
             )
         )
         fig_summary.add_trace(
@@ -142,8 +142,8 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
                 x=dates,
                 y=net_worth,
                 name="Net Worth",
-                mode="lines+markers",
-                line={"color": "blue", "width": 3},
+                mode="lines",
+                line={"color": "#0066cc", "width": 3},
             )
         )
     fig_summary.update_layout(
@@ -153,6 +153,7 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
         yaxis_tickprefix="$",
         yaxis_tickformat=",.0f",
         hovermode="x unified",
+        showlegend=False,
         height=400,
         margin={"t": 40, "b": 40, "l": 60, "r": 20},
     )
