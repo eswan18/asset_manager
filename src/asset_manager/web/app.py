@@ -79,6 +79,7 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
         yaxis_tickprefix="$",
         yaxis_tickformat=",.0f",
         hovermode="x unified",
+        showlegend=False,
         height=300,
         margin={"t": 40, "b": 40, "l": 60, "r": 20},
     )
@@ -99,6 +100,7 @@ def _build_chart_html(records) -> tuple[dict[str, str], dict[str, float]]:
         yaxis_tickprefix="$",
         yaxis_tickformat=",.0f",
         hovermode="x unified",
+        showlegend=False,
         height=300,
         margin={"t": 40, "b": 40, "l": 60, "r": 20},
     )
