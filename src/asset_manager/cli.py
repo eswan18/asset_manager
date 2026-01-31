@@ -13,7 +13,7 @@ from . import __version__
 from .db import get_connection_context
 from .report import generate_report
 from .repository import get_all_records
-from .sheets import fetch_and_save
+from .sheets import fetch_and_save, fetch_records
 
 app = typer.Typer(
     name="asset-manager",
@@ -23,8 +23,33 @@ app = typer.Typer(
 
 
 @app.command()
-def fetch() -> None:
+def fetch(
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run", help="Fetch and display records without saving to the database"
+        ),
+    ] = False,
+) -> None:
     """Fetch data from Google Sheets and save to the database."""
+    if dry_run:
+        try:
+            records = fetch_records()
+        except Exception as exc:
+            typer.echo(f"Error fetching data: {exc}", err=True)
+            raise typer.Exit(code=1)
+
+        if not records:
+            typer.echo("No records found.")
+            raise typer.Exit(code=1)
+
+        typer.echo(f"Found {len(records)} records (dry run, not saving):\n")
+        for record in records:
+            typer.echo(
+                f"  {record.type.value}: {record.description} = ${record.amount}"
+            )
+        return
+
     try:
         count = fetch_and_save()
     except Exception as exc:

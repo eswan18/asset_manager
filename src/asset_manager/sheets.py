@@ -130,11 +130,11 @@ def parse_records_from_table(
     return records
 
 
-def fetch_and_save() -> int:
+def fetch_records() -> list[Record]:
     """
-    Fetch data from Google Sheets and save to the database.
+    Fetch data from Google Sheets and parse into records.
 
-    Returns the number of records saved.
+    Returns the parsed records without saving to the database.
     """
     service = get_service()
     sheets = service.spreadsheets()
@@ -144,7 +144,7 @@ def fetch_and_save() -> int:
 
     if not raw_table:
         print("No data found in the spreadsheet")
-        return 0
+        return []
 
     # Some sad hard-coding...
     asset_cols = slice(0, 4)
@@ -162,7 +162,19 @@ def fetch_and_save() -> int:
         raw_table, liability_cols, RecordType.LIABILITY, today
     )
 
-    all_records = asset_records + liability_records
+    return asset_records + liability_records
+
+
+def fetch_and_save() -> int:
+    """
+    Fetch data from Google Sheets and save to the database.
+
+    Returns the number of records saved.
+    """
+    all_records = fetch_records()
+
+    if not all_records:
+        return 0
 
     print(f"Parsed {len(all_records)} records:")
     for record in all_records:
