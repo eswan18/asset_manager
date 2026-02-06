@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: asset-manager-staging
+  namespace: argocd
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: asset-manager=us-central1-docker.pkg.dev/ethans-services/containers/asset-manager
+    argocd-image-updater.argoproj.io/asset-manager.update-strategy: latest
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/eswan18/asset_manager
+    targetRevision: main
+    path: k8s/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: asset-manager-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: asset-manager-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/eswan18/asset_manager
+    targetRevision: main
+    path: k8s/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: asset-manager-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
