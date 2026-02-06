@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asset-manager
+spec:
+  template:
+    spec:
+      serviceAccountName: asset-manager-prod-ksa
+      containers:
+        - name: asset-manager
+          envFrom:
+            - configMapRef:
+                name: asset-manager-config
+            - configMapRef:
+                name: asset-manager-prod-env-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: asset-manager-prod-secrets
+                  key: DATABASE_URL
+            - name: CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: asset-manager-prod-secrets
+                  key: CLIENT_ID
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: asset-manager-prod-secrets
+                  key: CLIENT_SECRET
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: asset-manager-prod-secrets
+                  key: SECRET_KEY
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: asset-manager-prod-secrets
