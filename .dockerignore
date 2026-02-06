@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.hypothesis
+.coverage
+*.pyc
+__pycache__
+.env*
+credentials/
+tests/
+docs/
+*.md
+!README.md
