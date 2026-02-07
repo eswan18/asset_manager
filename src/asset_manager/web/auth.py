@@ -44,12 +44,17 @@ def get_oauth() -> OAuth:
             "CLIENT_ID and CLIENT_SECRET environment variables are required"
         )
 
-    # Register the OIDC provider with auto-discovery
+    # Register the OIDC provider with auto-discovery.
+    # Override server-to-server endpoints to use the internal K8s URL (IDP_URL)
+    # since pods can't resolve external hostnames (e.g. Tailscale MagicDNS).
     oauth.register(
         name="idp",
         client_id=client_id,
         client_secret=client_secret,
         server_metadata_url=f"{idp_url}/.well-known/openid-configuration",
+        token_endpoint=f"{idp_url}/oauth/token",
+        userinfo_endpoint=f"{idp_url}/oauth/userinfo",
+        jwks_uri=f"{idp_url}/.well-known/jwks.json",
         token_endpoint_auth_method="client_secret_post",
         client_kwargs={
             "scope": "openid profile email",
