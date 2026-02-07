@@ -4,3 +4,4 @@ metadata:
   name: asset-manager-prod-env-config
 data:
   ENV: "prod"
+  IDP_URL: "http://identity.identity-prod.svc.cluster.local"

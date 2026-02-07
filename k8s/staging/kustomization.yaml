@@ -5,6 +5,7 @@ namespace: asset-manager-staging
 
 resources:
   - ../base
+  - namespace.yaml
   - secret-provider-class.yaml
   - configmap-env.yaml
 

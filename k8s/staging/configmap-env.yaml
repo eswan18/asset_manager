@@ -3,4 +3,5 @@ kind: ConfigMap
 metadata:
   name: asset-manager-staging-env-config
 data:
-  ENV: "dev"
+  ENV: "staging"
+  IDP_URL: "http://identity.identity-staging.svc.cluster.local"

@@ -5,6 +5,7 @@ namespace: asset-manager-prod
 
 resources:
   - ../base
+  - namespace.yaml
   - secret-provider-class.yaml
   - configmap-env.yaml
 
