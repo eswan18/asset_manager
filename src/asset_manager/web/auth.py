@@ -50,8 +50,6 @@ def get_oauth() -> OAuth:
         client_id=client_id,
         client_secret=client_secret,
         server_metadata_url=f"{idp_url}/.well-known/openid-configuration",
-        access_token_url=f"{idp_url}/oauth/token",
-        userinfo_endpoint=f"{idp_url}/oauth/userinfo",
         token_endpoint_auth_method="client_secret_post",
         client_kwargs={
             "scope": "openid profile email",
