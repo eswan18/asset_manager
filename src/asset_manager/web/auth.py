@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
+import urllib.request
 from typing import Any
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
@@ -44,23 +46,31 @@ def get_oauth() -> OAuth:
             "CLIENT_ID and CLIENT_SECRET environment variables are required"
         )
 
-    # Register the OIDC provider with auto-discovery.
-    # Override server-to-server endpoints to use the internal K8s URL (IDP_URL)
-    # since pods can't resolve external hostnames (e.g. Tailscale MagicDNS).
+    # Fetch OIDC discovery metadata from the internal K8s URL, then override
+    # server-to-server endpoints to also use internal URLs. Pods can't resolve
+    # external hostnames (e.g. Tailscale MagicDNS), but the browser-facing
+    # authorization_endpoint must remain external for redirects.
+    with urllib.request.urlopen(f"{idp_url}/.well-known/openid-configuration") as resp:
+        metadata = json.loads(resp.read())
+    metadata["token_endpoint"] = f"{idp_url}/oauth/token"
+    metadata["userinfo_endpoint"] = f"{idp_url}/oauth/userinfo"
+    metadata["jwks_uri"] = f"{idp_url}/.well-known/jwks.json"
+
     oauth.register(
         name="idp",
         client_id=client_id,
         client_secret=client_secret,
         server_metadata_url=f"{idp_url}/.well-known/openid-configuration",
-        token_endpoint=f"{idp_url}/oauth/token",
-        userinfo_endpoint=f"{idp_url}/oauth/userinfo",
-        jwks_uri=f"{idp_url}/.well-known/jwks.json",
         token_endpoint_auth_method="client_secret_post",
         client_kwargs={
             "scope": "openid profile email",
             "code_challenge_method": "S256",
         },
     )
+
+    # Pre-populate server metadata so authlib uses our modified endpoints
+    # instead of re-fetching from the discovery URL.
+    oauth.idp.server_metadata = metadata
 
     return oauth
 
