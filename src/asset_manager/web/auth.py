@@ -6,6 +6,7 @@ import os
 import secrets
 from typing import Any
 
+import httpx
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from itsdangerous import URLSafeTimedSerializer
 from starlette.requests import Request
@@ -44,14 +45,17 @@ def get_oauth() -> OAuth:
             "CLIENT_ID and CLIENT_SECRET environment variables are required"
         )
 
-    # Register the OIDC provider with auto-discovery
+    # Register the OIDC provider.
+    # We use server_metadata_url for OIDC discovery (JWKS, issuer, etc.) but
+    # override token/userinfo endpoints to use the internal K8s URL. This is
+    # necessary because the discovered endpoints use the public issuer URL,
+    # which is behind Cloudflare Access and blocks server-to-server calls.
     oauth.register(
         name="idp",
         client_id=client_id,
         client_secret=client_secret,
         server_metadata_url=f"{idp_url}/.well-known/openid-configuration",
         access_token_url=f"{idp_url}/oauth/token",
-        userinfo_endpoint=f"{idp_url}/oauth/userinfo",
         token_endpoint_auth_method="client_secret_post",
         client_kwargs={
             "scope": "openid profile email",
@@ -138,11 +142,21 @@ async def handle_callback(request: Request, oauth: OAuth) -> RedirectResponse:
     except OAuthError as e:
         raise RuntimeError(f"OAuth error: {e.error}") from e
 
-    # Get user info from the token or userinfo endpoint
+    # Get user info from the ID token or fetch from userinfo endpoint.
+    # We prefer the ID token claims (parsed by authlib from the OIDC response).
+    # If unavailable (e.g. JWKS fetch failed), fall back to a direct userinfo
+    # call using the internal IDP URL to avoid Cloudflare Access interception.
     user_info = token.get("userinfo")
     if not user_info:
-        # Fetch from userinfo endpoint if not in token
-        user_info = await oauth.idp.userinfo(token=token)
+        idp_url = os.environ.get("IDP_URL", "")
+        access_token = token.get("access_token", "")
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{idp_url}/oauth/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            resp.raise_for_status()
+            user_info = resp.json()
 
     # Create session with user data
     user_data = {
