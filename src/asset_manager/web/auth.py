@@ -65,10 +65,10 @@ def get_oauth() -> OAuth:
         server_metadata_url=f"{idp_url}/.well-known/openid-configuration",
         # access_token_url is checked before metadata in authlib's fetch_access_token
         access_token_url=f"{idp_url}/oauth/token",
-        token_endpoint_auth_method="client_secret_post",
         client_kwargs={
             "scope": "openid profile email",
             "code_challenge_method": "S256",
+            "token_endpoint_auth_method": "client_secret_post",
         },
     )
 
