@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import time
 import urllib.request
 from typing import Any
 
@@ -46,21 +47,24 @@ def get_oauth() -> OAuth:
             "CLIENT_ID and CLIENT_SECRET environment variables are required"
         )
 
-    # Fetch OIDC discovery metadata from the internal K8s URL, then override
-    # server-to-server endpoints to also use internal URLs. Pods can't resolve
-    # external hostnames (e.g. Tailscale MagicDNS), but the browser-facing
-    # authorization_endpoint must remain external for redirects.
+    # Fetch OIDC metadata and override server-to-server endpoints with the
+    # internal K8s URL. Pods can't resolve external hostnames (e.g. Tailscale
+    # MagicDNS), but browser-facing authorization_endpoint stays external.
     with urllib.request.urlopen(f"{idp_url}/.well-known/openid-configuration") as resp:
         metadata = json.loads(resp.read())
     metadata["token_endpoint"] = f"{idp_url}/oauth/token"
     metadata["userinfo_endpoint"] = f"{idp_url}/oauth/userinfo"
     metadata["jwks_uri"] = f"{idp_url}/.well-known/jwks.json"
+    # Mark as loaded so authlib doesn't re-fetch and overwrite our changes.
+    metadata["_loaded_at"] = time.time()
 
     oauth.register(
         name="idp",
         client_id=client_id,
         client_secret=client_secret,
         server_metadata_url=f"{idp_url}/.well-known/openid-configuration",
+        # access_token_url is checked before metadata in authlib's fetch_access_token
+        access_token_url=f"{idp_url}/oauth/token",
         token_endpoint_auth_method="client_secret_post",
         client_kwargs={
             "scope": "openid profile email",
@@ -68,8 +72,7 @@ def get_oauth() -> OAuth:
         },
     )
 
-    # Pre-populate server metadata so authlib uses our modified endpoints
-    # instead of re-fetching from the discovery URL.
+    # Pre-populate with our modified metadata (including _loaded_at).
     oauth.idp.server_metadata = metadata
 
     return oauth
