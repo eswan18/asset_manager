@@ -9,6 +9,7 @@ resources:
   - secret-provider-class.yaml
   - service-account.yaml
   - configmap-env.yaml
+  - tailscale-ingress.yaml
 
 patches:
   - path: deployment-patch.yaml
