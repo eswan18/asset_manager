@@ -1,0 +1,14 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: asset-manager-staging-ts
+spec:
+  defaultBackend:
+    service:
+      name: asset-manager
+      port:
+        number: 80
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - assets-staging
