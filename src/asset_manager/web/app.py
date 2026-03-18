@@ -71,6 +71,35 @@ def _build_chart_html(
     charts = {}
     totals = {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
 
+    # Dark theme layout defaults
+    dark_layout = {
+        "paper_bgcolor": "rgba(0,0,0,0)",
+        "plot_bgcolor": "rgba(0,0,0,0)",
+        "font": {"color": "#918c86", "family": "DM Sans, sans-serif"},
+        "title_font": {
+            "color": "#e8e4df",
+            "family": "DM Serif Display, Georgia, serif",
+            "size": 16,
+        },
+        "xaxis": {
+            "gridcolor": "rgba(46,51,64,0.6)",
+            "linecolor": "#2e3340",
+            "tickfont": {"color": "#5f5b56"},
+            "title_font": {"color": "#918c86"},
+        },
+        "yaxis": {
+            "gridcolor": "rgba(46,51,64,0.6)",
+            "linecolor": "#2e3340",
+            "tickfont": {"color": "#5f5b56", "family": "JetBrains Mono, monospace"},
+            "title_font": {"color": "#918c86"},
+        },
+        "hoverlabel": {
+            "bgcolor": "#22262e",
+            "bordercolor": "#3a3f4a",
+            "font": {"color": "#e8e4df", "family": "DM Sans, sans-serif"},
+        },
+    }
+
     # Extract latest value for each asset/liability for breakdown display
     assets_breakdown = {}
     for description, series in sorted(assets_data.items()):
@@ -92,6 +121,7 @@ def _build_chart_html(
             go.Scatter(x=dates, y=amounts, name=description, mode="lines")
         )
     fig_assets.update_layout(
+        **dark_layout,
         title="Assets over Time",
         xaxis_title="Date",
         yaxis_title="Amount ($)",
@@ -113,6 +143,7 @@ def _build_chart_html(
             go.Scatter(x=dates, y=amounts, name=description, mode="lines")
         )
     fig_liabilities.update_layout(
+        **dark_layout,
         title="Liabilities over Time",
         xaxis_title="Date",
         yaxis_title="Amount ($)",
@@ -146,7 +177,7 @@ def _build_chart_html(
                 y=total_assets,
                 name="Total Assets",
                 mode="lines",
-                line={"color": "rgba(34, 139, 34, 0.4)"},
+                line={"color": "rgba(106, 173, 122, 0.5)"},
             )
         )
         fig_summary.add_trace(
@@ -155,7 +186,7 @@ def _build_chart_html(
                 y=total_liabilities,
                 name="Total Liabilities",
                 mode="lines",
-                line={"color": "rgba(220, 20, 60, 0.4)"},
+                line={"color": "rgba(199, 92, 92, 0.5)"},
             )
         )
         fig_summary.add_trace(
@@ -164,10 +195,11 @@ def _build_chart_html(
                 y=net_worth,
                 name="Net Worth",
                 mode="lines",
-                line={"color": "#0066cc", "width": 3},
+                line={"color": "#c9a55a", "width": 3},
             )
         )
     fig_summary.update_layout(
+        **dark_layout,
         title="Net Worth over Time",
         xaxis_title="Date",
         yaxis_title="Amount ($)",

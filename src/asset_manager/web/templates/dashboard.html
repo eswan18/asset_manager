@@ -9,95 +9,132 @@
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 1rem;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1.75rem;
         align-items: start;
     }
+
     .summary-card {
-        background-color: #fff;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        padding: 0.75rem 1.5rem;
+        background-color: var(--bg-surface);
+        border-radius: var(--radius);
+        border: 1px solid var(--border-subtle);
+        padding: 1rem 1.25rem;
         display: flex;
         align-items: baseline;
         gap: 0.75rem;
+        transition: border-color 0.2s;
     }
+
+    .summary-card:hover {
+        border-color: var(--border-medium);
+    }
+
     .summary-card .value {
-        font-size: 1.75rem;
+        font-family: var(--font-mono);
+        font-size: 1.5rem;
         font-weight: 600;
+        letter-spacing: -0.02em;
     }
+
     .summary-card .label {
-        color: #666;
-        font-size: 1rem;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
+
     .summary-card .chevron {
         margin-left: auto;
-        color: #999;
-        font-size: 1.25rem;
+        color: var(--text-muted);
         line-height: 1;
         cursor: pointer;
-        transition: transform 0.2s ease;
+        transition: transform 0.25s ease, color 0.2s;
     }
+
     .summary-card .chevron:hover {
-        color: #666;
+        color: var(--text-secondary);
     }
+
     .summary-card .chevron.expanded {
         transform: rotate(180deg);
     }
+
     .card-wrapper {
         position: relative;
     }
+
     .breakdown {
         display: none;
-        background-color: #fff;
-        border-radius: 0 0 8px 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        margin-top: -8px;
-        padding: 0.75rem 1.5rem;
-        padding-top: 1rem;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-top: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        margin-top: -1px;
+        padding: 0.5rem 1.25rem 0.75rem;
     }
+
     .breakdown.show {
         display: block;
     }
+
     .breakdown-item {
         display: flex;
         justify-content: space-between;
-        padding: 0.25rem 0;
-        font-size: 0.9rem;
-        border-bottom: 1px solid #f0f0f0;
+        padding: 0.3rem 0;
+        font-size: 0.85rem;
+        border-bottom: 1px solid var(--border-subtle);
     }
+
     .breakdown-item:last-child {
         border-bottom: none;
     }
+
     .breakdown-item .description {
-        color: #666;
+        color: var(--text-secondary);
     }
+
     .breakdown-item .amount {
+        font-family: var(--font-mono);
         font-weight: 500;
+        font-size: 0.82rem;
+        color: var(--text-primary);
     }
+
     .summary-card.net-worth .value {
-        color: #0066cc;
+        color: var(--accent-gold);
     }
+
     .summary-card.assets .value {
-        color: #22863a;
+        color: var(--color-asset);
     }
+
     .summary-card.liabilities .value {
-        color: #cb2431;
+        color: var(--color-liability);
     }
+
     .chart-container {
-        background-color: #fff;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius);
         margin-bottom: 1.5rem;
         padding: 1rem;
     }
+
+    /* Override Plotly's default white background */
+    .chart-container .plotly .main-svg {
+        background: transparent !important;
+    }
+
     .chart-row {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 1.5rem;
     }
+
     .chart-row .chart-container {
         margin-bottom: 0;
     }
+
     @media (max-width: 768px) {
         .summary-cards {
             grid-template-columns: 1fr;
@@ -110,7 +147,7 @@
 
 {% block content %}
     {% if charts %}
-    <div class="summary-cards">
+    <div class="summary-cards fade-in">
         <div class="summary-card net-worth">
             <div class="value">${{ "{:,.0f}".format(totals.net_worth) }}</div>
             <div class="label">Net Worth</div>
@@ -120,7 +157,7 @@
                 <div class="value">${{ "{:,.0f}".format(totals.assets) }}</div>
                 <div class="label">Assets</div>
                 <span class="chevron" onclick="toggleBreakdown('assets-breakdown', this)">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M4 6l4 4 4-4z"/>
                     </svg>
                 </span>
@@ -139,7 +176,7 @@
                 <div class="value">${{ "{:,.0f}".format(totals.liabilities) }}</div>
                 <div class="label">Liabilities</div>
                 <span class="chevron" onclick="toggleBreakdown('liabilities-breakdown', this)">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M4 6l4 4 4-4z"/>
                     </svg>
                 </span>
@@ -155,11 +192,11 @@
         </div>
     </div>
 
-    <div class="chart-container">
+    <div class="chart-container fade-in" style="animation-delay: 0.05s">
         {{ charts.summary | safe }}
     </div>
 
-    <div class="chart-row">
+    <div class="chart-row fade-in" style="animation-delay: 0.1s">
         <div class="chart-container">
             {{ charts.assets | safe }}
         </div>

@@ -2,96 +2,173 @@
 
 {% block styles %}
     .snapshot-date {
-        color: #666;
-        font-size: 0.95rem;
-        margin-bottom: 1rem;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 1.25rem;
     }
+
+    .snapshot-date span {
+        color: var(--text-secondary);
+    }
+
     .accounts-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 1.5rem;
         margin-bottom: 1.5rem;
     }
+
     .account-table-wrapper {
-        background-color: #fff;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius);
         overflow: hidden;
     }
+
     .table-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.75rem 1.25rem;
-        border-bottom: 1px solid #e0e0e0;
+        padding: 0.85rem 1.25rem;
+        border-bottom: 1px solid var(--border-subtle);
     }
+
     .table-header h2 {
-        font-size: 1.1rem;
-        font-weight: 600;
+        font-family: var(--font-display);
+        font-size: 1.05rem;
+        font-weight: 400;
+        letter-spacing: 0.01em;
     }
+
     .table-header.assets h2 {
-        color: #22863a;
+        color: var(--color-asset);
     }
+
     .table-header.liabilities h2 {
-        color: #cb2431;
+        color: var(--color-liability);
     }
+
     .table-actions {
         /* Placeholder for future Add button */
     }
+
     .accounts-table {
         width: 100%;
         border-collapse: collapse;
     }
+
     .accounts-table th {
         text-align: left;
-        padding: 0.5rem 1.25rem;
-        font-size: 0.8rem;
-        font-weight: 500;
-        color: #999;
+        padding: 0.55rem 1.25rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--text-muted);
         text-transform: uppercase;
-        letter-spacing: 0.03em;
-        border-bottom: 1px solid #f0f0f0;
+        letter-spacing: 0.08em;
+        border-bottom: 1px solid var(--border-subtle);
     }
+
     .accounts-table th.amount-col {
         text-align: right;
     }
+
     .accounts-table td {
-        padding: 0.6rem 1.25rem;
-        font-size: 0.95rem;
-        border-bottom: 1px solid #f5f5f5;
+        padding: 0.55rem 1.25rem;
+        font-size: 0.9rem;
+        border-bottom: 1px solid rgba(46, 51, 64, 0.5);
     }
-    .accounts-table tbody tr:hover {
-        background-color: #fafafa;
+
+    .accounts-table tbody tr {
+        transition: background-color 0.15s ease;
     }
+
+    .accounts-table tbody tr:hover:not(.totals-row) {
+        background-color: var(--bg-surface-hover);
+    }
+
+    .accounts-table td .cell-value {
+        color: var(--text-secondary);
+    }
+
     .accounts-table td.amount-cell {
         text-align: right;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
         font-variant-numeric: tabular-nums;
     }
+
+    .accounts-table td.amount-cell .cell-value {
+        color: var(--text-primary);
+    }
+
     .accounts-table .totals-row td {
         font-weight: 600;
-        border-top: 2px solid #e0e0e0;
+        border-top: 1px solid var(--border-medium);
         border-bottom: none;
-        padding-top: 0.75rem;
+        padding-top: 0.7rem;
+        padding-bottom: 0.7rem;
+        color: var(--text-primary);
+        font-size: 0.9rem;
     }
+
+    .accounts-table .totals-row td.amount-cell {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        letter-spacing: -0.01em;
+    }
+
     .net-worth-summary {
-        background-color: #fff;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius);
         padding: 1rem 1.25rem;
         display: flex;
         justify-content: space-between;
         align-items: baseline;
+        position: relative;
+        overflow: hidden;
     }
+
+    /* Subtle gold accent line on the left */
+    .net-worth-summary::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--accent-gold);
+    }
+
     .net-worth-summary .label {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #333;
+        font-family: var(--font-display);
+        font-size: 1.05rem;
+        font-weight: 400;
+        color: var(--text-secondary);
     }
+
     .net-worth-summary .value {
-        font-size: 1.5rem;
+        font-family: var(--font-mono);
+        font-size: 1.35rem;
         font-weight: 600;
-        color: #0066cc;
+        color: var(--accent-gold);
+        letter-spacing: -0.02em;
     }
+
+    /* Staggered row animation */
+    .accounts-table tbody tr {
+        animation: fadeUp 0.3s ease-out both;
+    }
+
+    {% for i in range(20) %}
+    .accounts-table tbody tr:nth-child({{ i + 1 }}) {
+        animation-delay: {{ 0.03 * i }}s;
+    }
+    {% endfor %}
+
     @media (max-width: 768px) {
         .accounts-grid {
             grid-template-columns: 1fr;
@@ -101,11 +178,11 @@
 
 {% block content %}
     {% if assets or liabilities %}
-    <div class="snapshot-date">
-        Snapshot: {{ snapshot_date.strftime('%B %-d, %Y') }}
+    <div class="snapshot-date fade-in">
+        Snapshot <span>{{ snapshot_date.strftime('%B %-d, %Y') }}</span>
     </div>
 
-    <div class="accounts-grid">
+    <div class="accounts-grid fade-in" style="animation-delay: 0.05s">
         <div class="account-table-wrapper">
             <div class="table-header assets">
                 <h2>Assets</h2>
@@ -161,7 +238,7 @@
         </div>
     </div>
 
-    <div class="net-worth-summary">
+    <div class="net-worth-summary fade-in" style="animation-delay: 0.15s">
         <span class="label">Net Worth</span>
         <span class="value">${{ "{:,.2f}".format(net_worth) }}</span>
     </div>
