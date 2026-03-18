@@ -11,8 +11,9 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from asset_manager.db import get_connection_context
+from asset_manager.models import RecordType
 from asset_manager.report import _transform_data
-from asset_manager.repository import get_all_records
+from asset_manager.repository import get_all_records, get_latest_snapshot_records
 
 from .auth import (
     get_oauth,
@@ -200,6 +201,7 @@ async def dashboard(request: Request):
             {
                 "request": request,
                 "user": user,
+                "active_tab": "dashboard",
                 "error": "An error occurred while loading your data. Please try again later.",
                 "charts": {},
             },
@@ -218,11 +220,61 @@ async def dashboard(request: Request):
         {
             "request": request,
             "user": user,
+            "active_tab": "dashboard",
             "charts": charts,
             "totals": totals,
             "assets_breakdown": assets_breakdown,
             "liabilities_breakdown": liabilities_breakdown,
             "record_count": len(records),
+        },
+    )
+
+
+@app.get("/accounts", response_class=HTMLResponse)
+async def accounts(request: Request):
+    """Render the accounts table view."""
+    user = get_session_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    try:
+        with get_connection_context() as conn:
+            records = get_latest_snapshot_records(conn)
+    except Exception as e:
+        logger.exception("Database error in accounts: %s", e)
+        return templates.TemplateResponse(
+            "accounts.html",
+            {
+                "request": request,
+                "user": user,
+                "active_tab": "accounts",
+                "error": "An error occurred while loading your data. Please try again later.",
+            },
+        )
+
+    if records:
+        assets = [r for r in records if r.type == RecordType.ASSET]
+        liabilities = [r for r in records if r.type == RecordType.LIABILITY]
+        snapshot_date = records[0].date
+        assets_total = sum(r.amount for r in assets)
+        liabilities_total = sum(r.amount for r in liabilities)
+    else:
+        assets, liabilities = [], []
+        snapshot_date = None
+        assets_total = liabilities_total = 0
+
+    return templates.TemplateResponse(
+        "accounts.html",
+        {
+            "request": request,
+            "user": user,
+            "active_tab": "accounts",
+            "assets": assets,
+            "liabilities": liabilities,
+            "snapshot_date": snapshot_date,
+            "assets_total": assets_total,
+            "liabilities_total": liabilities_total,
+            "net_worth": assets_total - liabilities_total,
         },
     )
 

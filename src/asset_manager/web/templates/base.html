@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Dashboard</title>
+    {% block head_extra %}{% endblock %}
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .header {
+            background-color: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 1rem 2rem 0;
+        }
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        .user-info {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-primary {
+            background-color: #0066cc;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #0052a3;
+        }
+        .btn-secondary {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        .btn-secondary:hover {
+            background-color: #d0d0d0;
+        }
+        .tab-nav {
+            display: flex;
+            gap: 0;
+        }
+        .tab-nav a {
+            padding: 0.5rem 1.25rem;
+            text-decoration: none;
+            color: #666;
+            font-size: 0.95rem;
+            border-bottom: 2px solid transparent;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .tab-nav a:hover {
+            color: #333;
+        }
+        .tab-nav a.active {
+            color: #0066cc;
+            border-bottom-color: #0066cc;
+            font-weight: 500;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        .error {
+            background-color: #fee;
+            border: 1px solid #fcc;
+            color: #c00;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        .no-data {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem 1rem 0;
+            }
+        }
+        {% block styles %}{% endblock %}
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-top">
+            <h1>Asset Dashboard</h1>
+            <div class="header-actions">
+                <span class="user-info">{{ user.name or user.email }}</span>
+                <a href="/logout" class="btn btn-secondary">Logout</a>
+            </div>
+        </div>
+        <nav class="tab-nav">
+            <a href="/" class="{% if active_tab == 'dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="/accounts" class="{% if active_tab == 'accounts' %}active{% endif %}">Accounts</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
