@@ -11,8 +11,9 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from asset_manager.db import get_connection_context
+from asset_manager.models import RecordType
 from asset_manager.report import _transform_data
-from asset_manager.repository import get_all_records
+from asset_manager.repository import get_all_records, get_latest_snapshot_records
 
 from .auth import (
     get_oauth,
@@ -70,6 +71,35 @@ def _build_chart_html(
     charts = {}
     totals = {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
 
+    # Dark theme layout defaults
+    dark_layout = {
+        "paper_bgcolor": "rgba(0,0,0,0)",
+        "plot_bgcolor": "rgba(0,0,0,0)",
+        "font": {"color": "#918c86", "family": "DM Sans, sans-serif"},
+        "title_font": {
+            "color": "#e8e4df",
+            "family": "DM Serif Display, Georgia, serif",
+            "size": 16,
+        },
+        "xaxis": {
+            "gridcolor": "rgba(46,51,64,0.6)",
+            "linecolor": "#2e3340",
+            "tickfont": {"color": "#5f5b56"},
+            "title_font": {"color": "#918c86"},
+        },
+        "yaxis": {
+            "gridcolor": "rgba(46,51,64,0.6)",
+            "linecolor": "#2e3340",
+            "tickfont": {"color": "#5f5b56", "family": "JetBrains Mono, monospace"},
+            "title_font": {"color": "#918c86"},
+        },
+        "hoverlabel": {
+            "bgcolor": "#22262e",
+            "bordercolor": "#3a3f4a",
+            "font": {"color": "#e8e4df", "family": "DM Sans, sans-serif"},
+        },
+    }
+
     # Extract latest value for each asset/liability for breakdown display
     assets_breakdown = {}
     for description, series in sorted(assets_data.items()):
@@ -91,6 +121,7 @@ def _build_chart_html(
             go.Scatter(x=dates, y=amounts, name=description, mode="lines")
         )
     fig_assets.update_layout(
+        **dark_layout,
         title="Assets over Time",
         xaxis_title="Date",
         yaxis_title="Amount ($)",
@@ -112,6 +143,7 @@ def _build_chart_html(
             go.Scatter(x=dates, y=amounts, name=description, mode="lines")
         )
     fig_liabilities.update_layout(
+        **dark_layout,
         title="Liabilities over Time",
         xaxis_title="Date",
         yaxis_title="Amount ($)",
@@ -145,7 +177,7 @@ def _build_chart_html(
                 y=total_assets,
                 name="Total Assets",
                 mode="lines",
-                line={"color": "rgba(34, 139, 34, 0.4)"},
+                line={"color": "rgba(106, 173, 122, 0.5)"},
             )
         )
         fig_summary.add_trace(
@@ -154,7 +186,7 @@ def _build_chart_html(
                 y=total_liabilities,
                 name="Total Liabilities",
                 mode="lines",
-                line={"color": "rgba(220, 20, 60, 0.4)"},
+                line={"color": "rgba(199, 92, 92, 0.5)"},
             )
         )
         fig_summary.add_trace(
@@ -163,10 +195,11 @@ def _build_chart_html(
                 y=net_worth,
                 name="Net Worth",
                 mode="lines",
-                line={"color": "#0066cc", "width": 3},
+                line={"color": "#c9a55a", "width": 3},
             )
         )
     fig_summary.update_layout(
+        **dark_layout,
         title="Net Worth over Time",
         xaxis_title="Date",
         yaxis_title="Amount ($)",
@@ -200,6 +233,7 @@ async def dashboard(request: Request):
             {
                 "request": request,
                 "user": user,
+                "active_tab": "dashboard",
                 "error": "An error occurred while loading your data. Please try again later.",
                 "charts": {},
             },
@@ -218,11 +252,61 @@ async def dashboard(request: Request):
         {
             "request": request,
             "user": user,
+            "active_tab": "dashboard",
             "charts": charts,
             "totals": totals,
             "assets_breakdown": assets_breakdown,
             "liabilities_breakdown": liabilities_breakdown,
             "record_count": len(records),
+        },
+    )
+
+
+@app.get("/accounts", response_class=HTMLResponse)
+async def accounts(request: Request):
+    """Render the accounts table view."""
+    user = get_session_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    try:
+        with get_connection_context() as conn:
+            records = get_latest_snapshot_records(conn)
+    except Exception as e:
+        logger.exception("Database error in accounts: %s", e)
+        return templates.TemplateResponse(
+            "accounts.html",
+            {
+                "request": request,
+                "user": user,
+                "active_tab": "accounts",
+                "error": "An error occurred while loading your data. Please try again later.",
+            },
+        )
+
+    if records:
+        assets = [r for r in records if r.type == RecordType.ASSET]
+        liabilities = [r for r in records if r.type == RecordType.LIABILITY]
+        snapshot_date = records[0].date
+        assets_total = sum(r.amount for r in assets)
+        liabilities_total = sum(r.amount for r in liabilities)
+    else:
+        assets, liabilities = [], []
+        snapshot_date = None
+        assets_total = liabilities_total = 0
+
+    return templates.TemplateResponse(
+        "accounts.html",
+        {
+            "request": request,
+            "user": user,
+            "active_tab": "accounts",
+            "assets": assets,
+            "liabilities": liabilities,
+            "snapshot_date": snapshot_date,
+            "assets_total": assets_total,
+            "liabilities_total": liabilities_total,
+            "net_worth": assets_total - liabilities_total,
         },
     )
 
