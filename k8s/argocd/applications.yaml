@@ -5,7 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     argocd-image-updater.argoproj.io/image-list: asset-manager=us-central1-docker.pkg.dev/ethans-services/containers/asset-manager
-    argocd-image-updater.argoproj.io/asset-manager.update-strategy: latest
+    argocd-image-updater.argoproj.io/asset-manager.update-strategy: newest-build
 spec:
   project: default
   source:
