@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import secrets
 import time
 import urllib.request
 from typing import Any
@@ -138,13 +137,8 @@ def clear_session_response(redirect_url: str) -> RedirectResponse:
 
 async def handle_login(request: Request, oauth: OAuth) -> RedirectResponse:
     """Redirect to the IDP for authentication."""
-    # Generate redirect URI based on request
     redirect_uri = str(request.url_for("auth_callback"))
-
-    # Generate and store PKCE state
-    state = secrets.token_urlsafe(32)
-
-    return await oauth.idp.authorize_redirect(request, redirect_uri, state=state)
+    return await oauth.idp.authorize_redirect(request, redirect_uri)
 
 
 async def handle_callback(request: Request, oauth: OAuth) -> RedirectResponse:
