@@ -18,4 +18,4 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     # pydantic-settings loads database_url from env file at runtime
-    return Settings()  # ty: ignore[missing-argument]
+    return Settings()
