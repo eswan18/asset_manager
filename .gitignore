@@ -1,4 +1,5 @@
 credentials/
+credentials.json
 env*/
 .env*
 !.env.example

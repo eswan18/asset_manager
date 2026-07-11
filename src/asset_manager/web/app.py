@@ -30,7 +30,7 @@ app = FastAPI(title="Asset Dashboard", docs_url=None, redoc_url=None)
 
 # Add session middleware for OAuth state
 app.add_middleware(
-    SessionMiddleware,  # ty: ignore[invalid-argument-type]
+    SessionMiddleware,
     secret_key=get_secret_key(),
     session_cookie="oauth_session",
     max_age=600,  # 10 minutes for OAuth flow
@@ -229,9 +229,9 @@ async def dashboard(request: Request):
     except Exception as e:
         logger.exception("Database error in dashboard: %s", e)
         return templates.TemplateResponse(
+            request,
             "dashboard.html",
             {
-                "request": request,
                 "user": user,
                 "active_tab": "dashboard",
                 "error": "An error occurred while loading your data. Please try again later.",
@@ -248,9 +248,9 @@ async def dashboard(request: Request):
         assets_breakdown, liabilities_breakdown = {}, {}
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "user": user,
             "active_tab": "dashboard",
             "charts": charts,
@@ -275,9 +275,9 @@ async def accounts(request: Request):
     except Exception as e:
         logger.exception("Database error in accounts: %s", e)
         return templates.TemplateResponse(
+            request,
             "accounts.html",
             {
-                "request": request,
                 "user": user,
                 "active_tab": "accounts",
                 "error": "An error occurred while loading your data. Please try again later.",
@@ -296,9 +296,9 @@ async def accounts(request: Request):
         assets_total = liabilities_total = 0
 
     return templates.TemplateResponse(
+        request,
         "accounts.html",
         {
-            "request": request,
             "user": user,
             "active_tab": "accounts",
             "assets": assets,
@@ -314,7 +314,7 @@ async def accounts(request: Request):
 @app.get("/login", response_class=HTMLResponse)
 async def login(request: Request):
     """Show the login page."""
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html")
 
 
 @app.get("/auth/start")
