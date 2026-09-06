@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+import psycopg
 import pytest
 
 from asset_manager.accounts import (
@@ -38,7 +39,7 @@ def test_parse_amount(text, expected):
     assert parse_amount(text) == expected
 
 
-@pytest.mark.parametrize("text", ["", "abc", "1.2.3", "NaN", "Infinity"])
+@pytest.mark.parametrize("text", ["", "abc", "1.2.3", "NaN", "Infinity", "1e999"])
 def test_parse_amount_rejects_junk(text):
     with pytest.raises(AccountError):
         parse_amount(text)
@@ -194,6 +195,38 @@ class TestSaveSnapshot:
         assert loaded is not None and loaded.formula is not None
         assert loaded.formula.cost_basis == Decimal("400.00")
 
+    def test_commits_even_when_a_transaction_was_already_open(
+        self, db_connection, db_url
+    ):
+        """`conn.transaction()` only COMMITs when the connection was idle on
+        entry; on a connection with an already-open transaction (the normal
+        state after any prior statement) it uses a savepoint instead, which
+        does nothing durable on its own. save_snapshot must commit either way.
+        """
+        schwab, cash, tax, _ = self._setup(db_connection)
+        # A plain SELECT opens a transaction on the primary connection, same
+        # as any normal prior query would.
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT 1")
+
+        save_snapshot(
+            db_connection,
+            {schwab.id: Decimal("1000"), cash.id: Decimal("50")},
+            {},
+            TODAY,
+        )
+
+        second_conn = psycopg.connect(db_url)
+        try:
+            rows = {(r.description, r.amount) for r in get_all_records(second_conn)}
+        finally:
+            second_conn.close()
+        assert rows == {
+            ("Schwab", Decimal("1000.00")),
+            ("Cash", Decimal("50.00")),
+            ("Tax", Decimal("135.00")),
+        }
+
     def test_same_day_save_replaces(self, db_connection):
         schwab, cash, tax, _ = self._setup(db_connection)
         save_snapshot(
@@ -236,6 +269,13 @@ class TestSaveSnapshot:
             save_snapshot(db_connection, {**base, old.id: Decimal("0")}, {}, TODAY)
         with pytest.raises(AccountError, match="is computed"):
             save_snapshot(db_connection, {**base, tax.id: Decimal("0")}, {}, TODAY)
-        with pytest.raises(AccountError, match="not an active computed account"):
+        # cash is active but plain: named, not "active" (it plainly is).
+        with pytest.raises(AccountError, match="Cash is not a computed account"):
             save_snapshot(db_connection, base, {cash.id: Decimal("0")}, TODAY)
+        # old is retired, not merely absent: named, and still "not an active
+        # computed account" since it isn't in the active set at all.
+        with pytest.raises(AccountError, match="not an active computed account"):
+            save_snapshot(db_connection, base, {old.id: Decimal("0")}, TODAY)
+        with pytest.raises(AccountError, match="not an active computed account"):
+            save_snapshot(db_connection, base, {9999: Decimal("0")}, TODAY)
         assert get_all_records(db_connection) == []
