@@ -462,7 +462,8 @@
             let amount = null;
             if (row.computed) {
                 const inputs = row.input_ids.map(id => values[id]);
-                const basis = bases[row.id];
+                const rawBasis = bases[row.id];
+                const basis = rawBasis === null ? 0 : rawBasis;
                 if (inputs.every(usable) && usable(basis)) {
                     const sum = inputs.reduce((s, v) => s + v, 0);
                     amount = roundCents(Number(row.formula.rate) * (sum - basis));
@@ -516,7 +517,11 @@
         list.forEach(el => {
             const { text, value } = readAmount(el.value);
             if (value === null) {
-                problem = problem || { el, reason: 'blank' };
+                if (el.dataset.field === 'basis') {
+                    payload[target][el.dataset.accountId] = '0';
+                } else {
+                    problem = problem || { el, reason: 'blank' };
+                }
             } else if (Number.isNaN(value)) {
                 problem = problem || { el, reason: 'nan' };
             } else {
@@ -535,9 +540,7 @@
         if (reason === 'nan') {
             return (el.getAttribute('aria-label') || 'Value') + " isn't a number.";
         }
-        return el.dataset.field === 'basis'
-            ? 'Every computed account needs a cost basis before saving.'
-            : 'Every account needs an amount before saving.';
+        return 'Every account needs an amount before saving.';
     }
 
     async function save() {
