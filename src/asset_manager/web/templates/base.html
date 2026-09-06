@@ -176,6 +176,30 @@
             font-size: 0.9rem;
         }
 
+        .flash {
+            padding: 0.85rem 1.25rem;
+            border-radius: var(--radius);
+            margin-bottom: 1.25rem;
+            font-size: 0.9rem;
+            border: 1px solid;
+        }
+
+        .flash-error {
+            background-color: var(--color-liability-dim);
+            border-color: rgba(199, 92, 92, 0.3);
+            color: #e08888;
+        }
+
+        .flash-success {
+            background-color: var(--color-asset-dim);
+            border-color: rgba(106, 173, 122, 0.3);
+            color: #8fcb9c;
+        }
+
+        .no-data a {
+            color: var(--accent-gold);
+        }
+
         .no-data {
             text-align: center;
             padding: 4rem 2rem;
@@ -237,6 +261,10 @@
     <div class="container">
         {% if error %}
         <div class="error">{{ error }}</div>
+        {% endif %}
+
+        {% if flash %}
+        <div class="flash flash-{{ flash.kind }}">{{ flash.text }}</div>
         {% endif %}
 
         {% block content %}{% endblock %}

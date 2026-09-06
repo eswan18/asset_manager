@@ -3,42 +3,37 @@
 from __future__ import annotations
 
 import logging
-from importlib import resources
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from asset_manager.db import get_connection_context
-from asset_manager.models import RecordType
-from asset_manager.report import _transform_data
-from asset_manager.repository import get_all_records, get_latest_snapshot_records
+from asset_manager.repository import get_accounts, get_all_records
 
 from .auth import (
+    CurrentUser,
+    LoginRequired,
     get_oauth,
     get_secret_key,
-    get_session_user,
     handle_callback,
     handle_login,
     handle_logout,
 )
+from .charts import build_chart_html
+from .rendering import render, templates
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Asset Dashboard", docs_url=None, redoc_url=None)
 
-# Add session middleware for OAuth state
+# Session middleware for OAuth state and flash messages
 app.add_middleware(
     SessionMiddleware,
     secret_key=get_secret_key(),
     session_cookie="oauth_session",
     max_age=600,  # 10 minutes for OAuth flow
 )
-
-# Set up templates
-templates_path = resources.files("asset_manager.web").joinpath("templates")
-templates = Jinja2Templates(directory=str(templates_path))
 
 # OAuth client (lazy initialization)
 _oauth = None
@@ -52,183 +47,24 @@ def get_oauth_client():
     return _oauth
 
 
-def _build_chart_html(
-    records,
-) -> tuple[dict[str, str], dict[str, float], dict[str, float], dict[str, float]]:
-    """Build Plotly chart HTML snippets for embedding.
-
-    Returns:
-        Tuple of (charts dict, totals dict, assets_breakdown dict, liabilities_breakdown dict)
-        - charts: HTML snippets for each chart
-        - totals: current net_worth, assets, liabilities
-        - assets_breakdown: description -> latest amount for each asset
-        - liabilities_breakdown: description -> latest amount for each liability
-    """
-    import plotly.graph_objects as go
-
-    assets_data, liabilities_data, summary_data = _transform_data(records)
-
-    charts = {}
-    totals = {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
-
-    # Dark theme layout defaults
-    dark_layout = {
-        "paper_bgcolor": "rgba(0,0,0,0)",
-        "plot_bgcolor": "rgba(0,0,0,0)",
-        "font": {"color": "#918c86", "family": "DM Sans, sans-serif"},
-        "title_font": {
-            "color": "#e8e4df",
-            "family": "DM Serif Display, Georgia, serif",
-            "size": 16,
-        },
-        "xaxis": {
-            "gridcolor": "rgba(46,51,64,0.6)",
-            "linecolor": "#2e3340",
-            "tickfont": {"color": "#5f5b56"},
-            "title_font": {"color": "#918c86"},
-        },
-        "yaxis": {
-            "gridcolor": "rgba(46,51,64,0.6)",
-            "linecolor": "#2e3340",
-            "tickfont": {"color": "#5f5b56", "family": "JetBrains Mono, monospace"},
-            "title_font": {"color": "#918c86"},
-        },
-        "hoverlabel": {
-            "bgcolor": "#22262e",
-            "bordercolor": "#3a3f4a",
-            "font": {"color": "#e8e4df", "family": "DM Sans, sans-serif"},
-        },
-    }
-
-    # Extract latest value for each asset/liability for breakdown display
-    assets_breakdown = {}
-    for description, series in sorted(assets_data.items()):
-        if series:
-            # Series is sorted by date, last entry is most recent
-            assets_breakdown[description] = float(series[-1][1])
-
-    liabilities_breakdown = {}
-    for description, series in sorted(liabilities_data.items()):
-        if series:
-            liabilities_breakdown[description] = float(series[-1][1])
-
-    # Assets chart
-    fig_assets = go.Figure()
-    for description, series in sorted(assets_data.items()):
-        dates = [point[0] for point in series]
-        amounts = [float(point[1]) for point in series]
-        fig_assets.add_trace(
-            go.Scatter(x=dates, y=amounts, name=description, mode="lines")
-        )
-    fig_assets.update_layout(
-        **dark_layout,
-        title="Assets over Time",
-        xaxis_title="Date",
-        yaxis_title="Amount ($)",
-        yaxis_tickprefix="$",
-        yaxis_tickformat=",.0f",
-        hovermode="x unified",
-        showlegend=False,
-        height=300,
-        margin={"t": 40, "b": 40, "l": 60, "r": 20},
-    )
-    charts["assets"] = fig_assets.to_html(full_html=False, include_plotlyjs=False)
-
-    # Liabilities chart
-    fig_liabilities = go.Figure()
-    for description, series in sorted(liabilities_data.items()):
-        dates = [point[0] for point in series]
-        amounts = [float(point[1]) for point in series]
-        fig_liabilities.add_trace(
-            go.Scatter(x=dates, y=amounts, name=description, mode="lines")
-        )
-    fig_liabilities.update_layout(
-        **dark_layout,
-        title="Liabilities over Time",
-        xaxis_title="Date",
-        yaxis_title="Amount ($)",
-        yaxis_tickprefix="$",
-        yaxis_tickformat=",.0f",
-        hovermode="x unified",
-        showlegend=False,
-        height=300,
-        margin={"t": 40, "b": 40, "l": 60, "r": 20},
-    )
-    charts["liabilities"] = fig_liabilities.to_html(
-        full_html=False, include_plotlyjs=False
-    )
-
-    # Summary chart (Net Worth over Time)
-    fig_summary = go.Figure()
-    if summary_data:
-        dates = [point[0] for point in summary_data]
-        total_assets = [float(point[1]) for point in summary_data]
-        total_liabilities = [float(point[2]) for point in summary_data]
-        net_worth = [float(point[3]) for point in summary_data]
-
-        # Get latest totals for summary cards
-        totals["assets"] = total_assets[-1] if total_assets else 0.0
-        totals["liabilities"] = total_liabilities[-1] if total_liabilities else 0.0
-        totals["net_worth"] = net_worth[-1] if net_worth else 0.0
-
-        fig_summary.add_trace(
-            go.Scatter(
-                x=dates,
-                y=total_assets,
-                name="Total Assets",
-                mode="lines",
-                line={"color": "rgba(106, 173, 122, 0.5)"},
-            )
-        )
-        fig_summary.add_trace(
-            go.Scatter(
-                x=dates,
-                y=total_liabilities,
-                name="Total Liabilities",
-                mode="lines",
-                line={"color": "rgba(199, 92, 92, 0.5)"},
-            )
-        )
-        fig_summary.add_trace(
-            go.Scatter(
-                x=dates,
-                y=net_worth,
-                name="Net Worth",
-                mode="lines",
-                line={"color": "#c9a55a", "width": 3},
-            )
-        )
-    fig_summary.update_layout(
-        **dark_layout,
-        title="Net Worth over Time",
-        xaxis_title="Date",
-        yaxis_title="Amount ($)",
-        yaxis_tickprefix="$",
-        yaxis_tickformat=",.0f",
-        hovermode="x unified",
-        showlegend=False,
-        height=400,
-        margin={"t": 40, "b": 40, "l": 60, "r": 20},
-    )
-    charts["summary"] = fig_summary.to_html(full_html=False, include_plotlyjs=False)
-
-    return charts, totals, assets_breakdown, liabilities_breakdown
+@app.exception_handler(LoginRequired)
+async def login_required_handler(request: Request, exc: LoginRequired):
+    """Pages redirect to login; JSON clients get a 401."""
+    if "application/json" in request.headers.get("accept", ""):
+        return JSONResponse({"error": "Login required"}, status_code=401)
+    return RedirectResponse(url="/login", status_code=302)
 
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
+async def dashboard(request: Request, user: CurrentUser):
     """Render the main dashboard."""
-    user = get_session_user(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=302)
-
-    # Fetch data and build charts
     try:
         with get_connection_context() as conn:
             records = get_all_records(conn)
-    except Exception as e:
-        logger.exception("Database error in dashboard: %s", e)
-        return templates.TemplateResponse(
+            accounts = get_accounts(conn)
+    except Exception:
+        logger.exception("Database error in dashboard")
+        return render(
             request,
             "dashboard.html",
             {
@@ -240,14 +76,14 @@ async def dashboard(request: Request):
         )
 
     if records:
-        charts, totals, assets_breakdown, liabilities_breakdown = _build_chart_html(
-            records
+        charts, totals, assets_breakdown, liabilities_breakdown = build_chart_html(
+            records, accounts
         )
     else:
         charts, totals = {}, {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
         assets_breakdown, liabilities_breakdown = {}, {}
 
-    return templates.TemplateResponse(
+    return render(
         request,
         "dashboard.html",
         {
@@ -258,55 +94,6 @@ async def dashboard(request: Request):
             "assets_breakdown": assets_breakdown,
             "liabilities_breakdown": liabilities_breakdown,
             "record_count": len(records),
-        },
-    )
-
-
-@app.get("/accounts", response_class=HTMLResponse)
-async def accounts(request: Request):
-    """Render the accounts table view."""
-    user = get_session_user(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=302)
-
-    try:
-        with get_connection_context() as conn:
-            records = get_latest_snapshot_records(conn)
-    except Exception as e:
-        logger.exception("Database error in accounts: %s", e)
-        return templates.TemplateResponse(
-            request,
-            "accounts.html",
-            {
-                "user": user,
-                "active_tab": "accounts",
-                "error": "An error occurred while loading your data. Please try again later.",
-            },
-        )
-
-    if records:
-        assets = [r for r in records if r.type == RecordType.ASSET]
-        liabilities = [r for r in records if r.type == RecordType.LIABILITY]
-        snapshot_date = records[0].date
-        assets_total = sum(r.amount for r in assets)
-        liabilities_total = sum(r.amount for r in liabilities)
-    else:
-        assets, liabilities = [], []
-        snapshot_date = None
-        assets_total = liabilities_total = 0
-
-    return templates.TemplateResponse(
-        request,
-        "accounts.html",
-        {
-            "user": user,
-            "active_tab": "accounts",
-            "assets": assets,
-            "liabilities": liabilities,
-            "snapshot_date": snapshot_date,
-            "assets_total": assets_total,
-            "liabilities_total": liabilities_total,
-            "net_worth": assets_total - liabilities_total,
         },
     )
 
@@ -330,6 +117,11 @@ async def auth_callback(request: Request):
     oauth = get_oauth_client()
     try:
         return await handle_callback(request, oauth)
+    except PermissionError:
+        logger.warning("Login refused: email not in ALLOWED_EMAILS")
+        return HTMLResponse(
+            "Your account is not authorized to use this app.", status_code=403
+        )
     except Exception as e:
         logger.exception("OAuth callback failed: %s", e)
         return HTMLResponse("Authentication failed. Please try again.", status_code=400)
@@ -344,8 +136,6 @@ async def logout():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    from fastapi.responses import JSONResponse
-
     return JSONResponse(
         content={"status": "ok"},
         headers={"Access-Control-Allow-Origin": "*"},
