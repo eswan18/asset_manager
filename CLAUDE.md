@@ -62,7 +62,7 @@ uv run dotenv -f .env.dev run dbmate status
 
 ### CLI Commands
 ```bash
-# Fetch data from Google Sheets and save to database
+# Fetch data from Google Sheets and save to database (legacy)
 ENV=dev uv run asset-manager fetch
 ENV=prod uv run asset-manager fetch
 
@@ -106,7 +106,7 @@ asset_manager/
 │       ├── accounts.py         # Account rules, retire checks, snapshot save transaction
 │       ├── formulas.py         # Pure formula evaluation (compute_snapshot)
 │       ├── report.py           # Interactive HTML report generation
-│       ├── sheets.py           # Google Sheets fetching
+│       ├── sheets.py           # Google Sheets fetching (legacy)
 │       ├── py.typed            # PEP 561 marker
 │       ├── data/
 │       │   └── config.ini      # Sheet ID and range
@@ -170,7 +170,8 @@ CREATE TABLE accounts (
 CREATE TABLE formula_inputs (   -- which plain accounts a computed account sums
     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     input_id INTEGER NOT NULL REFERENCES accounts(id),
-    PRIMARY KEY (account_id, input_id)
+    PRIMARY KEY (account_id, input_id),
+    CHECK (account_id <> input_id)
 );
 
 CREATE TABLE snapshots (

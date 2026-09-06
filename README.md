@@ -83,7 +83,7 @@ The dashboard requires OAuth configuration (IDP_URL, CLIENT_ID, CLIENT_SECRET, S
 # Show help
 uv run asset-manager --help
 
-# Fetch data from Google Sheets
+# Import from Google Sheets (legacy; see above)
 ENV=dev uv run asset-manager fetch
 
 # Generate interactive HTML report
