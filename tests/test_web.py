@@ -283,6 +283,23 @@ class TestSaveSnapshot:
         records = get_all_records(db_connection)
         assert [r.amount for r in records] == [Decimal("10.01")]
 
+    def test_oversized_amount_returns_400_and_writes_nothing(
+        self, client, db_connection
+    ):
+        from asset_manager.repository import get_all_records
+
+        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        login(client)
+
+        response = client.post(
+            "/snapshots",
+            json={"values": {str(schwab.id): "1e999"}, "cost_bases": {}},
+            headers={"Accept": "application/json"},
+        )
+
+        assert response.status_code == 400
+        assert get_all_records(db_connection) == []
+
     def test_missing_value_returns_400_and_writes_nothing(self, client, db_connection):
         from asset_manager.repository import get_all_records
 

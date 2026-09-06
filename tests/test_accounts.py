@@ -45,6 +45,11 @@ def test_parse_amount_rejects_junk(text):
         parse_amount(text)
 
 
+def test_parse_amount_rejects_amounts_too_large_to_store():
+    with pytest.raises(AccountError, match="too large"):
+        parse_amount("99999999999999999")
+
+
 @pytest.mark.db
 class TestCreateAndUpdate:
     def test_create_strips_name(self, db_connection):
@@ -133,6 +138,17 @@ class TestRetire:
         with pytest.raises(AccountError, match="Set it to zero and save"):
             retire_account(db_connection, a.id, TODAY)
 
+    def test_retire_blocker_formats_a_negative_amount_without_a_double_sign(
+        self, db_connection
+    ):
+        a = create_account(db_connection, "A", RecordType.LIABILITY)
+        upsert_amounts(db_connection, date(2026, 1, 1), {a.id: Decimal("-17.44")})
+        db_connection.commit()
+        blocker = retire_blocker(db_connection, a)
+        assert blocker is not None
+        assert "-$17.44" in blocker
+        assert "$-17.44" not in blocker
+
     def test_retire_blocked_when_it_feeds_a_formula(self, db_connection):
         schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
         create_account(db_connection, "Tax", RecordType.LIABILITY, RATE, [schwab.id])
@@ -158,6 +174,24 @@ class TestRetire:
         assert unretire_account(db_connection, a.id).retired_at is None
         with pytest.raises(AccountError, match="is not retired"):
             unretire_account(db_connection, a.id)
+
+    def test_unretire_rechecks_inputs_of_a_computed_account(self, db_connection):
+        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        tax = create_account(
+            db_connection, "Tax", RecordType.LIABILITY, RATE, [schwab.id]
+        )
+        # Tax was never snapshotted, so retiring it is allowed.
+        retire_account(db_connection, tax.id, TODAY)
+        # Schwab has no active dependents now (Tax is retired), so it too
+        # can be retired.
+        retire_account(db_connection, schwab.id, TODAY)
+
+        with pytest.raises(AccountError, match="Cannot unretire Tax") as exc_info:
+            unretire_account(db_connection, tax.id)
+        assert "is retired" in str(exc_info.value)
+
+        unretire_account(db_connection, schwab.id)
+        assert unretire_account(db_connection, tax.id).retired_at is None
 
 
 @pytest.mark.db
@@ -261,6 +295,17 @@ class TestSaveSnapshot:
         loaded = get_account(db_connection, tax.id)
         assert loaded is not None and loaded.formula is not None
         assert loaded.formula.cost_basis == Decimal("100")
+
+    def test_rejects_a_value_too_large_to_store_and_writes_nothing(self, db_connection):
+        schwab, cash, tax, _ = self._setup(db_connection)
+        with pytest.raises(AccountError, match="too large"):
+            save_snapshot(
+                db_connection,
+                {schwab.id: Decimal("1e14"), cash.id: Decimal("50")},
+                {},
+                TODAY,
+            )
+        assert get_all_records(db_connection) == []
 
     def test_rejects_retired_computed_and_unknown_ids(self, db_connection):
         schwab, cash, tax, old = self._setup(db_connection)

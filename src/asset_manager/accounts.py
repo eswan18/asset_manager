@@ -21,6 +21,17 @@ class AccountError(ValueError):
     """A rule violation with a user-facing message."""
 
 
+# Comfortably above any real account balance, and comfortably below
+# DECIMAL(15, 2)'s limit (~1e13), so a value that clears this check is safe
+# to quantize and insert.
+MAX_AMOUNT = Decimal("10000000000000")
+
+
+def _check_magnitude(name: str, amount: Decimal) -> None:
+    if abs(amount) >= MAX_AMOUNT:
+        raise AccountError(f"{name} is too large")
+
+
 def parse_amount(text: str) -> Decimal:
     """Parse "$1,234.56", "-17.44", or "(17.44)" into a Decimal with two places."""
     cleaned = text.replace("$", "").replace(",", "").replace(" ", "").strip()
@@ -31,11 +42,13 @@ def parse_amount(text: str) -> Decimal:
         amount = Decimal(cleaned)
         if not amount.is_finite():
             raise AccountError(f"{text.strip()!r} is not a number")
-        return quantize_cents(-amount if negative else amount)
+        result = quantize_cents(-amount if negative else amount)
     except InvalidOperation:
         # Decimal() rejects junk input; quantize() can also raise this for a
         # value so large it exceeds context precision (e.g. "1e999").
         raise AccountError(f"{text.strip()!r} is not a number") from None
+    _check_magnitude(text.strip(), result)
+    return result
 
 
 def _clean_name(name: str) -> str:
@@ -150,6 +163,11 @@ def update_account(
     return updated
 
 
+def _money(amount: Decimal) -> str:
+    """Format as $17.44, or -$17.44 for a negative amount (never $-17.44)."""
+    return f"-${-amount:,.2f}" if amount < 0 else f"${amount:,.2f}"
+
+
 def retire_blocker(conn: Connection, account: Account) -> str | None:
     """Why this account cannot be retired right now, or None if it can."""
     if account.id is None:
@@ -157,7 +175,7 @@ def retire_blocker(conn: Connection, account: Account) -> str | None:
     latest = repo.get_latest_amount(conn, account.id)
     if latest is not None and latest != 0:
         return (
-            f"{account.name} was ${latest:,.2f} in its latest snapshot. "
+            f"{account.name} was {_money(latest)} in its latest snapshot. "
             "Set it to zero and save before retiring."
         )
     dependents = repo.get_dependents(conn, account.id)
@@ -184,6 +202,13 @@ def unretire_account(conn: Connection, account_id: int) -> Account:
     account = _get_or_error(conn, account_id)
     if account.is_active:
         raise AccountError(f"{account.name} is not retired")
+    if account.is_computed:
+        try:
+            _validate_inputs(conn, account_id, account.formula, account.input_ids)
+        except AccountError as e:
+            raise AccountError(
+                f"Cannot unretire {account.name}: {e}. Edit its formula first."
+            ) from e
     repo.set_retired_at(conn, account_id, None)
     conn.commit()
     return account.model_copy(update={"retired_at": None})
@@ -218,6 +243,7 @@ def save_snapshot(
                     )
                 if not amount.is_finite():
                     raise AccountError(f"{account.name} has an invalid amount")
+                _check_magnitude(account.name, amount)
 
             # Validate every cost-basis key and value before writing any of
             # them, so an error partway through never leaves some formulas
@@ -232,6 +258,7 @@ def save_snapshot(
                     raise AccountError(f"{account.name} is not a computed account")
                 if not basis.is_finite():
                     raise AccountError(f"{account.name} has an invalid cost basis")
+                _check_magnitude(account.name, basis)
 
             for account_id, basis in cost_bases.items():
                 account = by_id[account_id]
@@ -255,5 +282,8 @@ def save_snapshot(
         # This commit is a no-op when the block above already committed.
         conn.commit()
         return count
-    except MissingValueError as e:
-        raise AccountError(str(e)) from e
+    except (MissingValueError, InvalidOperation) as e:
+        message = (
+            str(e) if isinstance(e, MissingValueError) else "An amount is out of range"
+        )
+        raise AccountError(message) from e
