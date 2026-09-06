@@ -263,6 +263,25 @@ class TestSaveSnapshot:
         rows = {(r.description, r.amount) for r in get_all_records(db_connection)}
         assert rows == {("Schwab", Decimal("1000.00")), ("Tax", Decimal("90.00"))}
 
+    def test_rounds_more_than_two_decimals_half_up_on_the_server(
+        self, client, db_connection
+    ):
+        """The server, not the browser, decides the final cent (ROUND_HALF_UP)."""
+        from asset_manager.repository import get_all_records
+
+        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        login(client)
+
+        response = client.post(
+            "/snapshots",
+            json={"values": {str(schwab.id): "10.005"}, "cost_bases": {}},
+            headers={"Accept": "application/json"},
+        )
+
+        assert response.status_code == 200
+        records = get_all_records(db_connection)
+        assert [r.amount for r in records] == [Decimal("10.01")]
+
     def test_missing_value_returns_400_and_writes_nothing(self, client, db_connection):
         from asset_manager.repository import get_all_records
 

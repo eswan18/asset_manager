@@ -388,7 +388,7 @@
             <button type="button" class="btn btn-primary" id="save-button">Save snapshot</button>
         </div>
     </div>
-    {% else %}
+    {% elif not error %}
     <div class="no-data">
         <p>No accounts yet. <a href="/accounts/new?type=asset">Add an asset</a> to get started.</p>
     </div>
@@ -410,15 +410,24 @@
     const initial = new Map(allInputs.map(el => [el, el.value]));
 
     // --- parsing and formatting -------------------------------------------
-    function parseAmount(text) {
+    let saveAttempted = false;
+
+    // Cleans and validates the raw text, returning both the numeric value
+    // (for display/recompute) and the cleaned decimal string (for the save
+    // payload -- see collect()). Accepts a leading "+" or "-", or
+    // parentheses for negative.
+    function readAmount(text) {
         let s = String(text).replace(/[$,\s]/g, '');
-        if (s === '') return null;
+        if (s === '') return { text: '', value: null };
         let negative = false;
         if (s.startsWith('(') && s.endsWith(')')) { negative = true; s = s.slice(1, -1); }
-        if (!/^-?(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
-        const n = Number(s);
-        return negative ? -n : n;
+        if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(s)) return { text: s, value: NaN };
+        if (s.startsWith('+')) { s = s.slice(1); }
+        else if (s.startsWith('-')) { negative = true; s = s.slice(1); }
+        const value = negative ? -Number(s) : Number(s);
+        return { text: (negative ? '-' : '') + s, value };
     }
+    function parseAmount(text) { return readAmount(text).value; }
     function usable(n) { return n !== null && n !== undefined && !Number.isNaN(n); }
     // Round half away from zero, matching Python's ROUND_HALF_UP on the server.
     function roundCents(n) { return Math.sign(n) * Math.round(Math.abs(n) * 100 + 1e-9) / 100; }
@@ -438,7 +447,7 @@
         const out = {};
         list.forEach(el => {
             const n = parseAmount(el.value);
-            el.classList.toggle('invalid', Number.isNaN(n));
+            el.classList.toggle('invalid', Number.isNaN(n) || (saveAttempted && n === null));
             el.classList.toggle('dirty', isDirty(el));
             out[el.dataset.accountId] = n;
         });
@@ -505,15 +514,30 @@
     function collect(list, target, payload) {
         let problem = null;
         list.forEach(el => {
-            const n = parseAmount(el.value);
-            if (!usable(n)) {
-                el.classList.add('invalid');
-                problem = problem || el;
+            const { text, value } = readAmount(el.value);
+            if (value === null) {
+                problem = problem || { el, reason: 'blank' };
+            } else if (Number.isNaN(value)) {
+                problem = problem || { el, reason: 'nan' };
             } else {
-                payload[target][el.dataset.accountId] = roundCents(n).toFixed(2);
+                // The cleaned decimal string, not a client-rounded number:
+                // the server's Decimal parse + quantize_cents (ROUND_HALF_UP)
+                // decide the final cent, per "browser arithmetic is
+                // display-only".
+                payload[target][el.dataset.accountId] = text;
             }
         });
         return problem;
+    }
+
+    function saveBlockedMessage(problem) {
+        const { el, reason } = problem;
+        if (reason === 'nan') {
+            return (el.getAttribute('aria-label') || 'Value') + " isn't a number.";
+        }
+        return el.dataset.field === 'basis'
+            ? 'Every computed account needs a cost basis before saving.'
+            : 'Every account needs an amount before saving.';
     }
 
     async function save() {
@@ -521,8 +545,10 @@
         const payload = { values: {}, cost_bases: {} };
         const problem = collect(amountInputs, 'values', payload) || collect(basisInputs, 'cost_bases', payload);
         if (problem) {
-            showError('Every account needs an amount before saving.');
-            problem.focus();
+            saveAttempted = true;
+            recompute();
+            showError(saveBlockedMessage(problem));
+            problem.el.focus();
             return;
         }
         const button = document.getElementById('save-button');
@@ -536,6 +562,7 @@
             if (res.status === 401) { window.location.href = '/login'; return; }
             const body = await res.json().catch(() => ({}));
             if (!res.ok) { showError(body.error || ('Save failed (' + res.status + ')')); return; }
+            saveAttempted = false;
             clearStaged();
             window.location.reload();
         } catch (e) {
@@ -547,6 +574,7 @@
 
     function discard() {
         clearStaged();
+        saveAttempted = false;
         allInputs.forEach(el => { el.value = initial.get(el); });
         showError('');
         recompute();
