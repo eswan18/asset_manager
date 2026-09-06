@@ -96,6 +96,10 @@ class LoginRequired(Exception):
     """Raised by require_user when the request has no valid session."""
 
 
+class EmailNotAllowed(Exception):
+    """Raised by handle_callback when ALLOWED_EMAILS refuses the login."""
+
+
 def require_user(request: Request) -> dict[str, Any]:
     """FastAPI dependency: the session user, or LoginRequired."""
     user = get_session_user(request)
@@ -181,7 +185,7 @@ async def handle_callback(request: Request, oauth: OAuth) -> RedirectResponse:
 
     email = user_info.get("email")
     if not is_email_allowed(email):
-        raise PermissionError(f"{email} is not in ALLOWED_EMAILS")
+        raise EmailNotAllowed(f"{email} is not in ALLOWED_EMAILS")
 
     # Create session with user data
     user_data = {

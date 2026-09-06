@@ -11,8 +11,10 @@ from starlette.middleware.sessions import SessionMiddleware
 from asset_manager.db import get_connection_context
 from asset_manager.repository import get_accounts, get_all_records
 
+from .accounts_routes import router as accounts_router
 from .auth import (
     CurrentUser,
+    EmailNotAllowed,
     LoginRequired,
     get_oauth,
     get_secret_key,
@@ -34,6 +36,8 @@ app.add_middleware(
     session_cookie="oauth_session",
     max_age=600,  # 10 minutes for OAuth flow
 )
+
+app.include_router(accounts_router)
 
 # OAuth client (lazy initialization)
 _oauth = None
@@ -117,8 +121,8 @@ async def auth_callback(request: Request):
     oauth = get_oauth_client()
     try:
         return await handle_callback(request, oauth)
-    except PermissionError:
-        logger.warning("Login refused: email not in ALLOWED_EMAILS")
+    except EmailNotAllowed as exc:
+        logger.warning("Login refused: %s", exc)
         return HTMLResponse(
             "Your account is not authorized to use this app.", status_code=403
         )
