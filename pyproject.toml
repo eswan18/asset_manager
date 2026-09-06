@@ -44,6 +44,7 @@ packages = ["src/asset_manager"]
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.12.0",
     "hypothesis>=6.57.1",
     "ipython>=8.6.0",
     "pytest>=7.2.0",
