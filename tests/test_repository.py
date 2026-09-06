@@ -4,7 +4,7 @@ from decimal import Decimal
 import psycopg
 import pytest
 
-from asset_manager.models import Account, ProportionalFormula, Record, RecordType
+from asset_manager.models import Account, ProportionalFormula, RecordType
 from asset_manager.repository import (
     get_account,
     get_account_by_name,
@@ -16,7 +16,6 @@ from asset_manager.repository import (
     get_records_by_date_range,
     get_summary_by_date,
     insert_account,
-    insert_records,
     set_formula,
     set_retired_at,
     update_account,
@@ -111,25 +110,6 @@ class TestSnapshots:
             (RecordType.ASSET, Decimal("3000.00")),
             (RecordType.LIABILITY, Decimal("500.00")),
         ]
-
-    def test_insert_records_bridge_creates_accounts_by_name(self, db_connection):
-        records = [
-            Record(
-                date=date(2024, 1, 15),
-                type=RecordType.ASSET,
-                description="Savings",
-                amount=Decimal("10"),
-            ),
-            Record(
-                date=date(2024, 1, 15),
-                type=RecordType.LIABILITY,
-                description="Card",
-                amount=Decimal("5"),
-            ),
-        ]
-        assert insert_records(db_connection, records) == 2
-        assert [a.name for a in get_accounts(db_connection)] == ["Savings", "Card"]
-        assert len(get_all_records(db_connection)) == 2
 
 
 @pytest.mark.db

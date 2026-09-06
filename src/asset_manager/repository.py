@@ -111,26 +111,6 @@ def upsert_amounts(conn: Connection, as_of: date, amounts: dict[int, Decimal]) -
     return len(amounts)
 
 
-def insert_records(conn: Connection, records: list[Record]) -> int:
-    """Temporary bridge for the Sheets fetch: resolve accounts by (type, description),
-    creating unknown ones, then upsert. Commits. Replaced by sheets.save_rows in Task 6."""
-    if not records:
-        return 0
-    by_date: dict[date, dict[int, Decimal]] = {}
-    for record in records:
-        account = get_account_by_name(conn, record.type, record.description)
-        if account is None:
-            account = insert_account(
-                conn, Account(name=record.description, type=record.type)
-            )
-        if account.id is None:
-            raise ValueError("insert_account returned no id")
-        by_date.setdefault(record.date, {})[account.id] = record.amount
-    count = sum(upsert_amounts(conn, d, amounts) for d, amounts in by_date.items())
-    conn.commit()
-    return count
-
-
 # --- accounts --------------------------------------------------------------
 
 
