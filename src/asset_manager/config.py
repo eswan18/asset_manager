@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     database_url: str
     google_application_credentials: str = ""
+    timezone: str = "America/Chicago"
 
     model_config = SettingsConfigDict(
         env_file=f".env.{os.getenv('ENV', 'dev')}",

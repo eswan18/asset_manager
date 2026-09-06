@@ -40,7 +40,7 @@ wheels = [
 
 [[package]]
 name = "asset-manager"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
@@ -57,6 +57,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "typer" },
+    { name = "tzdata" },
     { name = "uvicorn" },
 ]
 
@@ -88,6 +89,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.21" },
     { name = "typer", specifier = ">=0.9.0" },
+    { name = "tzdata", specifier = ">=2026.3" },
     { name = "uvicorn", specifier = ">=0.40.0" },
 ]
 

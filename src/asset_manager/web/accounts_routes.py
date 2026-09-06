@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any
 
@@ -21,6 +20,7 @@ from asset_manager.accounts import (
     unretire_account,
     update_account,
 )
+from asset_manager.clock import today
 from asset_manager.db import get_connection_context
 from asset_manager.models import Account, ProportionalFormula, Record, RecordType
 from asset_manager.repository import (
@@ -145,13 +145,13 @@ async def save_snapshot_route(
     payload: SnapshotPayload, user: CurrentUser
 ) -> JSONResponse:
     """Write a complete snapshot for today from the page's staged values."""
-    today = date.today()
+    as_of = today()
     try:
         with get_connection_context() as conn:
-            count = save_snapshot(conn, payload.values, payload.cost_bases, today)
+            count = save_snapshot(conn, payload.values, payload.cost_bases, as_of)
     except AccountError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    return JSONResponse({"date": today.isoformat(), "count": count})
+    return JSONResponse({"date": as_of.isoformat(), "count": count})
 
 
 # --- account form ------------------------------------------------------------
@@ -348,7 +348,7 @@ async def update_account_route(
 async def retire_account_route(request: Request, user: CurrentUser, account_id: int):
     with get_connection_context() as conn:
         try:
-            account = retire_account(conn, account_id, date.today())
+            account = retire_account(conn, account_id, today())
         except AccountError as e:
             set_flash(request, "error", str(e))
             return RedirectResponse("/accounts", status_code=303)

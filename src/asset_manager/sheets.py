@@ -13,6 +13,7 @@ from googleapiclient.discovery import build
 from psycopg import Connection
 from pydantic import BaseModel
 
+from .clock import today
 from .db import get_connection_context
 from .models import Account, RecordType
 from .repository import get_account_by_name, insert_account, upsert_amounts
@@ -217,6 +218,6 @@ def fetch_and_save() -> int:
     with get_connection_context() as conn:
         for line in describe_rows(conn, rows):
             print(line)
-        count = save_rows(conn, rows, datetime.date.today())
+        count = save_rows(conn, rows, today())
         print(f"Saved {count} records to database")
     return count

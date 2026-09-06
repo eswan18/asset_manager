@@ -200,6 +200,7 @@ CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, account_id);
 | `SECRET_KEY` | Random secret for signing session cookies |
 | `ALLOWED_EMAILS` | Optional comma-separated allowlist; when set, other identity users get a 403 at login |
 | `ENV` | Set to `dev` for local development (disables secure cookies)
+| `TIMEZONE` | IANA zone used to date snapshots and retirements (default America/Chicago) |
 
 ### Testing
 

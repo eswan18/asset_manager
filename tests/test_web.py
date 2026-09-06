@@ -7,6 +7,7 @@ import pytest
 from itsdangerous import URLSafeTimedSerializer
 
 from asset_manager.accounts import create_account, retire_account
+from asset_manager.clock import today
 from asset_manager.models import Account, Record, RecordType
 from asset_manager.repository import upsert_amounts
 
@@ -259,7 +260,7 @@ class TestSaveSnapshot:
         )
 
         assert response.status_code == 200
-        assert response.json() == {"date": date.today().isoformat(), "count": 2}
+        assert response.json() == {"date": today().isoformat(), "count": 2}
         rows = {(r.description, r.amount) for r in get_all_records(db_connection)}
         assert rows == {("Schwab", Decimal("1000.00")), ("Tax", Decimal("90.00"))}
 
@@ -427,7 +428,7 @@ class TestAccountForm:
         login(client)
         client.post(f"/accounts/{cash.id}/retire", follow_redirects=False)
         loaded = get_account(db_connection, cash.id)
-        assert loaded is not None and loaded.retired_at == date.today()
+        assert loaded is not None and loaded.retired_at == today()
         assert "Retired Cash" in client.get("/accounts").text
 
         client.post(f"/accounts/{cash.id}/unretire", follow_redirects=False)

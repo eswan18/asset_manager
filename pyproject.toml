@@ -29,6 +29,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.21",
     "typer>=0.9.0",
+    "tzdata>=2026.3",
     "uvicorn>=0.40.0",
 ]
 
