@@ -23,6 +23,12 @@ def test_proportional_formula_rejects_negative_rate():
         ProportionalFormula(rate=Decimal("-0.1"))
 
 
+def test_proportional_formula_rejects_more_than_six_decimal_places():
+    with pytest.raises(ValidationError):
+        ProportionalFormula(rate=Decimal("0.1234567"))
+    assert ProportionalFormula(rate=Decimal("0.123456")).rate == Decimal("0.123456")
+
+
 def test_account_parses_formula_document():
     account = Account.model_validate(
         {

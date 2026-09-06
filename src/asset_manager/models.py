@@ -15,7 +15,7 @@ class ProportionalFormula(BaseModel):
     """rate × (sum of inputs − cost_basis)."""
 
     kind: Literal["proportional"] = "proportional"
-    rate: Decimal = Field(ge=0)
+    rate: Decimal = Field(ge=0, decimal_places=6)
     cost_basis: Decimal = Decimal("0")
 
 
