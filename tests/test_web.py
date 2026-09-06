@@ -300,3 +300,136 @@ class TestSaveSnapshot:
             "/snapshots", json={"values": {}}, headers={"Accept": "application/json"}
         )
         assert response.status_code == 401
+
+
+@pytest.mark.db
+class TestAccountForm:
+    def test_new_page_presets_type_and_lists_inputs(self, client, db_connection):
+        create_account(db_connection, "Schwab", RecordType.ASSET)
+        login(client)
+        response = client.get("/accounts/new?type=liability")
+        assert response.status_code == 200
+        assert "New liability" in response.text
+        assert 'name="input_ids"' in response.text
+        assert "Schwab" in response.text
+
+    def test_create_plain_account_redirects_with_flash(self, client, db_connection):
+        from asset_manager.repository import get_accounts
+
+        login(client)
+        response = client.post(
+            "/accounts", data={"name": "Cash", "type": "asset"}, follow_redirects=False
+        )
+        assert response.status_code == 303
+        assert response.headers["location"] == "/accounts"
+        assert [a.name for a in get_accounts(db_connection)] == ["Cash"]
+        page = client.get("/accounts")
+        assert "Added Cash" in page.text
+
+    def test_create_computed_account(self, client, db_connection):
+        from asset_manager.repository import get_accounts
+
+        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        login(client)
+        response = client.post(
+            "/accounts",
+            data={
+                "name": "Cap Gains Tax",
+                "type": "liability",
+                "computed": "on",
+                "rate_percent": "15",
+                "cost_basis": "$70,634.00",
+                "input_ids": [str(schwab.id)],
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        tax = [a for a in get_accounts(db_connection) if a.name == "Cap Gains Tax"][0]
+        assert tax.formula is not None
+        assert tax.formula.rate == Decimal("0.15")
+        assert tax.formula.cost_basis == Decimal("70634.00")
+        assert tax.input_ids == [schwab.id]
+
+    def test_create_duplicate_rerenders_with_error(self, client, db_connection):
+        create_account(db_connection, "Cash", RecordType.ASSET)
+        login(client)
+        response = client.post("/accounts", data={"name": "Cash", "type": "asset"})
+        assert response.status_code == 400
+        assert "already exists" in response.text
+        assert 'value="Cash"' in response.text
+
+    def test_create_bad_rate_rerenders_with_error(self, client):
+        login(client)
+        response = client.post(
+            "/accounts",
+            data={
+                "name": "Tax",
+                "type": "liability",
+                "computed": "on",
+                "rate_percent": "abc",
+            },
+        )
+        assert response.status_code == 400
+        assert "Rate must be a number" in response.text
+
+    def test_edit_page_prefills_formula(self, client, db_connection):
+        from asset_manager.models import ProportionalFormula
+
+        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        tax = create_account(
+            db_connection,
+            "Tax",
+            RecordType.LIABILITY,
+            ProportionalFormula(rate=Decimal("0.325"), cost_basis=Decimal("100")),
+            [schwab.id],
+        )
+        login(client)
+        response = client.get(f"/accounts/{tax.id}/edit")
+        assert response.status_code == 200
+        assert "Edit liability" in response.text
+        assert 'value="32.5"' in response.text
+        assert 'value="100.00"' in response.text
+        assert f'value="{schwab.id}" checked' in response.text
+        assert "cannot be changed" in response.text
+
+    def test_edit_page_404_for_unknown(self, client):
+        login(client)
+        assert client.get("/accounts/9999/edit").status_code == 404
+
+    def test_update_account(self, client, db_connection):
+        from asset_manager.repository import get_account
+
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        login(client)
+        response = client.post(
+            f"/accounts/{cash.id}", data={"name": "Cash (SoFi)"}, follow_redirects=False
+        )
+        assert response.status_code == 303
+        loaded = get_account(db_connection, cash.id)
+        assert loaded is not None and loaded.name == "Cash (SoFi)"
+
+    def test_retire_blocked_shows_flash(self, client, db_connection):
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("5")})
+        db_connection.commit()
+        login(client)
+        response = client.post(f"/accounts/{cash.id}/retire", follow_redirects=False)
+        assert response.status_code == 303
+        page = client.get("/accounts")
+        assert "Set it to zero and save before retiring" in page.text
+        edit = client.get(f"/accounts/{cash.id}/edit")
+        assert "Set it to zero and save before retiring" in edit.text
+
+    def test_retire_and_unretire(self, client, db_connection):
+        from asset_manager.repository import get_account
+
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        login(client)
+        client.post(f"/accounts/{cash.id}/retire", follow_redirects=False)
+        loaded = get_account(db_connection, cash.id)
+        assert loaded is not None and loaded.retired_at == date.today()
+        assert "Retired Cash" in client.get("/accounts").text
+
+        client.post(f"/accounts/{cash.id}/unretire", follow_redirects=False)
+        loaded = get_account(db_connection, cash.id)
+        assert loaded is not None and loaded.retired_at is None

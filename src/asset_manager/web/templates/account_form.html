@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block styles %}
+    .form-card {
+        max-width: 560px;
+        margin: 0 auto;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius);
+        padding: 1.5rem 1.75rem;
+    }
+
+    .form-card h2 {
+        font-family: var(--font-display);
+        font-weight: 400;
+        font-size: 1.3rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .form-card h2.asset { color: var(--color-asset); }
+    .form-card h2.liability { color: var(--color-liability); }
+
+    .field {
+        display: block;
+        margin-bottom: 1rem;
+    }
+
+    .field > span {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 0.3rem;
+    }
+
+    .field input[type=text] {
+        width: 100%;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-medium);
+        border-radius: var(--radius);
+        color: var(--text-primary);
+        font-family: var(--font-body);
+        font-size: 0.95rem;
+        padding: 0.5rem 0.7rem;
+        outline: none;
+        transition: border-color 0.15s;
+    }
+
+    .field input[type=text]:focus {
+        border-color: var(--accent-gold);
+    }
+
+    .field input.mono {
+        font-family: var(--font-mono);
+    }
+
+    .choice {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-right: 1.25rem;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+
+    .choice input {
+        accent-color: var(--accent-gold);
+    }
+
+    .locked {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    fieldset {
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius);
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+    }
+
+    legend {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        padding: 0 0.4rem;
+    }
+
+    fieldset h4 {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        margin: 0.5rem 0 0.25rem;
+    }
+
+    fieldset .choice {
+        display: flex;
+        margin: 0.15rem 0;
+    }
+
+    .hint {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        margin: 0.25rem 0 1rem;
+    }
+
+    .hint code {
+        font-family: var(--font-mono);
+        color: var(--accent-gold);
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        margin-top: 1.25rem;
+    }
+
+    .danger-zone {
+        margin-top: 1.75rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--border-subtle);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .danger-zone .hint {
+        margin: 0;
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+{% endblock %}
+
+{% block content %}
+<div class="form-card fade-in">
+    <h2 class="{{ form.type }}">{{ 'Edit' if account else 'New' }} {{ form.type }}</h2>
+
+    <form method="post" action="{{ ('/accounts/' ~ account.id) if account else '/accounts' }}">
+        <label class="field">
+            <span>Name</span>
+            <input type="text" name="name" value="{{ form.name }}" required autofocus>
+        </label>
+
+        <div class="field">
+            <span>Type</span>
+            {% if account %}
+            <span class="locked">{{ form.type }} (cannot be changed)</span>
+            {% else %}
+            <label class="choice">
+                <input type="radio" name="type" value="asset" {% if form.type == 'asset' %}checked{% endif %}> Asset
+            </label>
+            <label class="choice">
+                <input type="radio" name="type" value="liability" {% if form.type == 'liability' %}checked{% endif %}> Liability
+            </label>
+            {% endif %}
+        </div>
+
+        <label class="choice field">
+            <input type="checkbox" name="computed" id="computed" {% if form.computed %}checked{% endif %}>
+            Computed from other accounts
+        </label>
+
+        <div id="formula-fields" {% if not form.computed %}hidden{% endif %}>
+            <p class="hint">Value = <code>rate × (sum of inputs − cost basis)</code>. Leave the basis blank for zero.</p>
+            <label class="field">
+                <span>Rate (%)</span>
+                <input type="text" class="mono" name="rate_percent" value="{{ form.rate_percent }}" inputmode="decimal" placeholder="15">
+            </label>
+            <label class="field">
+                <span>Cost basis ($)</span>
+                <input type="text" class="mono" name="cost_basis" value="{{ form.cost_basis }}" inputmode="decimal" placeholder="0.00">
+            </label>
+            <fieldset>
+                <legend>Inputs</legend>
+                {% for label, candidates in candidate_groups %}
+                <h4>{{ label }}</h4>
+                {% for candidate in candidates %}
+                <label class="choice">
+                    <input type="checkbox" name="input_ids" value="{{ candidate.id }}" {% if candidate.id in form.input_ids %}checked{% endif %}>
+                    {{ candidate.name }}
+                </label>
+                {% endfor %}
+                {% else %}
+                <p class="hint">No plain, active accounts to use as inputs yet.</p>
+                {% endfor %}
+            </fieldset>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a href="/accounts" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+
+    {% if account %}
+    <div class="danger-zone">
+        {% if account.retired_at %}
+        <p class="hint">Retired {{ account.retired_at }}. Unretiring brings it back with a blank amount.</p>
+        <form method="post" action="/accounts/{{ account.id }}/unretire">
+            <button type="submit" class="btn btn-secondary">Unretire</button>
+        </form>
+        {% else %}
+        <p class="hint">{{ retire_blocker or 'Retiring hides this account and stops including it in snapshots. History is kept.' }}</p>
+        <form method="post" action="/accounts/{{ account.id }}/retire">
+            <button type="submit" class="btn btn-secondary" {% if retire_blocker %}disabled{% endif %}>Retire</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const computedBox = document.getElementById('computed');
+    const formulaFields = document.getElementById('formula-fields');
+    computedBox.addEventListener('change', () => { formulaFields.hidden = !computedBox.checked; });
+</script>
+{% endblock %}

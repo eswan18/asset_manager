@@ -4,20 +4,33 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from decimal import Decimal
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, Form, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-from asset_manager.accounts import AccountError, save_snapshot
+from asset_manager.accounts import (
+    AccountError,
+    create_account,
+    parse_amount,
+    retire_account,
+    retire_blocker,
+    save_snapshot,
+    unretire_account,
+    update_account,
+)
 from asset_manager.db import get_connection_context
-from asset_manager.models import Account, Record
-from asset_manager.repository import get_accounts, get_latest_snapshot_records
+from asset_manager.models import Account, ProportionalFormula, Record, RecordType
+from asset_manager.repository import (
+    get_account,
+    get_accounts,
+    get_latest_snapshot_records,
+)
 
 from .auth import CurrentUser
-from .rendering import render
+from .rendering import render, set_flash
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -139,3 +152,217 @@ async def save_snapshot_route(
     except AccountError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"date": today.isoformat(), "count": count})
+
+
+# --- account form ------------------------------------------------------------
+
+
+def _form_defaults(type_: str) -> dict[str, Any]:
+    return {
+        "name": "",
+        "type": type_,
+        "computed": False,
+        "rate_percent": "",
+        "cost_basis": "",
+        "input_ids": [],
+    }
+
+
+def _form_from_account(account: Account) -> dict[str, Any]:
+    formula = account.formula
+    return {
+        "name": account.name,
+        "type": account.type.value,
+        "computed": formula is not None,
+        "rate_percent": format_percent(formula.rate) if formula else "",
+        "cost_basis": format_amount(formula.cost_basis) if formula else "",
+        "input_ids": list(account.input_ids),
+    }
+
+
+def _candidates(accounts: list[Account], exclude_id: int | None) -> list[Account]:
+    """Accounts eligible as formula inputs: active, plain, not the account itself."""
+    return [
+        a for a in accounts if a.is_active and not a.is_computed and a.id != exclude_id
+    ]
+
+
+def _parse_formula(
+    computed: bool, rate_percent: str, cost_basis: str
+) -> ProportionalFormula | None:
+    if not computed:
+        return None
+    try:
+        rate = (Decimal(rate_percent.strip()) / 100).quantize(Decimal("0.000001"))
+    except InvalidOperation:
+        raise AccountError("Rate must be a number, e.g. 15 for 15%") from None
+    if not rate.is_finite() or rate < 0:
+        raise AccountError("Rate must be zero or more")
+    basis = parse_amount(cost_basis) if cost_basis.strip() else Decimal("0")
+    return ProportionalFormula(rate=rate, cost_basis=basis)
+
+
+def _render_form(
+    request: Request,
+    user: dict[str, Any],
+    *,
+    account: Account | None,
+    form: dict[str, Any],
+    candidates: list[Account],
+    error: str | None = None,
+    blocker: str | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
+    groups = [
+        ("Assets", [c for c in candidates if c.type == RecordType.ASSET]),
+        ("Liabilities", [c for c in candidates if c.type == RecordType.LIABILITY]),
+    ]
+    return render(
+        request,
+        "account_form.html",
+        {
+            "user": user,
+            "active_tab": "accounts",
+            "account": account,
+            "form": form,
+            "candidate_groups": [g for g in groups if g[1]],
+            "error": error,
+            "retire_blocker": blocker,
+        },
+        status_code=status_code,
+    )
+
+
+@router.get("/accounts/new", response_class=HTMLResponse)
+async def new_account_page(
+    request: Request, user: CurrentUser, type: Annotated[str, Query()] = "asset"
+):
+    type_ = type if type in ("asset", "liability") else "asset"
+    with get_connection_context() as conn:
+        candidates = _candidates(get_accounts(conn), None)
+    return _render_form(
+        request, user, account=None, form=_form_defaults(type_), candidates=candidates
+    )
+
+
+@router.post("/accounts")
+async def create_account_route(
+    request: Request,
+    user: CurrentUser,
+    name: Annotated[str, Form()] = "",
+    type: Annotated[str, Form()] = "asset",
+    computed: Annotated[bool, Form()] = False,
+    rate_percent: Annotated[str, Form()] = "",
+    cost_basis: Annotated[str, Form()] = "",
+    input_ids: Annotated[list[int], Form()] = [],
+):
+    form = {
+        "name": name,
+        "type": type,
+        "computed": computed,
+        "rate_percent": rate_percent,
+        "cost_basis": cost_basis,
+        "input_ids": input_ids,
+    }
+    with get_connection_context() as conn:
+        try:
+            formula = _parse_formula(computed, rate_percent, cost_basis)
+            account = create_account(conn, name, RecordType(type), formula, input_ids)
+        except ValueError as e:
+            candidates = _candidates(get_accounts(conn), None)
+            return _render_form(
+                request,
+                user,
+                account=None,
+                form=form,
+                candidates=candidates,
+                error=str(e),
+                status_code=400,
+            )
+    set_flash(request, "success", f"Added {account.name}")
+    return RedirectResponse("/accounts", status_code=303)
+
+
+@router.get("/accounts/{account_id}/edit", response_class=HTMLResponse)
+async def edit_account_page(request: Request, user: CurrentUser, account_id: int):
+    with get_connection_context() as conn:
+        account = get_account(conn, account_id)
+        if account is None:
+            raise HTTPException(status_code=404, detail="Account not found")
+        candidates = _candidates(get_accounts(conn), account_id)
+        blocker = retire_blocker(conn, account) if account.is_active else None
+    return _render_form(
+        request,
+        user,
+        account=account,
+        form=_form_from_account(account),
+        candidates=candidates,
+        blocker=blocker,
+    )
+
+
+@router.post("/accounts/{account_id}")
+async def update_account_route(
+    request: Request,
+    user: CurrentUser,
+    account_id: int,
+    name: Annotated[str, Form()] = "",
+    computed: Annotated[bool, Form()] = False,
+    rate_percent: Annotated[str, Form()] = "",
+    cost_basis: Annotated[str, Form()] = "",
+    input_ids: Annotated[list[int], Form()] = [],
+):
+    with get_connection_context() as conn:
+        account = get_account(conn, account_id)
+        if account is None:
+            raise HTTPException(status_code=404, detail="Account not found")
+        form = {
+            "name": name,
+            "type": account.type.value,
+            "computed": computed,
+            "rate_percent": rate_percent,
+            "cost_basis": cost_basis,
+            "input_ids": input_ids,
+        }
+        try:
+            formula = _parse_formula(computed, rate_percent, cost_basis)
+            updated = update_account(conn, account_id, name, formula, input_ids)
+        except ValueError as e:
+            candidates = _candidates(get_accounts(conn), account_id)
+            blocker = retire_blocker(conn, account) if account.is_active else None
+            return _render_form(
+                request,
+                user,
+                account=account,
+                form=form,
+                candidates=candidates,
+                error=str(e),
+                blocker=blocker,
+                status_code=400,
+            )
+    set_flash(request, "success", f"Saved {updated.name}")
+    return RedirectResponse("/accounts", status_code=303)
+
+
+@router.post("/accounts/{account_id}/retire")
+async def retire_account_route(request: Request, user: CurrentUser, account_id: int):
+    with get_connection_context() as conn:
+        try:
+            account = retire_account(conn, account_id, date.today())
+        except AccountError as e:
+            set_flash(request, "error", str(e))
+            return RedirectResponse("/accounts", status_code=303)
+    set_flash(request, "success", f"Retired {account.name}")
+    return RedirectResponse("/accounts", status_code=303)
+
+
+@router.post("/accounts/{account_id}/unretire")
+async def unretire_account_route(request: Request, user: CurrentUser, account_id: int):
+    with get_connection_context() as conn:
+        try:
+            account = unretire_account(conn, account_id)
+        except AccountError as e:
+            set_flash(request, "error", str(e))
+            return RedirectResponse("/accounts", status_code=303)
+    set_flash(request, "success", f"Unretired {account.name}")
+    return RedirectResponse("/accounts", status_code=303)
