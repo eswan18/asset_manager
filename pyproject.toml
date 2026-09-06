@@ -1,13 +1,14 @@
 [tool.pytest.ini_options]
 minversion = "4.0"
 addopts = "--cov=asset_manager"
+filterwarnings = ["error"]
 markers = [
     "db: marks tests as database tests (require testcontainers)",
 ]
 
 [project]
 name = "asset_manager"
-version = "0.2.0"
+version = "0.3.0"
 description = "Track personal financial assets and liabilities"
 authors = [{name = "Ethan Swan", email = "ethanpswan@gmail.com"}]
 license = {text = "MIT"}
