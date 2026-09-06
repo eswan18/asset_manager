@@ -447,7 +447,7 @@
         const out = {};
         list.forEach(el => {
             const n = parseAmount(el.value);
-            el.classList.toggle('invalid', Number.isNaN(n) || (saveAttempted && n === null));
+            el.classList.toggle('invalid', Number.isNaN(n) || (saveAttempted && n === null && el.dataset.field !== 'basis'));
             el.classList.toggle('dirty', isDirty(el));
             out[el.dataset.accountId] = n;
         });

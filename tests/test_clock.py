@@ -17,6 +17,7 @@ def test_local_date_after_local_midnight_rolls_over():
 
 
 def test_today_honors_timezone_setting(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://x/y")
     monkeypatch.setenv("TIMEZONE", "Pacific/Kiritimati")
     get_settings.cache_clear()
     try:
