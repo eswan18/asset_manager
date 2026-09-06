@@ -6,14 +6,20 @@ import pytest
 
 from asset_manager.models import Account, ProportionalFormula, Record, RecordType
 from asset_manager.repository import (
+    get_account,
     get_account_by_name,
     get_accounts,
     get_all_records,
+    get_dependents,
+    get_latest_amount,
     get_latest_snapshot_records,
     get_records_by_date_range,
     get_summary_by_date,
     insert_account,
     insert_records,
+    set_formula,
+    set_retired_at,
+    update_account,
     upsert_amounts,
 )
 
@@ -177,3 +183,118 @@ class TestAccounts:
         with pytest.raises(psycopg.errors.UniqueViolation):
             make_account(db_connection, "Savings")
         db_connection.rollback()
+
+
+@pytest.mark.db
+class TestAccountOperations:
+    def test_get_account(self, db_connection):
+        savings = make_account(db_connection, "Savings")
+        loaded = get_account(db_connection, savings.id)
+        assert loaded is not None and loaded.name == "Savings"
+        assert get_account(db_connection, 9999) is None
+
+    def test_update_account_replaces_name_formula_and_inputs(self, db_connection):
+        a = make_account(db_connection, "A")
+        b = make_account(db_connection, "B")
+        tax = make_account(
+            db_connection,
+            "Tax",
+            RecordType.LIABILITY,
+            formula=ProportionalFormula(rate=Decimal("0.1")),
+            input_ids=[a.id],
+        )
+        update_account(
+            db_connection,
+            tax.model_copy(
+                update={
+                    "name": "Tax v2",
+                    "formula": ProportionalFormula(
+                        rate=Decimal("0.2"), cost_basis=Decimal("5")
+                    ),
+                    "input_ids": [b.id],
+                }
+            ),
+        )
+        loaded = get_account(db_connection, tax.id)
+        assert loaded is not None
+        assert loaded.name == "Tax v2"
+        assert loaded.formula == ProportionalFormula(
+            rate=Decimal("0.2"), cost_basis=Decimal("5")
+        )
+        assert loaded.input_ids == [b.id]
+
+    def test_update_account_can_clear_formula(self, db_connection):
+        a = make_account(db_connection, "A")
+        tax = make_account(
+            db_connection,
+            "Tax",
+            RecordType.LIABILITY,
+            formula=ProportionalFormula(rate=Decimal("0.1")),
+            input_ids=[a.id],
+        )
+        update_account(
+            db_connection, tax.model_copy(update={"formula": None, "input_ids": []})
+        )
+        loaded = get_account(db_connection, tax.id)
+        assert loaded is not None and loaded.formula is None and loaded.input_ids == []
+
+    def test_set_formula_only_touches_the_document(self, db_connection):
+        a = make_account(db_connection, "A")
+        tax = make_account(
+            db_connection,
+            "Tax",
+            RecordType.LIABILITY,
+            formula=ProportionalFormula(rate=Decimal("0.1")),
+            input_ids=[a.id],
+        )
+        set_formula(
+            db_connection,
+            tax.id,
+            ProportionalFormula(rate=Decimal("0.1"), cost_basis=Decimal("42")),
+        )
+        loaded = get_account(db_connection, tax.id)
+        assert loaded is not None
+        assert loaded.formula == ProportionalFormula(
+            rate=Decimal("0.1"), cost_basis=Decimal("42")
+        )
+        assert loaded.input_ids == [a.id]
+
+    def test_set_retired_at_round_trips(self, db_connection):
+        a = make_account(db_connection, "A")
+        set_retired_at(db_connection, a.id, date(2026, 9, 1))
+        loaded = get_account(db_connection, a.id)
+        assert loaded is not None and loaded.retired_at == date(2026, 9, 1)
+        set_retired_at(db_connection, a.id, None)
+        loaded = get_account(db_connection, a.id)
+        assert loaded is not None and loaded.retired_at is None
+
+    def test_get_dependents_lists_active_computed_accounts_only(self, db_connection):
+        a = make_account(db_connection, "A")
+        live = make_account(
+            db_connection,
+            "Live Tax",
+            RecordType.LIABILITY,
+            formula=ProportionalFormula(rate=Decimal("0.1")),
+            input_ids=[a.id],
+        )
+        make_account(
+            db_connection,
+            "Old Tax",
+            RecordType.LIABILITY,
+            formula=ProportionalFormula(rate=Decimal("0.1")),
+            input_ids=[a.id],
+            retired_at=date(2026, 1, 1),
+        )
+        assert [d.id for d in get_dependents(db_connection, a.id)] == [live.id]
+        assert get_dependents(db_connection, live.id) == []
+
+    def test_get_latest_amount_uses_the_accounts_own_latest_row(self, db_connection):
+        a = make_account(db_connection, "A")
+        b = make_account(db_connection, "B")
+        upsert_amounts(
+            db_connection, date(2024, 1, 10), {a.id: Decimal("10"), b.id: Decimal("1")}
+        )
+        upsert_amounts(db_connection, date(2024, 2, 10), {b.id: Decimal("2")})
+        assert get_latest_amount(db_connection, a.id) == Decimal("10.00")
+        assert get_latest_amount(db_connection, b.id) == Decimal("2.00")
+        assert get_latest_amount(db_connection, 9999) is None

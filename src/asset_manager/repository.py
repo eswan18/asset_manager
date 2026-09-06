@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import Any, LiteralString, cast
+from typing import Any, LiteralString
 
 from psycopg import Connection, Cursor
 from psycopg.types.json import Jsonb
@@ -46,15 +46,12 @@ def _record_from_row(row: tuple[Any, ...]) -> Record:
 
 def _select_records(
     conn: Connection,
-    where: str = "",
+    where: LiteralString = "",
     params: tuple[Any, ...] = (),
-    order: str = "s.date, a.type, a.name",
+    order: LiteralString = "s.date, a.type, a.name",
 ) -> list[Record]:
-    # where/order are always internal literals, never user input; the cast tells the
-    # type checker what's already true at runtime, since f-strings aren't LiteralString.
-    query = cast(LiteralString, f"{_RECORD_SELECT} {where} ORDER BY {order}")
     with conn.cursor() as cur:
-        cur.execute(query, params)
+        cur.execute(f"{_RECORD_SELECT} {where} ORDER BY {order}", params)
         rows = cur.fetchall()
     return [_record_from_row(row) for row in rows]
 
@@ -152,13 +149,10 @@ def _account_from_row(row: tuple[Any, ...]) -> Account:
 
 
 def _select_accounts(
-    conn: Connection, where: str = "", params: tuple[Any, ...] = ()
+    conn: Connection, where: LiteralString = "", params: tuple[Any, ...] = ()
 ) -> list[Account]:
-    query = cast(
-        LiteralString, f"{_ACCOUNT_SELECT} {where} GROUP BY a.id ORDER BY a.id"
-    )
     with conn.cursor() as cur:
-        cur.execute(query, params)
+        cur.execute(f"{_ACCOUNT_SELECT} {where} GROUP BY a.id ORDER BY a.id", params)
         rows = cur.fetchall()
     return [_account_from_row(row) for row in rows]
 
@@ -213,3 +207,60 @@ def insert_account(conn: Connection, account: Account) -> Account:
         account_id, created_at = row
         _replace_inputs(cur, account_id, account.input_ids)
     return account.model_copy(update={"id": account_id, "created_at": created_at})
+
+
+def get_account(conn: Connection, account_id: int) -> Account | None:
+    accounts = _select_accounts(conn, "WHERE a.id = %s", (account_id,))
+    return accounts[0] if accounts else None
+
+
+def update_account(conn: Connection, account: Account) -> None:
+    """Replace name, formula document, and inputs. Type and retirement are untouched."""
+    if account.id is None:
+        raise ValueError("Cannot update an account without an id")
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE accounts SET name = %s, formula = %s WHERE id = %s",
+            (account.name, _formula_param(account.formula), account.id),
+        )
+        _replace_inputs(cur, account.id, account.input_ids)
+
+
+def set_formula(conn: Connection, account_id: int, formula: Formula | None) -> None:
+    """Replace only the formula document, leaving inputs alone."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE accounts SET formula = %s WHERE id = %s",
+            (_formula_param(formula), account_id),
+        )
+
+
+def set_retired_at(conn: Connection, account_id: int, retired_at: date | None) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE accounts SET retired_at = %s WHERE id = %s",
+            (retired_at, account_id),
+        )
+
+
+def get_dependents(conn: Connection, account_id: int) -> list[Account]:
+    """Active computed accounts that list `account_id` as an input."""
+    return _select_accounts(
+        conn,
+        """
+        WHERE a.retired_at IS NULL
+          AND a.id IN (SELECT account_id FROM formula_inputs WHERE input_id = %s)
+        """,
+        (account_id,),
+    )
+
+
+def get_latest_amount(conn: Connection, account_id: int) -> Decimal | None:
+    """The amount in this account's own most recent snapshot row, if any."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT amount FROM snapshots WHERE account_id = %s ORDER BY date DESC LIMIT 1",
+            (account_id,),
+        )
+        row = cur.fetchone()
+    return Decimal(row[0]) if row else None
