@@ -135,6 +135,10 @@
         margin: 0;
     }
 
+    .danger-zone .btn {
+        white-space: nowrap;
+    }
+
     .danger-zone .hint.warning {
         color: var(--accent-gold);
     }
@@ -142,6 +146,87 @@
     .btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+    }
+
+    .history-card {
+        max-width: 560px;
+        margin: 1.5rem auto 0;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius);
+        overflow: hidden;
+    }
+
+    .history-card h3 {
+        font-family: var(--font-display);
+        font-weight: 400;
+        font-size: 1.05rem;
+        padding: 0.85rem 1.75rem;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .history-card h3 span {
+        color: var(--text-muted);
+        font-family: var(--font-body);
+        font-size: 0.8rem;
+        margin-left: 0.5rem;
+    }
+
+    .history-scroll {
+        max-height: 24rem;
+        overflow-y: auto;
+    }
+
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .history-table th {
+        position: sticky;
+        top: 0;
+        background: var(--bg-surface);
+        text-align: left;
+        padding: 0.55rem 1.75rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .history-table th.num,
+    .history-table td.num {
+        text-align: right;
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .history-table td {
+        padding: 0.5rem 1.75rem;
+        font-size: 0.88rem;
+        color: var(--text-secondary);
+        border-bottom: 1px solid rgba(46, 51, 64, 0.5);
+    }
+
+    .history-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .history-table td.amount {
+        color: var(--text-primary);
+    }
+
+    .history-table td.change.up { color: var(--color-asset); }
+    .history-table td.change.down { color: var(--color-liability); }
+    .history-table td.change.flat,
+    .history-table td.change.first { color: var(--text-muted); }
+
+    .history-empty {
+        padding: 1.5rem 1.75rem;
+        color: var(--text-muted);
+        font-size: 0.88rem;
     }
 {% endblock %}
 
@@ -228,6 +313,40 @@
     </div>
     {% endif %}
 </div>
+
+{% if account %}
+<div class="history-card fade-in" style="animation-delay: 0.05s">
+    <h3>History{% if history %}<span>{{ history | length }} snapshot{{ '' if history | length == 1 else 's' }}</span>{% endif %}</h3>
+    {% if history %}
+    <div class="history-scroll">
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th class="num">Amount</th>
+                    <th class="num">Change</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in history %}
+                <tr>
+                    <td>{{ row.date }}</td>
+                    <td class="num amount">{{ row.amount }}</td>
+                    {% if row.change is none %}
+                    <td class="num change first">—</td>
+                    {% else %}
+                    <td class="num change {{ row.direction }}">{{ row.change }}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="history-empty">No snapshots yet. Save one from the Accounts tab.</p>
+    {% endif %}
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

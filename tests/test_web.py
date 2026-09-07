@@ -452,6 +452,37 @@ class TestAccountForm:
         assert f'value="{schwab.id}" checked' in response.text
         assert "cannot be changed" in response.text
 
+    def test_edit_page_shows_history_newest_first_with_changes(
+        self, client, db_connection
+    ):
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, date(2026, 7, 1), {cash.id: Decimal("1000")})
+        upsert_amounts(db_connection, date(2026, 8, 1), {cash.id: Decimal("1250.50")})
+        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("900")})
+        db_connection.commit()
+        login(client)
+        text = client.get(f"/accounts/{cash.id}/edit").text
+        assert "History" in text
+        first = text.index("September 1, 2026")
+        second = text.index("August 1, 2026")
+        third = text.index("July 1, 2026")
+        assert first < second < third
+        assert "$900.00" in text
+        assert "$1,250.50" in text
+        assert "-$350.50" in text
+        assert "+$250.50" in text
+        assert (
+            'class="num change first"' in text
+        )  # the oldest row has no previous value
+        assert 'class="num change down">-$350.50' in text
+        assert 'class="num change up">+$250.50' in text
+
+    def test_edit_page_history_empty_state(self, client, db_connection):
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        login(client)
+        text = client.get(f"/accounts/{cash.id}/edit").text
+        assert "No snapshots yet" in text
+
     def test_edit_page_404_for_unknown(self, client):
         login(client)
         assert client.get("/accounts/9999/edit").status_code == 404
