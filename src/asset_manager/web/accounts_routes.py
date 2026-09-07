@@ -8,6 +8,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from psycopg import Connection
 from pydantic import BaseModel, Field
 
 from asset_manager.accounts import (
@@ -16,6 +17,7 @@ from asset_manager.accounts import (
     parse_amount,
     retire_account,
     retire_blocker,
+    retire_warning,
     save_snapshot,
     unretire_account,
     update_account,
@@ -202,6 +204,15 @@ def _parse_formula(
     return ProportionalFormula(rate=rate, cost_basis=basis)
 
 
+def _retire_state(conn: Connection, account: Account) -> tuple[str | None, str | None]:
+    """(blocker, warning) for the edit page's Retire button; both None when retired."""
+    if not account.is_active:
+        return None, None
+    blocker = retire_blocker(conn, account)
+    warning = None if blocker else retire_warning(conn, account)
+    return blocker, warning
+
+
 def _render_form(
     request: Request,
     user: dict[str, Any],
@@ -211,6 +222,7 @@ def _render_form(
     candidates: list[Account],
     error: str | None = None,
     blocker: str | None = None,
+    warning: str | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
     groups = [
@@ -228,6 +240,7 @@ def _render_form(
             "candidate_groups": [g for g in groups if g[1]],
             "error": error,
             "retire_blocker": blocker,
+            "retire_warning": warning,
         },
         status_code=status_code,
     )
@@ -290,7 +303,7 @@ async def edit_account_page(request: Request, user: CurrentUser, account_id: int
         if account is None:
             raise HTTPException(status_code=404, detail="Account not found")
         candidates = _candidates(get_accounts(conn), account_id)
-        blocker = retire_blocker(conn, account) if account.is_active else None
+        blocker, warning = _retire_state(conn, account)
     return _render_form(
         request,
         user,
@@ -298,6 +311,7 @@ async def edit_account_page(request: Request, user: CurrentUser, account_id: int
         form=_form_from_account(account),
         candidates=candidates,
         blocker=blocker,
+        warning=warning,
     )
 
 
@@ -329,7 +343,7 @@ async def update_account_route(
             updated = update_account(conn, account_id, name, formula, input_ids)
         except ValueError as e:
             candidates = _candidates(get_accounts(conn), account_id)
-            blocker = retire_blocker(conn, account) if account.is_active else None
+            blocker, warning = _retire_state(conn, account)
             return _render_form(
                 request,
                 user,
@@ -338,6 +352,7 @@ async def update_account_route(
                 candidates=candidates,
                 error=str(e),
                 blocker=blocker,
+                warning=warning,
                 status_code=400,
             )
     set_flash(request, "success", f"Saved {updated.name}")

@@ -426,17 +426,42 @@ class TestAccountForm:
         loaded = get_account(db_connection, cash.id)
         assert loaded is not None and loaded.name == "Cash (SoFi)"
 
-    def test_retire_blocked_shows_flash(self, client, db_connection):
+    def test_retire_blocked_by_formula_shows_flash(self, client, db_connection):
+        from asset_manager.models import ProportionalFormula
+
+        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        create_account(
+            db_connection,
+            "Tax",
+            RecordType.LIABILITY,
+            ProportionalFormula(rate=Decimal("0.15")),
+            [schwab.id],
+        )
+        login(client)
+        response = client.post(f"/accounts/{schwab.id}/retire", follow_redirects=False)
+        assert response.status_code == 303
+        page = client.get("/accounts")
+        assert "Schwab is an input to Tax" in page.text
+        edit = client.get(f"/accounts/{schwab.id}/edit")
+        assert "Schwab is an input to Tax" in edit.text
+        assert 'class="btn btn-secondary" disabled' in edit.text
+
+    def test_retire_nonzero_warns_then_succeeds(self, client, db_connection):
+        from asset_manager.repository import get_account
+
         cash = create_account(db_connection, "Cash", RecordType.ASSET)
         upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("5")})
         db_connection.commit()
         login(client)
+        edit = client.get(f"/accounts/{cash.id}/edit")
+        assert "Last saved at $5.00 on September 1, 2026" in edit.text
+        assert "Retire anyway" in edit.text
+        assert 'class="btn btn-secondary" disabled' not in edit.text
         response = client.post(f"/accounts/{cash.id}/retire", follow_redirects=False)
         assert response.status_code == 303
-        page = client.get("/accounts")
-        assert "Set it to zero and save before retiring" in page.text
-        edit = client.get(f"/accounts/{cash.id}/edit")
-        assert "Set it to zero and save before retiring" in edit.text
+        loaded = get_account(db_connection, cash.id)
+        assert loaded is not None and loaded.retired_at is not None
+        assert "Retired Cash" in client.get("/accounts").text
 
     def test_retire_and_unretire(self, client, db_connection):
         from asset_manager.repository import get_account

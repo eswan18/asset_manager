@@ -49,7 +49,7 @@ A Python application for tracking personal financial assets and liabilities. Val
 Run the dashboard (below), open **Accounts**, type current amounts, and click **Save snapshot**. Every active account is written for today; saving again the same day replaces that day's snapshot.
 
 - **Add** an asset or liability from the table header. A liability can be **computed**: `rate × (sum of chosen input accounts − cost basis)`. Cost basis is editable inline on the Accounts tab; rate and inputs live on the account's edit page.
-- **Retire** an account from its edit page once its latest saved amount is zero and no computed account uses it as an input. History is kept; retired accounts are hidden behind a toggle and can be unretired.
+- **Retire** an account from its edit page. If its last saved amount is not zero the page warns you and the button reads "Retire anyway"; from the next snapshot on it is no longer counted. The only hard rule: an account that feeds a computed account cannot be retired until that formula is edited or retired. History is kept; retired accounts are hidden behind a toggle and can be unretired.
 
 ### Import from Google Sheets (legacy)
 

@@ -235,12 +235,18 @@ def get_dependents(conn: Connection, account_id: int) -> list[Account]:
     )
 
 
-def get_latest_amount(conn: Connection, account_id: int) -> Decimal | None:
-    """The amount in this account's own most recent snapshot row, if any."""
+def get_latest_entry(conn: Connection, account_id: int) -> tuple[date, Decimal] | None:
+    """The (date, amount) of this account's own most recent snapshot row, if any."""
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT amount FROM snapshots WHERE account_id = %s ORDER BY date DESC LIMIT 1",
+            "SELECT date, amount FROM snapshots WHERE account_id = %s ORDER BY date DESC LIMIT 1",
             (account_id,),
         )
         row = cur.fetchone()
-    return Decimal(row[0]) if row else None
+    return (row[0], Decimal(row[1])) if row else None
+
+
+def get_latest_amount(conn: Connection, account_id: int) -> Decimal | None:
+    """The amount in this account's own most recent snapshot row, if any."""
+    entry = get_latest_entry(conn, account_id)
+    return entry[1] if entry else None
