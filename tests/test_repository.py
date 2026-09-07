@@ -8,6 +8,7 @@ from asset_manager.models import Account, ProportionalFormula, RecordType
 from asset_manager.repository import (
     get_account,
     get_account_by_name,
+    get_account_history,
     get_accounts,
     get_all_records,
     get_dependents,
@@ -90,6 +91,23 @@ class TestSnapshots:
         assert [(r.date, r.description, r.amount) for r in latest] == [
             (date(2024, 1, 20), "Account 1", Decimal("3.00"))
         ]
+
+    def test_get_account_history_is_newest_first(self, db_connection):
+        a = make_account(db_connection, "A")
+        b = make_account(db_connection, "B")
+        upsert_amounts(
+            db_connection, date(2024, 1, 10), {a.id: Decimal("10"), b.id: Decimal("1")}
+        )
+        upsert_amounts(db_connection, date(2024, 3, 10), {a.id: Decimal("30")})
+        upsert_amounts(db_connection, date(2024, 2, 10), {a.id: Decimal("20")})
+
+        history = get_account_history(db_connection, a.id)
+        assert [(r.date, r.amount) for r in history] == [
+            (date(2024, 3, 10), Decimal("30.00")),
+            (date(2024, 2, 10), Decimal("20.00")),
+            (date(2024, 1, 10), Decimal("10.00")),
+        ]
+        assert get_account_history(db_connection, 9999) == []
 
     def test_get_summary_by_date(self, db_connection):
         a1 = make_account(db_connection, "Asset 1")

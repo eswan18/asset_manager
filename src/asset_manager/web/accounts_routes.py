@@ -27,6 +27,7 @@ from asset_manager.db import get_connection_context
 from asset_manager.models import Account, ProportionalFormula, Record, RecordType
 from asset_manager.repository import (
     get_account,
+    get_account_history,
     get_accounts,
     get_latest_snapshot_records,
 )
@@ -205,6 +206,38 @@ def _parse_formula(
     return ProportionalFormula(rate=rate, cost_basis=basis)
 
 
+def history_rows(records: list[Record]) -> list[dict[str, Any]]:
+    """View model for the edit page's history table: newest first, with the
+    change since the previous snapshot. `records` arrive newest first."""
+    rows: list[dict[str, Any]] = []
+    for index, record in enumerate(records):
+        previous = records[index + 1].amount if index + 1 < len(records) else None
+        change = None if previous is None else record.amount - previous
+        rows.append(
+            {
+                "date": record.date.strftime("%B %-d, %Y"),
+                "amount": format_money(record.amount),
+                "change": None if change is None else format_change(change),
+                "direction": (
+                    "flat"
+                    if change is None or change == 0
+                    else ("up" if change > 0 else "down")
+                ),
+            }
+        )
+    return rows
+
+
+def format_money(amount: Decimal) -> str:
+    return f"-${-amount:,.2f}" if amount < 0 else f"${amount:,.2f}"
+
+
+def format_change(change: Decimal) -> str:
+    if change == 0:
+        return "$0.00"
+    return f"+{format_money(change)}" if change > 0 else format_money(change)
+
+
 def _retire_state(conn: Connection, account: Account) -> tuple[str | None, str | None]:
     """(blocker, warning) for the edit page's Retire button; both None when retired."""
     if not account.is_active:
@@ -224,6 +257,7 @@ def _render_form(
     error: str | None = None,
     blocker: str | None = None,
     warning: str | None = None,
+    history: list[dict[str, Any]] | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
     groups = [
@@ -242,6 +276,7 @@ def _render_form(
             "error": error,
             "retire_blocker": blocker,
             "retire_warning": warning,
+            "history": history,
         },
         status_code=status_code,
     )
@@ -305,6 +340,7 @@ async def edit_account_page(request: Request, user: CurrentUser, account_id: int
             raise HTTPException(status_code=404, detail="Account not found")
         candidates = _candidates(get_accounts(conn), account_id)
         blocker, warning = _retire_state(conn, account)
+        history = history_rows(get_account_history(conn, account_id))
     return _render_form(
         request,
         user,
@@ -313,6 +349,7 @@ async def edit_account_page(request: Request, user: CurrentUser, account_id: int
         candidates=candidates,
         blocker=blocker,
         warning=warning,
+        history=history,
     )
 
 
@@ -345,6 +382,7 @@ async def update_account_route(
         except ValueError as e:
             candidates = _candidates(get_accounts(conn), account_id)
             blocker, warning = _retire_state(conn, account)
+            history = history_rows(get_account_history(conn, account_id))
             return _render_form(
                 request,
                 user,
@@ -354,6 +392,7 @@ async def update_account_route(
                 error=str(e),
                 blocker=blocker,
                 warning=warning,
+                history=history,
                 status_code=400,
             )
     set_flash(request, "success", f"Saved {updated.name}")

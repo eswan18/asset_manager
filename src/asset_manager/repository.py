@@ -77,6 +77,13 @@ def get_latest_snapshot_records(conn: Connection) -> list[Record]:
     )
 
 
+def get_account_history(conn: Connection, account_id: int) -> list[Record]:
+    """Every snapshot row for one account, newest first."""
+    return _select_records(
+        conn, "WHERE s.account_id = %s", (account_id,), order="s.date DESC"
+    )
+
+
 def get_summary_by_date(conn: Connection) -> list[DailySummary]:
     """Get aggregated totals by date and type."""
     query = """
