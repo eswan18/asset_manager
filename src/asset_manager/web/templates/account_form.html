@@ -135,6 +135,10 @@
         margin: 0;
     }
 
+    .danger-zone .hint.warning {
+        color: var(--accent-gold);
+    }
+
     .btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
@@ -210,9 +214,15 @@
             <button type="submit" class="btn btn-secondary">Unretire</button>
         </form>
         {% else %}
-        <p class="hint">{{ retire_blocker or 'Retiring hides this account and stops including it in snapshots. History is kept.' }}</p>
+        {% if retire_blocker %}
+        <p class="hint">{{ retire_blocker }}</p>
+        {% elif retire_warning %}
+        <p class="hint warning">{{ retire_warning }}</p>
+        {% else %}
+        <p class="hint">Retiring hides this account and stops including it in snapshots. History is kept.</p>
+        {% endif %}
         <form method="post" action="/accounts/{{ account.id }}/retire">
-            <button type="submit" class="btn btn-secondary" {% if retire_blocker %}disabled{% endif %}>Retire</button>
+            <button type="submit" class="btn btn-secondary" {% if retire_blocker %}disabled{% endif %}>{{ 'Retire anyway' if retire_warning else 'Retire' }}</button>
         </form>
         {% endif %}
     </div>

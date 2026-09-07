@@ -169,21 +169,33 @@ def _money(amount: Decimal) -> str:
 
 
 def retire_blocker(conn: Connection, account: Account) -> str | None:
-    """Why this account cannot be retired right now, or None if it can."""
+    """Why this account cannot be retired right now, or None if it can.
+
+    The only blocker is formula integrity: an input to an active computed
+    account must stay active until that formula is edited or retired.
+    """
     if account.id is None:
         return "Account has not been saved"
-    latest = repo.get_latest_amount(conn, account.id)
-    if latest is not None and latest != 0:
-        return (
-            f"{account.name} was {_money(latest)} in its latest snapshot. "
-            "Set it to zero and save before retiring."
-        )
     dependents = repo.get_dependents(conn, account.id)
     if dependents:
         return (
             f"{_dependents_message(account, dependents)}. Retire or edit those first."
         )
     return None
+
+
+def retire_warning(conn: Connection, account: Account) -> str | None:
+    """Text to show before retiring an account whose last saved amount is not zero."""
+    if account.id is None:
+        return None
+    entry = repo.get_latest_entry(conn, account.id)
+    if entry is None or entry[1] == 0:
+        return None
+    on, amount = entry
+    return (
+        f"Last saved at {_money(amount)} on {on.strftime('%B %-d, %Y')}. "
+        "Retiring stops counting it from the next snapshot on. History is kept."
+    )
 
 
 def retire_account(conn: Connection, account_id: int, on: date) -> Account:

@@ -12,6 +12,7 @@ from asset_manager.accounts import (
     parse_amount,
     retire_account,
     retire_blocker,
+    retire_warning,
     save_snapshot,
     unretire_account,
     update_account,
@@ -130,24 +131,38 @@ class TestCreateAndUpdate:
 
 @pytest.mark.db
 class TestRetire:
-    def test_retire_blocked_when_latest_amount_is_nonzero(self, db_connection):
+    def test_retire_allowed_when_latest_amount_is_nonzero_with_warning(
+        self, db_connection
+    ):
         a = create_account(db_connection, "A", RecordType.ASSET)
         upsert_amounts(db_connection, date(2026, 1, 1), {a.id: Decimal("5")})
         db_connection.commit()
-        assert retire_blocker(db_connection, a) is not None
-        with pytest.raises(AccountError, match="Set it to zero and save"):
-            retire_account(db_connection, a.id, TODAY)
+        assert retire_blocker(db_connection, a) is None
+        warning = retire_warning(db_connection, a)
+        assert warning is not None
+        assert "$5.00" in warning
+        assert "January 1, 2026" in warning
+        assert "stops counting" in warning
+        assert retire_account(db_connection, a.id, TODAY).retired_at == TODAY
 
-    def test_retire_blocker_formats_a_negative_amount_without_a_double_sign(
+    def test_retire_warning_absent_at_zero_or_never_snapshotted(self, db_connection):
+        never = create_account(db_connection, "Never", RecordType.ASSET)
+        zero = create_account(db_connection, "Zero", RecordType.ASSET)
+        upsert_amounts(db_connection, date(2026, 1, 1), {zero.id: Decimal("0")})
+        db_connection.commit()
+        assert retire_warning(db_connection, never) is None
+        assert retire_warning(db_connection, zero) is None
+
+    def test_retire_warning_formats_a_negative_amount_without_a_double_sign(
         self, db_connection
     ):
         a = create_account(db_connection, "A", RecordType.LIABILITY)
         upsert_amounts(db_connection, date(2026, 1, 1), {a.id: Decimal("-17.44")})
         db_connection.commit()
-        blocker = retire_blocker(db_connection, a)
-        assert blocker is not None
-        assert "-$17.44" in blocker
-        assert "$-17.44" not in blocker
+        warning = retire_warning(db_connection, a)
+        assert warning is not None
+        assert "-$17.44" in warning
+        assert "$-17.44" not in warning
 
     def test_retire_blocked_when_it_feeds_a_formula(self, db_connection):
         schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
