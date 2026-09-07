@@ -66,6 +66,29 @@ def test_is_email_allowed(monkeypatch):
 
 
 @pytest.mark.db
+class TestTheme:
+    def test_pages_carry_a_light_theme(self, client, db_connection):
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("1")})
+        db_connection.commit()
+        login(client)
+        for path in ("/", "/accounts", f"/accounts/{cash.id}/edit"):
+            text = client.get(path).text
+            assert "@media (prefers-color-scheme: light)" in text, path
+            assert "color-scheme: dark" in text, path
+        assert "@media (prefers-color-scheme: light)" in client.get("/login").text
+
+    def test_dashboard_retheme_script_targets_plotly(self, client, db_connection):
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("1")})
+        db_connection.commit()
+        login(client)
+        text = client.get("/").text
+        assert "Plotly.relayout" in text
+        assert "prefers-color-scheme: light" in text
+
+
+@pytest.mark.db
 class TestDashboard:
     def test_empty_state(self, client):
         login(client)
