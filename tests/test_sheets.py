@@ -111,10 +111,10 @@ def test_save_rows_creates_unknown_accounts_and_skips_retired(db_connection, cap
 
     assert count == 3
     assert [a.name for a in get_accounts(db_connection)] == [
-        "Savings",
-        "Old 401k",
         "Brokerage",
         "Card",
+        "Old 401k",
+        "Savings",
     ]
     written = {(r.description, r.amount) for r in get_all_records(db_connection)}
     assert written == {

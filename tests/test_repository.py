@@ -131,13 +131,25 @@ class TestAccounts:
         assert tax.created_at is not None
 
         accounts = get_accounts(db_connection)
-        assert [a.name for a in accounts] == ["Schwab", "Cap Gains Tax"]
-        assert accounts[0].formula is None
-        assert accounts[0].input_ids == []
-        assert accounts[1].formula == ProportionalFormula(
+        assert [a.name for a in accounts] == ["Cap Gains Tax", "Schwab"]
+        assert accounts[1].formula is None
+        assert accounts[1].input_ids == []
+        assert accounts[0].formula == ProportionalFormula(
             rate=Decimal("0.15"), cost_basis=Decimal("70634.00")
         )
-        assert accounts[1].input_ids == [schwab.id]
+        assert accounts[0].input_ids == [schwab.id]
+
+    def test_get_accounts_orders_by_name_case_insensitively(self, db_connection):
+        make_account(db_connection, "zeta")
+        make_account(db_connection, "Alpha")
+        make_account(db_connection, "beta")
+        make_account(db_connection, "1119 N Winchester Value")
+        assert [a.name for a in get_accounts(db_connection)] == [
+            "1119 N Winchester Value",
+            "Alpha",
+            "beta",
+            "zeta",
+        ]
 
     def test_get_accounts_can_exclude_retired(self, db_connection):
         make_account(db_connection, "Live")

@@ -236,6 +236,20 @@ class TestAccountsPage:
         response = client.get("/accounts", follow_redirects=False)
         assert response.status_code == 302
 
+    def test_rows_are_alphabetical_with_retired_last(self, client, db_connection):
+        import re
+
+        create_account(db_connection, "zeta", RecordType.ASSET)
+        old = create_account(db_connection, "Alpha", RecordType.ASSET)
+        create_account(db_connection, "beta", RecordType.ASSET)
+        retire_account(db_connection, old.id, date(2026, 1, 1))
+        login(client)
+        text = client.get("/accounts").text
+        names = re.findall(
+            r'class="account-name" href="/accounts/\d+/edit">([^<]+)</a>', text
+        )
+        assert names == ["beta", "zeta", "Alpha"]
+
     def test_header_says_today_when_latest_snapshot_is_today(
         self, client, db_connection
     ):
