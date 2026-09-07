@@ -2,7 +2,7 @@
 
 [![CI Status](https://github.com/eswan18/asset_manager/workflows/Continuous%20Integration/badge.svg)](https://github.com/eswan18/asset_manager/actions)
 
-A Python application for tracking personal financial assets and liabilities by fetching data from Google Sheets and storing it in PostgreSQL. Includes interactive reports and a web dashboard with OAuth authentication.
+A Python application for tracking personal financial assets and liabilities. Values are entered on the web dashboard's Accounts tab and saved as dated snapshots in PostgreSQL. Liabilities such as deferred tax can be computed from other accounts by a formula. A legacy `fetch` command still imports from a Google Sheet during the cutover.
 
 ## Prerequisites
 
@@ -33,6 +33,8 @@ A Python application for tracking personal financial assets and liabilities by f
    CLIENT_ID=your-oauth-client-id
    CLIENT_SECRET=your-oauth-client-secret
    SECRET_KEY=random-secret-for-session-signing
+   ALLOWED_EMAILS=you@example.com   # optional; comma-separated allowlist for login
+   TIMEZONE=America/Chicago   # optional; zone used to date snapshots
    ```
 
 3. Run database migrations:
@@ -42,12 +44,19 @@ A Python application for tracking personal financial assets and liabilities by f
 
 ## Usage
 
-### Fetch data from Google Sheets
+### Enter values on the Accounts tab
 
-Pull finances from Google Sheets and store in PostgreSQL:
+Run the dashboard (below), open **Accounts**, type current amounts, and click **Save snapshot**. Every active account is written for today; saving again the same day replaces that day's snapshot.
+
+- **Add** an asset or liability from the table header. A liability can be **computed**: `rate × (sum of chosen input accounts − cost basis)`. Cost basis is editable inline on the Accounts tab; rate and inputs live on the account's edit page.
+- **Retire** an account from its edit page once its latest saved amount is zero and no computed account uses it as an input. History is kept; retired accounts are hidden behind a toggle and can be unretired.
+
+### Import from Google Sheets (legacy)
+
+Still works during the cutover. Rows are matched to accounts by name; unknown names create plain accounts and retired accounts are skipped.
 ```bash
-ENV=dev uv run asset-manager fetch
-ENV=prod uv run asset-manager fetch
+ENV=dev uv run asset-manager fetch            # writes today's snapshot
+ENV=dev uv run asset-manager fetch --dry-run  # shows what would be created or skipped
 ```
 
 ### Generate HTML Report
@@ -74,7 +83,7 @@ The dashboard requires OAuth configuration (IDP_URL, CLIENT_ID, CLIENT_SECRET, S
 # Show help
 uv run asset-manager --help
 
-# Fetch data from Google Sheets
+# Import from Google Sheets (legacy; see above)
 ENV=dev uv run asset-manager fetch
 
 # Generate interactive HTML report
@@ -102,14 +111,6 @@ dbmate new <migration_name>
 # Check migration status
 uv run dotenv -f .env.dev run dbmate status
 ```
-
-## Deployment
-
-The web dashboard can be deployed to Vercel as a Python serverless function:
-
-1. Register an OAuth client with your IDP
-2. Set environment variables in Vercel (DATABASE_URL, IDP_URL, CLIENT_ID, CLIENT_SECRET, SECRET_KEY)
-3. Deploy with `vercel deploy`
 
 ## Development
 

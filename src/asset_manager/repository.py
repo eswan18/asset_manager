@@ -1,129 +1,246 @@
+"""Thin SQL layer. Functions here never commit; callers own the transaction."""
+
+from __future__ import annotations
+
 from datetime import date
 from decimal import Decimal
+from typing import Any, LiteralString
 
-from psycopg import Connection
+from psycopg import Connection, Cursor
+from psycopg.types.json import Jsonb
 
-from asset_manager.models import DailySummary, Record, RecordType
+from asset_manager.models import Account, DailySummary, Formula, Record, RecordType
+
+_RECORD_SELECT = """
+    SELECT s.id, s.date, s.account_id, a.type, a.name, s.amount, s.created_at
+    FROM snapshots s
+    JOIN accounts a ON a.id = s.account_id
+"""
+
+_ACCOUNT_SELECT = """
+    SELECT a.id, a.name, a.type, a.formula, a.retired_at, a.created_at,
+           COALESCE(
+               array_agg(fi.input_id ORDER BY fi.input_id)
+                   FILTER (WHERE fi.input_id IS NOT NULL),
+               '{}'
+           ) AS input_ids
+    FROM accounts a
+    LEFT JOIN formula_inputs fi ON fi.account_id = a.id
+"""
 
 
-def insert_records(conn: Connection, records: list[Record]) -> int:
-    """Insert records into the database. Returns the number of records inserted."""
-    if not records:
-        return 0
+# --- snapshots -------------------------------------------------------------
 
-    query = """
-        INSERT INTO snapshots (date, type, description, amount)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (date, type, description) DO UPDATE SET
-            amount = EXCLUDED.amount
-    """
 
+def _record_from_row(row: tuple[Any, ...]) -> Record:
+    return Record(
+        id=row[0],
+        date=row[1],
+        account_id=row[2],
+        type=RecordType(row[3]),
+        description=row[4],
+        amount=Decimal(row[5]),
+        created_at=row[6],
+    )
+
+
+def _select_records(
+    conn: Connection,
+    where: LiteralString = "",
+    params: tuple[Any, ...] = (),
+    order: LiteralString = "s.date, a.type, a.name",
+) -> list[Record]:
     with conn.cursor() as cur:
-        cur.executemany(
-            query,
-            [(r.date, r.type.value, r.description, r.amount) for r in records],
-        )
-    conn.commit()
-    return len(records)
+        cur.execute(f"{_RECORD_SELECT} {where} ORDER BY {order}", params)
+        rows = cur.fetchall()
+    return [_record_from_row(row) for row in rows]
 
 
 def get_all_records(conn: Connection) -> list[Record]:
-    """Fetch all records from the database."""
-    query = """
-        SELECT id, date, type, description, amount, created_at
-        FROM snapshots
-        ORDER BY date, type, description
-    """
-
-    with conn.cursor() as cur:
-        cur.execute(query)
-        rows = cur.fetchall()
-
-    return [
-        Record(
-            id=row[0],
-            date=row[1],
-            type=RecordType(row[2]),
-            description=row[3],
-            amount=Decimal(str(row[4])),
-            created_at=row[5],
-        )
-        for row in rows
-    ]
+    """Fetch all snapshot records, joined to their account."""
+    return _select_records(conn)
 
 
 def get_records_by_date_range(
     conn: Connection, start_date: date, end_date: date
 ) -> list[Record]:
     """Fetch records within a date range."""
-    query = """
-        SELECT id, date, type, description, amount, created_at
-        FROM snapshots
-        WHERE date >= %s AND date <= %s
-        ORDER BY date, type, description
-    """
-
-    with conn.cursor() as cur:
-        cur.execute(query, (start_date, end_date))
-        rows = cur.fetchall()
-
-    return [
-        Record(
-            id=row[0],
-            date=row[1],
-            type=RecordType(row[2]),
-            description=row[3],
-            amount=Decimal(str(row[4])),
-            created_at=row[5],
-        )
-        for row in rows
-    ]
+    return _select_records(
+        conn, "WHERE s.date >= %s AND s.date <= %s", (start_date, end_date)
+    )
 
 
 def get_latest_snapshot_records(conn: Connection) -> list[Record]:
     """Fetch records for the most recent snapshot date."""
-    query = """
-        SELECT id, date, type, description, amount, created_at
-        FROM snapshots
-        WHERE date = (SELECT MAX(date) FROM snapshots)
-        ORDER BY type, description
-    """
-
-    with conn.cursor() as cur:
-        cur.execute(query)
-        rows = cur.fetchall()
-
-    return [
-        Record(
-            id=row[0],
-            date=row[1],
-            type=RecordType(row[2]),
-            description=row[3],
-            amount=Decimal(str(row[4])),
-            created_at=row[5],
-        )
-        for row in rows
-    ]
+    return _select_records(
+        conn, "WHERE s.date = (SELECT MAX(date) FROM snapshots)", order="a.type, a.name"
+    )
 
 
 def get_summary_by_date(conn: Connection) -> list[DailySummary]:
     """Get aggregated totals by date and type."""
     query = """
-        SELECT date, type, SUM(amount) as total_amount
-        FROM snapshots
-        GROUP BY date, type
-        ORDER BY date, type
+        SELECT s.date, a.type, SUM(s.amount) AS total_amount
+        FROM snapshots s
+        JOIN accounts a ON a.id = s.account_id
+        GROUP BY s.date, a.type
+        ORDER BY s.date, a.type
     """
-
     with conn.cursor() as cur:
         cur.execute(query)
         rows = cur.fetchall()
-
     return [
-        DailySummary(
-            date=row[0],
-            type=RecordType(row[1]),
-            total_amount=Decimal(str(row[2])),
-        )
+        DailySummary(date=row[0], type=RecordType(row[1]), total_amount=Decimal(row[2]))
         for row in rows
     ]
+
+
+def upsert_amounts(conn: Connection, as_of: date, amounts: dict[int, Decimal]) -> int:
+    """Write one row per account for `as_of`, replacing any existing row for that date."""
+    if not amounts:
+        return 0
+    query = """
+        INSERT INTO snapshots (date, account_id, amount)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (date, account_id) DO UPDATE SET amount = EXCLUDED.amount
+    """
+    with conn.cursor() as cur:
+        cur.executemany(
+            query, [(as_of, aid, amount) for aid, amount in amounts.items()]
+        )
+    return len(amounts)
+
+
+# --- accounts --------------------------------------------------------------
+
+
+def _account_from_row(row: tuple[Any, ...]) -> Account:
+    return Account.model_validate(
+        {
+            "id": row[0],
+            "name": row[1],
+            "type": row[2],
+            "formula": row[3],
+            "retired_at": row[4],
+            "created_at": row[5],
+            "input_ids": list(row[6]),
+        }
+    )
+
+
+def _select_accounts(
+    conn: Connection, where: LiteralString = "", params: tuple[Any, ...] = ()
+) -> list[Account]:
+    with conn.cursor() as cur:
+        cur.execute(f"{_ACCOUNT_SELECT} {where} GROUP BY a.id ORDER BY a.id", params)
+        rows = cur.fetchall()
+    return [_account_from_row(row) for row in rows]
+
+
+def _formula_param(formula: Formula | None) -> Jsonb | None:
+    return Jsonb(formula.model_dump(mode="json")) if formula is not None else None
+
+
+def _replace_inputs(cur: Cursor, account_id: int, input_ids: list[int]) -> None:
+    cur.execute("DELETE FROM formula_inputs WHERE account_id = %s", (account_id,))
+    if input_ids:
+        cur.executemany(
+            "INSERT INTO formula_inputs (account_id, input_id) VALUES (%s, %s)",
+            [(account_id, input_id) for input_id in input_ids],
+        )
+
+
+def get_accounts(conn: Connection, *, include_retired: bool = True) -> list[Account]:
+    """All accounts in id order, with their formula inputs."""
+    where = "" if include_retired else "WHERE a.retired_at IS NULL"
+    return _select_accounts(conn, where)
+
+
+def get_account_by_name(
+    conn: Connection, type: RecordType, name: str
+) -> Account | None:
+    accounts = _select_accounts(
+        conn, "WHERE a.type = %s AND a.name = %s", (type.value, name)
+    )
+    return accounts[0] if accounts else None
+
+
+def insert_account(conn: Connection, account: Account) -> Account:
+    """Insert an account and its inputs. Returns the account with id and created_at set."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO accounts (name, type, formula, retired_at)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, created_at
+            """,
+            (
+                account.name,
+                account.type.value,
+                _formula_param(account.formula),
+                account.retired_at,
+            ),
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise RuntimeError("INSERT returned no row")
+        account_id, created_at = row
+        _replace_inputs(cur, account_id, account.input_ids)
+    return account.model_copy(update={"id": account_id, "created_at": created_at})
+
+
+def get_account(conn: Connection, account_id: int) -> Account | None:
+    accounts = _select_accounts(conn, "WHERE a.id = %s", (account_id,))
+    return accounts[0] if accounts else None
+
+
+def update_account(conn: Connection, account: Account) -> None:
+    """Replace name, formula document, and inputs. Type and retirement are untouched."""
+    if account.id is None:
+        raise ValueError("Cannot update an account without an id")
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE accounts SET name = %s, formula = %s WHERE id = %s",
+            (account.name, _formula_param(account.formula), account.id),
+        )
+        _replace_inputs(cur, account.id, account.input_ids)
+
+
+def set_formula(conn: Connection, account_id: int, formula: Formula | None) -> None:
+    """Replace only the formula document, leaving inputs alone."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE accounts SET formula = %s WHERE id = %s",
+            (_formula_param(formula), account_id),
+        )
+
+
+def set_retired_at(conn: Connection, account_id: int, retired_at: date | None) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE accounts SET retired_at = %s WHERE id = %s",
+            (retired_at, account_id),
+        )
+
+
+def get_dependents(conn: Connection, account_id: int) -> list[Account]:
+    """Active computed accounts that list `account_id` as an input."""
+    return _select_accounts(
+        conn,
+        """
+        WHERE a.retired_at IS NULL
+          AND a.id IN (SELECT account_id FROM formula_inputs WHERE input_id = %s)
+        """,
+        (account_id,),
+    )
+
+
+def get_latest_amount(conn: Connection, account_id: int) -> Decimal | None:
+    """The amount in this account's own most recent snapshot row, if any."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT amount FROM snapshots WHERE account_id = %s ORDER BY date DESC LIMIT 1",
+            (account_id,),
+        )
+        row = cur.fetchone()
+    return Decimal(row[0]) if row else None

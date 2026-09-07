@@ -4,12 +4,17 @@ from decimal import Decimal
 
 import pytest
 
+from asset_manager.accounts import create_account, retire_account
+from asset_manager.models import RecordType
+from asset_manager.repository import get_accounts, get_all_records
 from asset_manager.sheets import (
+    ParsedRow,
+    describe_rows,
     dollars_to_decimal,
     get_service,
-    parse_records_from_table,
+    parse_rows_from_table,
+    save_rows,
 )
-from asset_manager.models import RecordType
 
 
 @pytest.mark.skipif(
@@ -32,48 +37,38 @@ def test_dollars_to_decimal_invalid():
         dollars_to_decimal("not a dollar amount")
 
 
-def test_parse_records_from_table_assets():
+def test_parse_rows_from_table_assets():
     raw_table = [
         ["Description", "Amount", "Accessible", "Liquidity"],
         ["Savings", "$1,000.00", "Y", "$500.00"],
         ["401k", "$5,000.00", "N", "$0.00"],
     ]
-    col_idx = slice(0, 4)
-    record_date = date(2024, 1, 15)
+    rows = parse_rows_from_table(raw_table, slice(0, 4), RecordType.ASSET)
 
-    records = parse_records_from_table(
-        raw_table, col_idx, RecordType.ASSET, record_date
-    )
-
-    assert len(records) == 2
-    assert records[0].description == "Savings"
-    assert records[0].amount == Decimal("1000.00")
-    assert records[0].type == RecordType.ASSET
-    assert records[0].date == record_date
-
-    assert records[1].description == "401k"
-    assert records[1].amount == Decimal("5000.00")
+    assert len(rows) == 2
+    assert rows[0].description == "Savings"
+    assert rows[0].amount == Decimal("1000.00")
+    assert rows[0].type == RecordType.ASSET
+    assert rows[1].description == "401k"
+    assert rows[1].amount == Decimal("5000.00")
 
 
-def test_parse_records_from_table_liabilities():
+def test_parse_rows_from_table_liabilities():
     raw_table = [
         ["Description", "Amount", "Accessible"],
         ["Credit Card", "$500.00", "Y"],
         ["Mortgage", "$200,000.00", "Y"],
     ]
     col_idx = slice(0, 3)
-    record_date = date(2024, 1, 15)
 
-    records = parse_records_from_table(
-        raw_table, col_idx, RecordType.LIABILITY, record_date
-    )
+    rows = parse_rows_from_table(raw_table, col_idx, RecordType.LIABILITY)
 
-    assert len(records) == 2
-    assert records[0].description == "Credit Card"
-    assert records[1].description == "Mortgage"
+    assert len(rows) == 2
+    assert rows[0].description == "Credit Card"
+    assert rows[1].description == "Mortgage"
 
 
-def test_parse_records_from_table_skips_blank_rows():
+def test_parse_rows_from_table_skips_blank_rows():
     raw_table = [
         ["Description", "Amount", "Accessible"],
         ["Savings", "$1,000.00", "Y"],
@@ -81,26 +76,69 @@ def test_parse_records_from_table_skips_blank_rows():
         ["Checking", "$500.00", "Y"],
     ]
     col_idx = slice(0, 3)
-    record_date = date(2024, 1, 15)
 
-    records = parse_records_from_table(
-        raw_table, col_idx, RecordType.ASSET, record_date
-    )
+    rows = parse_rows_from_table(raw_table, col_idx, RecordType.ASSET)
 
-    assert len(records) == 2
-    assert records[0].description == "Savings"
-    assert records[1].description == "Checking"
+    assert len(rows) == 2
+    assert rows[0].description == "Savings"
+    assert rows[1].description == "Checking"
 
 
-def test_parse_records_from_table_empty():
+def test_parse_rows_from_table_empty():
     raw_table = [
         ["Description", "Amount", "Accessible"],
     ]
     col_idx = slice(0, 3)
-    record_date = date(2024, 1, 15)
 
-    records = parse_records_from_table(
-        raw_table, col_idx, RecordType.ASSET, record_date
-    )
+    rows = parse_rows_from_table(raw_table, col_idx, RecordType.ASSET)
 
-    assert len(records) == 0
+    assert len(rows) == 0
+
+
+@pytest.mark.db
+def test_save_rows_creates_unknown_accounts_and_skips_retired(db_connection, capsys):
+    known = create_account(db_connection, "Savings", RecordType.ASSET)
+    old = create_account(db_connection, "Old 401k", RecordType.ASSET)
+    retire_account(db_connection, old.id, date(2026, 1, 1))
+    rows = [
+        ParsedRow(type=RecordType.ASSET, description="Savings", amount=Decimal("10")),
+        ParsedRow(type=RecordType.ASSET, description="Brokerage", amount=Decimal("20")),
+        ParsedRow(type=RecordType.ASSET, description="Old 401k", amount=Decimal("5")),
+        ParsedRow(type=RecordType.LIABILITY, description="Card", amount=Decimal("1")),
+    ]
+
+    count = save_rows(db_connection, rows, date(2026, 9, 6))
+
+    assert count == 3
+    assert [a.name for a in get_accounts(db_connection)] == [
+        "Savings",
+        "Old 401k",
+        "Brokerage",
+        "Card",
+    ]
+    written = {(r.description, r.amount) for r in get_all_records(db_connection)}
+    assert written == {
+        ("Savings", Decimal("10.00")),
+        ("Brokerage", Decimal("20.00")),
+        ("Card", Decimal("1.00")),
+    }
+    assert known.id is not None
+    assert "Old 401k is retired" in capsys.readouterr().out
+
+
+@pytest.mark.db
+def test_describe_rows_annotates_new_and_retired(db_connection):
+    create_account(db_connection, "Savings", RecordType.ASSET)
+    old = create_account(db_connection, "Old", RecordType.ASSET)
+    retire_account(db_connection, old.id, date(2026, 1, 1))
+    rows = [
+        ParsedRow(type=RecordType.ASSET, description="Savings", amount=Decimal("10")),
+        ParsedRow(type=RecordType.ASSET, description="New", amount=Decimal("1")),
+        ParsedRow(type=RecordType.ASSET, description="Old", amount=Decimal("0")),
+    ]
+    lines = describe_rows(db_connection, rows)
+    assert lines == [
+        "  asset: Savings = $10",
+        "  asset: New = $1  (new account)",
+        "  asset: Old = $0  (retired, skipped)",
+    ]

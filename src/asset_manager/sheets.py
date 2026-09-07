@@ -10,10 +10,13 @@ from typing import Any
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from psycopg import Connection
+from pydantic import BaseModel
 
+from .clock import today
 from .db import get_connection_context
-from .models import Record, RecordType
-from .repository import insert_records
+from .models import Account, RecordType
+from .repository import get_account_by_name, insert_account, upsert_amounts
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
@@ -24,6 +27,14 @@ config = configparser.ConfigParser()
 config.read_string(config_contents)
 SHEET_ID = config["DEFAULT"]["SHEET_ID"]
 SHEET_RANGE = config["DEFAULT"]["SHEET_RANGE"]
+
+
+class ParsedRow(BaseModel):
+    """One line of the sheet: an account name and its amount."""
+
+    type: RecordType
+    description: str
+    amount: Decimal
 
 
 def get_service() -> Any:
@@ -51,20 +62,18 @@ def dollars_to_decimal(dollar_str: str) -> Decimal:
         raise ValueError(f"can't parse '{dollar_str}'")
 
 
-def parse_records_from_table(
+def parse_rows_from_table(
     raw_table: list[list[str]],
     col_idx: slice,
     record_type: RecordType,
-    record_date: datetime.date,
-) -> list[Record]:
+) -> list[ParsedRow]:
     """
-    Parse records from a raw table slice.
+    Parse rows from a raw table slice.
 
     Args:
         raw_table: Raw table data from Google Sheets
         col_idx: Slice indicating which columns to use
         record_type: Whether these are assets or liabilities
-        record_date: The date to assign to all records
     """
     # Find where the first blank row occurs in the given columns
     first_blank = len(raw_table)
@@ -103,7 +112,7 @@ def parse_records_from_table(
     if amount_idx is None:
         amount_idx = 1  # Default fallback
 
-    records = []
+    rows = []
     for row in values:
         # Skip blank rows
         if len(row) <= desc_idx or not row[desc_idx].strip():
@@ -118,23 +127,16 @@ def parse_records_from_table(
             print(f"Warning: Could not parse amount '{amount_str}' for {description}")
             continue
 
-        records.append(
-            Record(
-                date=record_date,
-                type=record_type,
-                description=description,
-                amount=amount,
-            )
-        )
+        rows.append(ParsedRow(type=record_type, description=description, amount=amount))
 
-    return records
+    return rows
 
 
-def fetch_records() -> list[Record]:
+def fetch_rows() -> list[ParsedRow]:
     """
-    Fetch data from Google Sheets and parse into records.
+    Fetch data from Google Sheets and parse into rows.
 
-    Returns the parsed records without saving to the database.
+    Returns the parsed rows without saving to the database.
     """
     service = get_service()
     sheets = service.spreadsheets()
@@ -152,17 +154,54 @@ def fetch_records() -> list[Record]:
     # The first row is just the headings: "Assets" & "Liabilities"
     raw_table = raw_table[1:]
 
-    today = datetime.date.today()
-
-    # Parse records from each section
-    asset_records = parse_records_from_table(
-        raw_table, asset_cols, RecordType.ASSET, today
+    asset_rows = parse_rows_from_table(raw_table, asset_cols, RecordType.ASSET)
+    liability_rows = parse_rows_from_table(
+        raw_table, liability_cols, RecordType.LIABILITY
     )
-    liability_records = parse_records_from_table(
-        raw_table, liability_cols, RecordType.LIABILITY, today
-    )
+    return asset_rows + liability_rows
 
-    return asset_records + liability_records
+
+def describe_rows(conn: Connection, rows: list[ParsedRow]) -> list[str]:
+    """One printable line per row, noting accounts that would be created or skipped."""
+    lines = []
+    for row in rows:
+        account = get_account_by_name(conn, row.type, row.description)
+        if account is None:
+            note = "  (new account)"
+        elif not account.is_active:
+            note = "  (retired, skipped)"
+        else:
+            note = ""
+        lines.append(f"  {row.type.value}: {row.description} = ${row.amount}{note}")
+    return lines
+
+
+def save_rows(conn: Connection, rows: list[ParsedRow], as_of: datetime.date) -> int:
+    """Write the sheet's values for `as_of`.
+
+    Unknown descriptions become plain accounts. Retired accounts are skipped,
+    with a warning if the sheet still shows a non-zero amount for one.
+    Formulas are not evaluated: the sheet's own computed cells are written as-is.
+    Commits.
+    """
+    amounts: dict[int, Decimal] = {}
+    for row in rows:
+        account = get_account_by_name(conn, row.type, row.description)
+        if account is None:
+            account = insert_account(conn, Account(name=row.description, type=row.type))
+            print(f"Created account: {row.type.value} {row.description}")
+        elif not account.is_active:
+            if row.amount != 0:
+                print(
+                    f"Warning: {row.description} is retired but the sheet shows "
+                    f"${row.amount}; skipping"
+                )
+            continue
+        if account.id is not None:
+            amounts[account.id] = row.amount
+    count = upsert_amounts(conn, as_of, amounts)
+    conn.commit()
+    return count
 
 
 def fetch_and_save() -> int:
@@ -171,18 +210,14 @@ def fetch_and_save() -> int:
 
     Returns the number of records saved.
     """
-    all_records = fetch_records()
-
-    if not all_records:
+    rows = fetch_rows()
+    if not rows:
         return 0
 
-    print(f"Parsed {len(all_records)} records:")
-    for record in all_records:
-        print(f"  {record.type.value}: {record.description} = ${record.amount}")
-
-    # Save to database
+    print(f"Parsed {len(rows)} rows:")
     with get_connection_context() as conn:
-        count = insert_records(conn, all_records)
+        for line in describe_rows(conn, rows):
+            print(line)
+        count = save_rows(conn, rows, today())
         print(f"Saved {count} records to database")
-
     return count

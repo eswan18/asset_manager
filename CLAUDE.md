@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Asset Manager is a Python application for tracking personal financial assets and liabilities by fetching data from Google Sheets and storing it in PostgreSQL.
+Asset Manager is a Python application for tracking personal financial assets and liabilities. Values are entered on the web dashboard's Accounts tab and saved as dated snapshots in PostgreSQL. Liabilities can be computed from other accounts by a formula. The Google Sheets `fetch` path is legacy and slated for removal.
 
 ## Development Setup
 
@@ -62,7 +62,7 @@ uv run dotenv -f .env.dev run dbmate status
 
 ### CLI Commands
 ```bash
-# Fetch data from Google Sheets and save to database
+# Fetch data from Google Sheets and save to database (legacy)
 ENV=dev uv run asset-manager fetch
 ENV=prod uv run asset-manager fetch
 
@@ -103,8 +103,10 @@ asset_manager/
 │       ├── db.py               # Database connections
 │       ├── models.py           # Pydantic models
 │       ├── repository.py       # Database operations
+│       ├── accounts.py         # Account rules, retire checks, snapshot save transaction
+│       ├── formulas.py         # Pure formula evaluation (compute_snapshot)
 │       ├── report.py           # Interactive HTML report generation
-│       ├── sheets.py           # Google Sheets fetching
+│       ├── sheets.py           # Google Sheets fetching (legacy)
 │       ├── py.typed            # PEP 561 marker
 │       ├── data/
 │       │   └── config.ini      # Sheet ID and range
@@ -112,8 +114,15 @@ asset_manager/
 │           ├── __init__.py
 │           ├── app.py          # FastAPI application
 │           ├── auth.py         # OAuth/OIDC authentication
+│           ├── accounts_routes.py  # Accounts page, account form, POST /snapshots
+│           ├── charts.py       # Plotly chart HTML for the dashboard
+│           ├── rendering.py    # Templates, render(), flash messages
 │           └── templates/
-│               └── dashboard.html
+│               ├── account_form.html
+│               ├── accounts.html
+│               ├── base.html
+│               ├── dashboard.html
+│               └── login.html
 ├── tests/
 ├── db/
 │   └── migrations/
@@ -124,38 +133,55 @@ asset_manager/
 ### Core Modules
 
 - **`config.py`**: Environment configuration using pydantic-settings, loads from `.env.{ENV}` files
-- **`models.py`**: Pydantic models for `Record` and `DailySummary`
+- **`models.py`**: `Account` (with `formula` JSON document and `input_ids`), `ProportionalFormula`, `Record`, `DailySummary`
+- **`formulas.py`**: `compute_snapshot(accounts, values, as_of)`: pure evaluation, raises `MissingValueError`
+- **`accounts.py`**: Service layer. `create_account`/`update_account` enforce input rules; `retire_account` requires a zero latest amount and no dependents; `save_snapshot` is all-or-nothing. Raises `AccountError` with user-facing messages. Commits.
+- **`repository.py`**: Thin SQL. Never commits.
 - **`db.py`**: Database connection management using psycopg3
-- **`repository.py`**: Database query functions (insert, fetch, summarize)
-- **`sheets.py`**: Google Sheets API integration for fetching asset/liability data
+- **`sheets.py`**: Legacy Google Sheets import (`save_rows` resolves names to accounts)
 - **`report.py`**: Interactive HTML report generation using Plotly
 - **`cli.py`**: Typer CLI with `fetch`, `report`, `serve`, and `version` commands
-- **`web/app.py`**: FastAPI web dashboard application
-- **`web/auth.py`**: OAuth/OIDC authentication with PKCE support
+- **`web/app.py`**: App wiring, dashboard, auth routes
+- **`web/accounts_routes.py`**: Accounts page, account form, `POST /snapshots`
+- **`web/auth.py`**: OAuth/OIDC with PKCE, `require_user` dependency, `ALLOWED_EMAILS` gate
 
 ### Data Flow
 
-1. Google Sheets contains asset/liability data in a specific format (columns 0-3 for assets, 4-6 for liabilities)
-2. `sheets.py` extracts data using Google Sheets API and service account authentication
-3. Data is cleaned and converted to Pydantic `Record` models
-4. Records are inserted into PostgreSQL via `repository.py`
+1. The user edits amounts on `/accounts`. Edits are staged in the page (and `sessionStorage`) until **Save snapshot**.
+2. `POST /snapshots` sends `{values: {account_id: amount}, cost_bases: {account_id: basis}}`.
+3. `accounts.save_snapshot` validates, updates cost bases, evaluates formulas via `formulas.compute_snapshot`, and upserts one `snapshots` row per active account for today. All in one transaction.
+4. Retired accounts get no row, so their series end. Charts read `snapshots` joined to `accounts`; formulas are never re-evaluated for history.
 
 ### Database Schema
 
 Migrations are managed by dbmate and stored in `db/migrations/`.
 
 ```sql
+CREATE TABLE accounts (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    type VARCHAR(10) NOT NULL CHECK (type IN ('asset', 'liability')),
+    formula JSONB,              -- NULL = plain; {"kind": "proportional", "rate": "0.15", "cost_basis": "70634.00"}
+    retired_at DATE,            -- NULL = active
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (type, name)
+);
+
+CREATE TABLE formula_inputs (   -- which plain accounts a computed account sums
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    input_id INTEGER NOT NULL REFERENCES accounts(id),
+    PRIMARY KEY (account_id, input_id),
+    CHECK (account_id <> input_id)
+);
+
 CREATE TABLE snapshots (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,
-    type VARCHAR(10) NOT NULL CHECK (type IN ('asset', 'liability')),
-    description TEXT NOT NULL,
+    account_id INTEGER NOT NULL REFERENCES accounts(id),
     amount DECIMAL(15, 2) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
--- Unique constraint prevents duplicate snapshots
-CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, type, description);
+CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, account_id);
 ```
 
 ### Configuration
@@ -173,7 +199,9 @@ CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, type, description);
 | `CLIENT_ID` | OAuth client ID |
 | `CLIENT_SECRET` | OAuth client secret |
 | `SECRET_KEY` | Random secret for signing session cookies |
+| `ALLOWED_EMAILS` | Optional comma-separated allowlist; when set, other identity users get a 403 at login |
 | `ENV` | Set to `dev` for local development (disables secure cookies)
+| `TIMEZONE` | IANA zone used to date snapshots and retirements (default America/Chicago) |
 
 ### Testing
 
@@ -181,9 +209,21 @@ Tests are organized by module with pytest:
 - `test_sheets.py`: Google Sheets fetching and parsing tests
 - `test_repository.py`: Database operations tests (uses testcontainers)
 - `test_cli.py`: CLI command tests
+- `test_models.py`, `test_formulas.py`: Pure unit tests (Hypothesis for the formula property)
+- `test_accounts.py`: Service rules and the save transaction (testcontainers)
+- `test_migration.py`: Applies the accounts migration to legacy rows and checks the backfill and rollback
+- `test_web.py`: FastAPI TestClient with a signed session cookie against the container
 
 The project uses:
 - **testcontainers**: Spins up real PostgreSQL containers for database tests
 - **hypothesis**: Property-based testing
 
 To run tests: `uv run pytest`
+
+### Rules worth knowing
+
+- **Formula inputs must be plain, active accounts.** A computed account cannot feed another. An account that is an input cannot be made computed.
+- **Retire flow**: set the amount to zero, Save, then Retire from the edit page. Blocked while any active computed account lists it as an input.
+- **Same-day Save replaces** that day's rows. Retired accounts get no row.
+- **Repository never commits**; the service layer does. `save_snapshot` uses `conn.transaction()`.
+- **Adding a formula kind** later: one Pydantic class in `models.py` (make `Formula` a discriminated union on `kind`), one branch in `formulas._evaluate`, one form variant. No migration.

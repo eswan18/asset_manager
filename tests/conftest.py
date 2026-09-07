@@ -50,9 +50,12 @@ def db_connection(db_url, _run_migrations):
 
     yield conn
 
-    # Clean up: truncate tables after each test
+    # Clean up: roll back anything left open, then truncate every table
+    conn.rollback()
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE TABLE snapshots RESTART IDENTITY")
+        cur.execute(
+            "TRUNCATE TABLE snapshots, formula_inputs, accounts RESTART IDENTITY CASCADE"
+        )
     conn.commit()
     conn.close()
 

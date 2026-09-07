@@ -6,9 +6,10 @@ import json
 import os
 import time
 import urllib.request
-from typing import Any
+from typing import Annotated, Any
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
+from fastapi import Depends
 from itsdangerous import URLSafeTimedSerializer
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
@@ -91,6 +92,34 @@ def get_session_user(request: Request) -> dict[str, Any] | None:
         return None
 
 
+class LoginRequired(Exception):
+    """Raised by require_user when the request has no valid session."""
+
+
+class EmailNotAllowed(Exception):
+    """Raised by handle_callback when ALLOWED_EMAILS refuses the login."""
+
+
+def require_user(request: Request) -> dict[str, Any]:
+    """FastAPI dependency: the session user, or LoginRequired."""
+    user = get_session_user(request)
+    if not user:
+        raise LoginRequired()
+    return user
+
+
+CurrentUser = Annotated[dict[str, Any], Depends(require_user)]
+
+
+def is_email_allowed(email: str | None) -> bool:
+    """True unless ALLOWED_EMAILS is set and does not list this email (case-insensitive)."""
+    raw = os.environ.get("ALLOWED_EMAILS", "")
+    allowed = {e.strip().lower() for e in raw.split(",") if e.strip()}
+    if not allowed:
+        return True
+    return email is not None and email.lower() in allowed
+
+
 def _is_secure() -> bool:
     """Check if we should use secure cookies (production)."""
     # Use secure cookies unless explicitly in dev mode
@@ -153,6 +182,10 @@ async def handle_callback(request: Request, oauth: OAuth) -> RedirectResponse:
     if not user_info:
         # Fetch from userinfo endpoint if not in token
         user_info = await oauth.idp.userinfo(token=token)
+
+    email = user_info.get("email")
+    if not is_email_allowed(email):
+        raise EmailNotAllowed(f"{email} is not in ALLOWED_EMAILS")
 
     # Create session with user data
     user_data = {
