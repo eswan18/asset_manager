@@ -43,8 +43,9 @@
         height: 0.75rem;
         margin-right: 0.45rem;
         vertical-align: -0.1rem;
-        border: 2px solid rgba(19, 21, 25, 0.35);
-        border-top-color: var(--bg-deep);
+        border: 2px solid var(--btn-primary-text);
+        border-right-color: transparent;
+        border-bottom-color: transparent;
         border-radius: 50%;
         animation: spin 0.7s linear infinite;
     }
@@ -134,7 +135,7 @@
     .accounts-table td {
         padding: 0.55rem 1.25rem;
         font-size: 0.9rem;
-        border-bottom: 1px solid rgba(46, 51, 64, 0.5);
+        border-bottom: 1px solid var(--border-row);
         vertical-align: top;
     }
 
@@ -216,7 +217,7 @@
     .amount-cell input.invalid,
     .basis-field input.invalid {
         border-bottom-color: var(--color-liability);
-        color: #e08888;
+        color: var(--color-error-text);
     }
 
     .computed-amount {
@@ -313,7 +314,7 @@
     }
 
     .save-bar .status.warning {
-        color: #e0b070;
+        color: var(--color-warning-text);
     }
 
     .save-bar .actions {

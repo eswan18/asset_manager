@@ -32,6 +32,50 @@
             --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
             --radius: 6px;
             --shadow: 0 2px 8px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+            --border-row: rgba(46, 51, 64, 0.5);
+            --accent-gold-hover: #d4b165;
+            --btn-primary-text: #131519;
+            --color-error-text: #e08888;
+            --color-error-border: rgba(199, 92, 92, 0.3);
+            --color-success-text: #8fcb9c;
+            --color-success-border: rgba(106, 173, 122, 0.3);
+            --color-warning-text: #e0b070;
+            --noise-opacity: 0.03;
+            color-scheme: dark;
+        }
+
+        /* Light theme: follows the system setting */
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg-deep: #f3f1ec;
+                --bg-primary: #faf9f6;
+                --bg-surface: #ffffff;
+                --bg-surface-hover: #f5f3ee;
+                --bg-elevated: #ece9e3;
+                --border-subtle: #e5e1d9;
+                --border-medium: #cfcac0;
+                --text-primary: #1f2229;
+                --text-secondary: #5b5f68;
+                --text-muted: #8a8e97;
+                --accent-gold: #a4822e;
+                --accent-gold-dim: rgba(164, 130, 46, 0.12);
+                --accent-gold-glow: rgba(164, 130, 46, 0.08);
+                --color-asset: #2f8a49;
+                --color-asset-dim: rgba(47, 138, 73, 0.10);
+                --color-liability: #c0392b;
+                --color-liability-dim: rgba(192, 57, 43, 0.08);
+                --shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+                --border-row: #ece9e3;
+                --accent-gold-hover: #8f7127;
+                --btn-primary-text: #ffffff;
+                --color-error-text: #a93226;
+                --color-error-border: rgba(192, 57, 43, 0.3);
+                --color-success-text: #257a3f;
+                --color-success-border: rgba(47, 138, 73, 0.3);
+                --color-warning-text: #8a6410;
+                --noise-opacity: 0.05;
+                color-scheme: light;
+            }
         }
 
         * {
@@ -54,7 +98,8 @@
             content: '';
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: var(--noise-opacity);
             pointer-events: none;
             z-index: 0;
         }
@@ -122,13 +167,13 @@
 
         .btn-primary {
             background: var(--accent-gold);
-            color: var(--bg-deep);
+            color: var(--btn-primary-text);
             border-color: var(--accent-gold);
         }
 
         .btn-primary:hover {
-            background: #d4b165;
-            border-color: #d4b165;
+            background: var(--accent-gold-hover);
+            border-color: var(--accent-gold-hover);
         }
 
         .tab-nav {
@@ -168,8 +213,8 @@
 
         .error {
             background-color: var(--color-liability-dim);
-            border: 1px solid rgba(199, 92, 92, 0.3);
-            color: #e08888;
+            border: 1px solid var(--color-error-border);
+            color: var(--color-error-text);
             padding: 1rem 1.25rem;
             border-radius: var(--radius);
             margin-bottom: 1.25rem;
@@ -186,14 +231,14 @@
 
         .flash-error {
             background-color: var(--color-liability-dim);
-            border-color: rgba(199, 92, 92, 0.3);
-            color: #e08888;
+            border-color: var(--color-error-border);
+            color: var(--color-error-text);
         }
 
         .flash-success {
             background-color: var(--color-asset-dim);
-            border-color: rgba(106, 173, 122, 0.3);
-            color: #8fcb9c;
+            border-color: var(--color-success-border);
+            color: var(--color-success-text);
         }
 
         .no-data a {

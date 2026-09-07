@@ -218,5 +218,37 @@
         breakdown.classList.toggle('show');
         chevron.classList.toggle('expanded');
     }
+
+    // The charts are rendered server-side with the dark palette. Re-theme them
+    // from the page's CSS variables so they follow the system theme too.
+    (function () {
+        if (typeof Plotly === 'undefined') return;
+        const lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+        function applyChartTheme() {
+            const css = getComputedStyle(document.documentElement);
+            const v = name => css.getPropertyValue(name).trim();
+            const axis = {
+                gridcolor: v('--border-row'),
+                linecolor: v('--border-subtle'),
+                tickfont: { color: v('--text-muted') },
+                title: { font: { color: v('--text-secondary') } },
+            };
+            const layout = {
+                'font.color': v('--text-secondary'),
+                'title.font.color': v('--text-primary'),
+                'xaxis.gridcolor': axis.gridcolor, 'xaxis.linecolor': axis.linecolor,
+                'xaxis.tickfont.color': axis.tickfont.color, 'xaxis.title.font.color': axis.title.font.color,
+                'xaxis.zerolinecolor': axis.gridcolor, 'yaxis.zerolinecolor': axis.gridcolor,
+                'yaxis.gridcolor': axis.gridcolor, 'yaxis.linecolor': axis.linecolor,
+                'yaxis.tickfont.color': axis.tickfont.color, 'yaxis.title.font.color': axis.title.font.color,
+                'hoverlabel.bgcolor': v('--bg-surface'),
+                'hoverlabel.bordercolor': v('--border-medium'),
+                'hoverlabel.font.color': v('--text-primary'),
+            };
+            document.querySelectorAll('.js-plotly-plot').forEach(el => Plotly.relayout(el, layout));
+        }
+        window.addEventListener('load', applyChartTheme);
+        lightQuery.addEventListener('change', applyChartTheme);
+    })();
 </script>
 {% endblock %}
