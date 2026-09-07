@@ -227,6 +227,9 @@ class TestAccountsPage:
         assert "Cap Gains Tax" in text
         assert "Show retired (1)" in text
         assert "September 1, 2026" in text
+        # The unsaved-changes header and saving-state hooks the script toggles
+        assert 'id="snapshot-dirty" class="unsaved" hidden' in text
+        assert 'id="save-label"' in text
         assert f'href="/accounts/{schwab.id}/edit"' in text
 
     def test_redirects_when_logged_out(self, client):

@@ -20,6 +20,34 @@
         color: var(--text-secondary);
     }
 
+    .snapshot-date .unsaved {
+        color: var(--accent-gold);
+    }
+
+    /* Saving state: lock the page until the reload replaces it */
+    body.saving .accounts-grid,
+    body.saving .net-worth-summary {
+        animation: none;   /* the fade-in's fill mode would otherwise pin opacity at 1 */
+        opacity: 0.55;
+        pointer-events: none;
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 0.75rem;
+        height: 0.75rem;
+        margin-right: 0.45rem;
+        vertical-align: -0.1rem;
+        border: 2px solid rgba(19, 21, 25, 0.35);
+        border-top-color: var(--bg-deep);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
     .toggle-retired {
         color: var(--text-muted);
         font-size: 0.8rem;
@@ -306,11 +334,14 @@
     {% if rows %}
     <div class="page-top fade-in">
         <div class="snapshot-date">
-            {% if snapshot_date %}
-            Snapshot <span>{{ snapshot_date.strftime('%B %-d, %Y') }}</span>
-            {% else %}
-            No snapshot saved yet
-            {% endif %}
+            <span id="snapshot-saved">
+                {% if snapshot_date %}
+                Snapshot <span>{{ snapshot_date.strftime('%B %-d, %Y') }}</span>
+                {% else %}
+                No snapshot saved yet
+                {% endif %}
+            </span>
+            <span id="snapshot-dirty" class="unsaved" hidden>Unsaved changes</span>
         </div>
         {% if retired_count %}
         <label class="toggle-retired">
@@ -385,7 +416,7 @@
         <span class="status" id="dirty-status">No unsaved changes</span>
         <div class="actions">
             <button type="button" class="btn btn-secondary" id="discard-button">Discard</button>
-            <button type="button" class="btn btn-primary" id="save-button">Save snapshot</button>
+            <button type="button" class="btn btn-primary" id="save-button"><span class="spinner" hidden></span><span id="save-label">Save snapshot</span></button>
         </div>
     </div>
     {% elif not error %}
@@ -485,6 +516,22 @@
             ? 'No unsaved changes'
             : dirtyCount + ' unsaved change' + (dirtyCount === 1 ? '' : 's');
         status.classList.toggle('dirty', dirtyCount > 0);
+        document.getElementById('snapshot-saved').hidden = dirtyCount > 0;
+        document.getElementById('snapshot-dirty').hidden = dirtyCount === 0;
+    }
+
+    // --- saving state: nothing is editable between click and reload -------
+    function setSaving(on) {
+        document.body.classList.toggle('saving', on);
+        allInputs.forEach(el => { el.disabled = on; });
+        document.getElementById('save-button').disabled = on;
+        document.getElementById('discard-button').disabled = on;
+        const toggle = document.getElementById('show-retired');
+        if (toggle) toggle.disabled = on;
+        document.querySelector('#save-button .spinner').hidden = !on;
+        document.getElementById('save-label').textContent = on ? 'Saving…' : 'Save snapshot';
+        if (on) document.getElementById('dirty-status').textContent = 'Saving…';
+        else recompute();
     }
 
     // --- staged edits survive page reloads (add/edit account round trips) --
@@ -554,24 +601,26 @@
             problem.el.focus();
             return;
         }
-        const button = document.getElementById('save-button');
-        button.disabled = true;
+        setSaving(true);
+        let leaving = false;
         try {
             const res = await fetch('/snapshots', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(payload),
             });
-            if (res.status === 401) { window.location.href = '/login'; return; }
+            if (res.status === 401) { leaving = true; window.location.href = '/login'; return; }
             const body = await res.json().catch(() => ({}));
             if (!res.ok) { showError(body.error || ('Save failed (' + res.status + ')')); return; }
             saveAttempted = false;
             clearStaged();
+            leaving = true;
             window.location.reload();
         } catch (e) {
             showError('Save failed: ' + e.message);
         } finally {
-            button.disabled = false;
+            // Stay locked when a navigation is underway; the new document takes over.
+            if (!leaving) setSaving(false);
         }
     }
 
