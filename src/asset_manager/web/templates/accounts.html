@@ -20,6 +20,11 @@
         color: var(--text-secondary);
     }
 
+    .snapshot-date strong {
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
     .snapshot-date .unsaved {
         color: var(--accent-gold);
     }
@@ -42,6 +47,10 @@
         border-top-color: var(--bg-deep);
         border-radius: 50%;
         animation: spin 0.7s linear infinite;
+    }
+
+    .spinner[hidden] {
+        display: none;
     }
 
     @keyframes spin {
@@ -303,6 +312,10 @@
         color: var(--accent-gold);
     }
 
+    .save-bar .status.warning {
+        color: #e0b070;
+    }
+
     .save-bar .actions {
         display: flex;
         gap: 0.75rem;
@@ -334,8 +347,10 @@
     {% if rows %}
     <div class="page-top fade-in">
         <div class="snapshot-date">
-            <span id="snapshot-saved">
-                {% if snapshot_date %}
+            <span id="snapshot-saved" data-today="{{ '1' if snapshot_is_today else '0' }}">
+                {% if snapshot_is_today %}
+                Snapshot <strong>Today</strong>
+                {% elif snapshot_date %}
                 Snapshot <span>{{ snapshot_date.strftime('%B %-d, %Y') }}</span>
                 {% else %}
                 No snapshot saved yet
@@ -442,6 +457,16 @@
 
     // --- parsing and formatting -------------------------------------------
     let saveAttempted = false;
+    // A snapshot already exists for today: the first Save click warns, the second overwrites.
+    const snapshotIsToday = document.getElementById('snapshot-saved').dataset.today === '1';
+    const OVERWRITE_WARNING = "Today's snapshot already exists. Saving again replaces it.";
+    let overwriteArmed = false;
+
+    function setOverwriteArmed(on) {
+        overwriteArmed = on;
+        document.getElementById('save-label').textContent = on ? "Overwrite today's snapshot" : 'Save snapshot';
+        document.getElementById('dirty-status').classList.toggle('warning', on);
+    }
 
     // Cleans and validates the raw text, returning both the numeric value
     // (for display/recompute) and the cleaned decimal string (for the save
@@ -512,10 +537,14 @@
 
         const dirtyCount = allInputs.filter(isDirty).length;
         const status = document.getElementById('dirty-status');
-        status.textContent = dirtyCount === 0
-            ? 'No unsaved changes'
-            : dirtyCount + ' unsaved change' + (dirtyCount === 1 ? '' : 's');
-        status.classList.toggle('dirty', dirtyCount > 0);
+        if (overwriteArmed) {
+            status.textContent = OVERWRITE_WARNING;
+        } else {
+            status.textContent = dirtyCount === 0
+                ? 'No unsaved changes'
+                : dirtyCount + ' unsaved change' + (dirtyCount === 1 ? '' : 's');
+        }
+        status.classList.toggle('dirty', dirtyCount > 0 && !overwriteArmed);
         document.getElementById('snapshot-saved').hidden = dirtyCount > 0;
         document.getElementById('snapshot-dirty').hidden = dirtyCount === 0;
     }
@@ -529,7 +558,7 @@
         const toggle = document.getElementById('show-retired');
         if (toggle) toggle.disabled = on;
         document.querySelector('#save-button .spinner').hidden = !on;
-        document.getElementById('save-label').textContent = on ? 'Saving…' : 'Save snapshot';
+        document.getElementById('save-label').textContent = on ? 'Saving…' : (overwriteArmed ? "Overwrite today's snapshot" : 'Save snapshot');
         if (on) document.getElementById('dirty-status').textContent = 'Saving…';
         else recompute();
     }
@@ -601,6 +630,11 @@
             problem.el.focus();
             return;
         }
+        if (snapshotIsToday && !overwriteArmed) {
+            setOverwriteArmed(true);
+            recompute();
+            return;
+        }
         setSaving(true);
         let leaving = false;
         try {
@@ -627,6 +661,7 @@
     function discard() {
         clearStaged();
         saveAttempted = false;
+        setOverwriteArmed(false);
         allInputs.forEach(el => { el.value = initial.get(el); });
         showError('');
         recompute();

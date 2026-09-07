@@ -130,6 +130,7 @@ async def accounts_page(request: Request, user: CurrentUser):
             "liabilities": [r for r in rows if r["type"] == "liability"],
             "retired_count": sum(1 for r in rows if r["retired"]),
             "snapshot_date": latest[0].date if latest else None,
+            "snapshot_is_today": bool(latest) and latest[0].date == today(),
         },
     )
 

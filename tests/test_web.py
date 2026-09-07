@@ -236,6 +236,31 @@ class TestAccountsPage:
         response = client.get("/accounts", follow_redirects=False)
         assert response.status_code == 302
 
+    def test_header_says_today_when_latest_snapshot_is_today(
+        self, client, db_connection
+    ):
+        from asset_manager.clock import today
+
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, today(), {cash.id: Decimal("1")})
+        db_connection.commit()
+        login(client)
+        text = client.get("/accounts").text
+        assert 'id="snapshot-saved" data-today="1"' in text
+        assert "Snapshot <strong>Today</strong>" in text
+        assert today().strftime("%B %-d, %Y") not in text
+
+    def test_header_carries_date_when_latest_snapshot_is_older(
+        self, client, db_connection
+    ):
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("1")})
+        db_connection.commit()
+        login(client)
+        text = client.get("/accounts").text
+        assert 'id="snapshot-saved" data-today="0"' in text
+        assert "Snapshot <span>September 1, 2026</span>" in text
+
 
 @pytest.mark.db
 class TestSaveSnapshot:
