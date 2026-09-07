@@ -117,8 +117,8 @@ async def accounts_page(request: Request, user: CurrentUser):
         )
 
     rows = account_rows(accounts, latest)
-    # Active rows first, retired rows last, id order within each group
-    rows.sort(key=lambda r: (r["retired"], r["id"]))
+    # Active rows first, retired rows last, alphabetical within each group
+    rows.sort(key=lambda r: (r["retired"], r["name"].lower()))
     return render(
         request,
         "accounts.html",

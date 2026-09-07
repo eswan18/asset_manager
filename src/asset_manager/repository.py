@@ -132,7 +132,10 @@ def _select_accounts(
     conn: Connection, where: LiteralString = "", params: tuple[Any, ...] = ()
 ) -> list[Account]:
     with conn.cursor() as cur:
-        cur.execute(f"{_ACCOUNT_SELECT} {where} GROUP BY a.id ORDER BY a.id", params)
+        cur.execute(
+            f"{_ACCOUNT_SELECT} {where} GROUP BY a.id ORDER BY lower(a.name), a.id",
+            params,
+        )
         rows = cur.fetchall()
     return [_account_from_row(row) for row in rows]
 
@@ -151,7 +154,7 @@ def _replace_inputs(cur: Cursor, account_id: int, input_ids: list[int]) -> None:
 
 
 def get_accounts(conn: Connection, *, include_retired: bool = True) -> list[Account]:
-    """All accounts in id order, with their formula inputs."""
+    """All accounts in case-insensitive name order, with their formula inputs."""
     where = "" if include_retired else "WHERE a.retired_at IS NULL"
     return _select_accounts(conn, where)
 
