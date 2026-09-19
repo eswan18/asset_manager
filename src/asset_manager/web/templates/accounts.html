@@ -199,7 +199,7 @@
         width: 9rem;
         font-variant-numeric: tabular-nums;
         outline: none;
-        transition: border-color 0.15s;
+        transition: border-color 0.15s, color 0.15s;
     }
 
     .basis-field input {
@@ -214,6 +214,23 @@
         border-bottom-color: var(--accent-gold);
     }
 
+    /* Unsaved values wear the same gold as the "Unsaved changes" label and the
+       save bar. Focus only moves the underline, so a changed value stays
+       legible once the cursor leaves it. */
+    .amount-cell input.dirty,
+    .basis-field input.dirty,
+    .computed-amount.dirty {
+        color: var(--accent-gold);
+        font-weight: 500;
+    }
+
+    /* Marks the whole row, so a changed basis is visible from the left edge
+       even though only the small basis field under the name moved. */
+    .accounts-table tbody tr.dirty-row td:first-child {
+        box-shadow: inset 3px 0 0 var(--accent-gold);
+    }
+
+    /* Declared after .dirty, at equal specificity: a bad number reads red. */
     .amount-cell input.invalid,
     .basis-field input.invalid {
         border-bottom-color: var(--color-liability);
@@ -500,23 +517,33 @@
     function key(el) { return el.dataset.field + ':' + el.dataset.accountId; }
 
     // --- recompute ---------------------------------------------------------
+    // Account ids with a dirty amount or basis input, as strings. Rebuilt on
+    // every recompute() and read back to mark computed rows, which have no
+    // amount input of their own to compare against.
+    const dirtyIds = new Set();
+
     function readInputs(list) {
         const out = {};
         list.forEach(el => {
             const n = parseAmount(el.value);
+            const dirty = isDirty(el);
             el.classList.toggle('invalid', Number.isNaN(n) || (saveAttempted && n === null && el.dataset.field !== 'basis'));
-            el.classList.toggle('dirty', isDirty(el));
+            el.classList.toggle('dirty', dirty);
+            if (dirty) dirtyIds.add(el.dataset.accountId);
             out[el.dataset.accountId] = n;
         });
         return out;
     }
 
     function recompute() {
+        dirtyIds.clear();
         const values = readInputs(amountInputs);
         const bases = readInputs(basisInputs);
         const totals = { asset: 0, liability: 0 };
         active.forEach(row => {
             let amount = null;
+            // Own input for a plain row; own basis field for a computed one.
+            let dirty = dirtyIds.has(String(row.id));
             if (row.computed) {
                 const inputs = row.input_ids.map(id => values[id]);
                 const rawBasis = bases[row.id];
@@ -525,11 +552,22 @@
                     const sum = inputs.reduce((s, v) => s + v, 0);
                     amount = roundCents(Number(row.formula.rate) * (sum - basis));
                 }
+                // A computed row moves when one of its inputs moves. Deriving
+                // this from the inputs rather than comparing against the saved
+                // amount keeps it in step with the save bar's count, and leaves
+                // a clean page load free of gold even when the stored snapshot
+                // disagrees with what the formula produces today.
+                dirty = dirty || row.input_ids.some(id => dirtyIds.has(String(id)));
                 const el = document.querySelector('.computed-amount[data-account-id="' + row.id + '"]');
-                if (el) el.textContent = amount === null ? '—' : fmtMoney(amount);
+                if (el) {
+                    el.textContent = amount === null ? '—' : fmtMoney(amount);
+                    el.classList.toggle('dirty', dirty);
+                }
             } else if (usable(values[row.id])) {
                 amount = values[row.id];
             }
+            const tr = document.querySelector('tr[data-account-id="' + row.id + '"]');
+            if (tr) tr.classList.toggle('dirty-row', dirty);
             if (amount !== null) totals[row.type] += amount;
         });
         document.getElementById('total-asset').textContent = fmtMoney(totals.asset);
