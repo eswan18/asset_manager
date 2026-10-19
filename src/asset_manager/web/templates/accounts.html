@@ -143,8 +143,26 @@
         transition: background-color 0.15s ease;
     }
 
-    .accounts-table tbody tr:hover:not(.totals-row) {
+    .accounts-table tbody tr:hover:not(.totals-row):not(.category-row) {
         background-color: var(--bg-surface-hover);
+    }
+
+    .accounts-table .category-row td {
+        padding-top: 0.9rem;
+        padding-bottom: 0.35rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .accounts-table .category-row td.amount-cell {
+        font-size: 0.75rem;
+        font-weight: 500;
+        letter-spacing: 0;
+        text-transform: none;
     }
 
     .account-name {
@@ -386,7 +404,7 @@
     <div id="save-error" class="error" hidden></div>
 
     <div class="accounts-grid fade-in" style="animation-delay: 0.05s">
-        {% for kind, title, section_rows in [('asset', 'Assets', assets), ('liability', 'Liabilities', liabilities)] %}
+        {% for kind, title, groups in [('asset', 'Assets', assets), ('liability', 'Liabilities', liabilities)] %}
         <div class="account-table-wrapper">
             <div class="table-header {{ kind }}">
                 <h2>{{ title }}</h2>
@@ -402,7 +420,12 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in section_rows %}
+                    {% for group in groups %}
+                    <tr class="category-row{% if group.retired %} retired-row{% endif %}">
+                        <td>{{ group.label }}</td>
+                        <td class="amount-cell category-subtotal" data-key="{{ kind }}:{{ group.key }}">—</td>
+                    </tr>
+                    {% for row in group.rows %}
                     <tr data-account-id="{{ row.id }}" class="{% if row.retired %}retired-row{% endif %}">
                         <td>
                             <a class="account-name" href="/accounts/{{ row.id }}/edit">{{ row.name }}</a>
@@ -429,6 +452,7 @@
                             {% endif %}
                         </td>
                     </tr>
+                    {% endfor %}
                     {% endfor %}
                     <tr class="totals-row">
                         <td>Total</td>
@@ -540,6 +564,7 @@
         const values = readInputs(amountInputs);
         const bases = readInputs(basisInputs);
         const totals = { asset: 0, liability: 0 };
+        const subtotals = {};
         active.forEach(row => {
             let amount = null;
             // Own input for a plain row; own basis field for a computed one.
@@ -568,7 +593,14 @@
             }
             const tr = document.querySelector('tr[data-account-id="' + row.id + '"]');
             if (tr) tr.classList.toggle('dirty-row', dirty);
-            if (amount !== null) totals[row.type] += amount;
+            if (amount !== null) {
+                totals[row.type] += amount;
+                const group = row.type + ':' + (row.category || 'uncategorized');
+                subtotals[group] = (subtotals[group] || 0) + amount;
+            }
+        });
+        document.querySelectorAll('.category-subtotal').forEach(el => {
+            el.textContent = fmtMoney(subtotals[el.dataset.key] || 0);
         });
         document.getElementById('total-asset').textContent = fmtMoney(totals.asset);
         document.getElementById('total-liability').textContent = fmtMoney(totals.liability);

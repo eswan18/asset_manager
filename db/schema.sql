@@ -30,6 +30,8 @@ CREATE TABLE public.accounts (
     formula jsonb,
     retired_at date,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    category text,
+    CONSTRAINT accounts_category_check CHECK ((category = ANY (ARRAY['credit_cards'::text, 'bank_accounts'::text, 'investment_accounts'::text, 'tax_liability'::text]))),
     CONSTRAINT accounts_type_check CHECK (((type)::text = ANY ((ARRAY['asset'::character varying, 'liability'::character varying])::text[])))
 );
 
@@ -226,4 +228,5 @@ ALTER TABLE ONLY public.snapshots
 
 INSERT INTO public.schema_migrations (version) VALUES
     ('20260123040144'),
-    ('20260906120000');
+    ('20260906120000'),
+    ('20261019120000');

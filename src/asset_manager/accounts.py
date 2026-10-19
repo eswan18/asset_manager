@@ -14,7 +14,7 @@ from psycopg import Connection
 
 from . import repository as repo
 from .formulas import MissingValueError, compute_snapshot, quantize_cents
-from .models import Account, Formula, RecordType
+from .models import Account, AccountCategory, Formula, RecordType
 
 
 class AccountError(ValueError):
@@ -121,12 +121,16 @@ def create_account(
     type: RecordType,
     formula: Formula | None = None,
     input_ids: Iterable[int] = (),
+    category: AccountCategory | None = None,
 ) -> Account:
     name = _clean_name(name)
     _check_name_free(conn, type, name)
     ids = _validate_inputs(conn, None, formula, input_ids)
     account = repo.insert_account(
-        conn, Account(name=name, type=type, formula=formula, input_ids=ids)
+        conn,
+        Account(
+            name=name, type=type, category=category, formula=formula, input_ids=ids
+        ),
     )
     conn.commit()
     return account
@@ -138,12 +142,13 @@ def update_account(
     name: str,
     formula: Formula | None = None,
     input_ids: Iterable[int] = (),
+    category: AccountCategory | None = None,
 ) -> Account:
-    """Replace the account's name, formula, and inputs wholesale.
+    """Replace the account's name, category, formula, and inputs wholesale.
 
-    `formula` and `input_ids` are not merged with the existing values: an
-    omitted `formula` (the default, `None`) makes a computed account plain,
-    and an omitted `input_ids` clears the input list.
+    Nothing is merged with the existing values: an omitted `formula` (the
+    default, `None`) makes a computed account plain, an omitted `input_ids`
+    clears the input list, and an omitted `category` makes it Uncategorized.
     """
     existing = _get_or_error(conn, account_id)
     name = _clean_name(name)
@@ -156,7 +161,12 @@ def update_account(
             )
     ids = _validate_inputs(conn, account_id, formula, input_ids)
     updated = existing.model_copy(
-        update={"name": name, "formula": formula, "input_ids": ids}
+        update={
+            "name": name,
+            "category": category,
+            "formula": formula,
+            "input_ids": ids,
+        }
     )
     repo.update_account(conn, updated)
     conn.commit()

@@ -24,7 +24,13 @@ from asset_manager.accounts import (
 )
 from asset_manager.clock import today
 from asset_manager.db import get_connection_context
-from asset_manager.models import Account, ProportionalFormula, Record, RecordType
+from asset_manager.models import (
+    Account,
+    AccountCategory,
+    ProportionalFormula,
+    Record,
+    RecordType,
+)
 from asset_manager.repository import (
     get_account,
     get_account_history,
@@ -78,6 +84,7 @@ def account_rows(accounts: list[Account], latest: list[Record]) -> list[dict[str
                 "id": account.id,
                 "name": account.name,
                 "type": account.type.value,
+                "category": account.category.value if account.category else None,
                 "computed": account.is_computed,
                 "formula": formula.model_dump(mode="json") if formula else None,
                 "input_ids": list(account.input_ids),
@@ -92,6 +99,33 @@ def account_rows(accounts: list[Account], latest: list[Record]) -> list[dict[str
             }
         )
     return rows
+
+
+UNCATEGORIZED = "uncategorized"
+
+
+def category_groups(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Split one section's rows under category subheadings.
+
+    Categories come in AccountCategory order with Uncategorized last, and only
+    those with rows appear. Row order within a group is preserved. `retired`
+    marks a group whose rows are all retired, so it hides with them.
+    """
+    order = [(c.value, c.label) for c in AccountCategory]
+    order.append((UNCATEGORIZED, "Uncategorized"))
+    groups = []
+    for key, label in order:
+        members = [r for r in rows if (r["category"] or UNCATEGORIZED) == key]
+        if members:
+            groups.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "rows": members,
+                    "retired": all(r["retired"] for r in members),
+                }
+            )
+    return groups
 
 
 # --- page ------------------------------------------------------------------
@@ -127,8 +161,10 @@ async def accounts_page(request: Request, user: CurrentUser):
             "user": user,
             "active_tab": "accounts",
             "rows": rows,
-            "assets": [r for r in rows if r["type"] == "asset"],
-            "liabilities": [r for r in rows if r["type"] == "liability"],
+            "assets": category_groups([r for r in rows if r["type"] == "asset"]),
+            "liabilities": category_groups(
+                [r for r in rows if r["type"] == "liability"]
+            ),
             "retired_count": sum(1 for r in rows if r["retired"]),
             "snapshot_date": latest[0].date if latest else None,
             "snapshot_is_today": bool(latest) and latest[0].date == today(),
@@ -165,6 +201,7 @@ def _form_defaults(type_: str) -> dict[str, Any]:
     return {
         "name": "",
         "type": type_,
+        "category": "",
         "computed": False,
         "rate_percent": "",
         "cost_basis": "",
@@ -177,6 +214,7 @@ def _form_from_account(account: Account) -> dict[str, Any]:
     return {
         "name": account.name,
         "type": account.type.value,
+        "category": account.category.value if account.category else "",
         "computed": formula is not None,
         "rate_percent": format_percent(formula.rate) if formula else "",
         "cost_basis": format_amount(formula.cost_basis) if formula else "",
@@ -189,6 +227,15 @@ def _candidates(accounts: list[Account], exclude_id: int | None) -> list[Account
     return [
         a for a in accounts if a.is_active and not a.is_computed and a.id != exclude_id
     ]
+
+
+def _parse_category(category: str) -> AccountCategory | None:
+    if not category:
+        return None
+    try:
+        return AccountCategory(category)
+    except ValueError:
+        raise AccountError(f"{category!r} is not a category") from None
 
 
 def _parse_formula(
@@ -272,6 +319,7 @@ def _render_form(
             "active_tab": "accounts",
             "account": account,
             "form": form,
+            "categories": list(AccountCategory),
             "candidate_groups": [g for g in groups if g[1]],
             "error": error,
             "retire_blocker": blocker,
@@ -300,6 +348,7 @@ async def create_account_route(
     user: CurrentUser,
     name: Annotated[str, Form()] = "",
     type: Annotated[str, Form()] = "asset",
+    category: Annotated[str, Form()] = "",
     computed: Annotated[bool, Form()] = False,
     rate_percent: Annotated[str, Form()] = "",
     cost_basis: Annotated[str, Form()] = "",
@@ -308,6 +357,7 @@ async def create_account_route(
     form = {
         "name": name,
         "type": type,
+        "category": category,
         "computed": computed,
         "rate_percent": rate_percent,
         "cost_basis": cost_basis,
@@ -316,7 +366,14 @@ async def create_account_route(
     with get_connection_context() as conn:
         try:
             formula = _parse_formula(computed, rate_percent, cost_basis)
-            account = create_account(conn, name, RecordType(type), formula, input_ids)
+            account = create_account(
+                conn,
+                name,
+                RecordType(type),
+                formula,
+                input_ids,
+                category=_parse_category(category),
+            )
         except ValueError as e:
             candidates = _candidates(get_accounts(conn), None)
             return _render_form(
@@ -359,6 +416,7 @@ async def update_account_route(
     user: CurrentUser,
     account_id: int,
     name: Annotated[str, Form()] = "",
+    category: Annotated[str, Form()] = "",
     computed: Annotated[bool, Form()] = False,
     rate_percent: Annotated[str, Form()] = "",
     cost_basis: Annotated[str, Form()] = "",
@@ -371,6 +429,7 @@ async def update_account_route(
         form = {
             "name": name,
             "type": account.type.value,
+            "category": category,
             "computed": computed,
             "rate_percent": rate_percent,
             "cost_basis": cost_basis,
@@ -378,7 +437,14 @@ async def update_account_route(
         }
         try:
             formula = _parse_formula(computed, rate_percent, cost_basis)
-            updated = update_account(conn, account_id, name, formula, input_ids)
+            updated = update_account(
+                conn,
+                account_id,
+                name,
+                formula,
+                input_ids,
+                category=_parse_category(category),
+            )
         except ValueError as e:
             candidates = _candidates(get_accounts(conn), account_id)
             blocker, warning = _retire_state(conn, account)

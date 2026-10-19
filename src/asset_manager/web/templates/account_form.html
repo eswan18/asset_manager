@@ -35,7 +35,8 @@
         margin-bottom: 0.3rem;
     }
 
-    .field input[type=text] {
+    .field input[type=text],
+    .field select {
         width: 100%;
         background: var(--bg-primary);
         border: 1px solid var(--border-medium);
@@ -48,7 +49,8 @@
         transition: border-color 0.15s;
     }
 
-    .field input[type=text]:focus {
+    .field input[type=text]:focus,
+    .field select:focus {
         border-color: var(--accent-gold);
     }
 
@@ -253,6 +255,16 @@
             </label>
             {% endif %}
         </div>
+
+        <label class="field">
+            <span>Category</span>
+            <select name="category">
+                <option value="" {% if not form.category %}selected{% endif %}>Uncategorized</option>
+                {% for category in categories %}
+                <option value="{{ category.value }}" {% if form.category == category.value %}selected{% endif %}>{{ category.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
 
         <label class="choice field">
             <input type="checkbox" name="computed" id="computed" {% if form.computed %}checked{% endif %}>
