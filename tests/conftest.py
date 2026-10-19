@@ -10,7 +10,7 @@ from testcontainers.postgres import PostgresContainer
 @pytest.fixture(scope="session")
 def postgres_container():
     """Start a PostgreSQL container for the test session."""
-    with PostgresContainer("postgres:16") as pg:
+    with PostgresContainer("postgres:17") as pg:
         yield pg
 
 
@@ -27,12 +27,16 @@ def db_url(postgres_container):
 
 @pytest.fixture(scope="session")
 def _run_migrations(db_url):
-    """Run dbmate migrations against the test database."""
+    """Run dbmate migrations against the test database.
+
+    --no-dump-schema keeps the run from rewriting db/schema.sql, which should
+    only change when a migration is applied to a real database.
+    """
     project_root = Path(__file__).parent.parent
 
     # Run dbmate up with the test database URL
     result = subprocess.run(
-        ["dbmate", "up"],
+        ["dbmate", "--no-dump-schema", "up"],
         cwd=project_root,
         env={**os.environ, "DATABASE_URL": db_url},
         capture_output=True,
