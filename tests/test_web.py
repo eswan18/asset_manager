@@ -192,6 +192,7 @@ def test_account_rows_view_model():
         "id": 1,
         "name": "Schwab",
         "type": "asset",
+        "category": None,
         "computed": False,
         "formula": None,
         "input_ids": [],
@@ -214,6 +215,30 @@ def test_account_rows_view_model():
     assert rows[2]["retired_at"] == "2026-01-01"
     assert rows[2]["amount"] is None
     assert rows[2]["amount_display"] == ""
+
+
+def test_category_groups_orders_categories_and_puts_uncategorized_last():
+    from asset_manager.web.accounts_routes import category_groups
+
+    def row(name, category, retired=False):
+        return {"name": name, "category": category, "retired": retired}
+
+    rows = [
+        row("Mystery", None),
+        row("Schwab", "investment_accounts"),
+        row("Chase", "bank_accounts"),
+        row("Old Ally", "bank_accounts", retired=True),
+        row("Old 401k", "investment_accounts", retired=True),
+    ]
+    groups = category_groups(rows)
+
+    assert [(g["label"], [r["name"] for r in g["rows"]]) for g in groups] == [
+        ("Bank Accounts", ["Chase", "Old Ally"]),
+        ("Investment Accounts", ["Schwab", "Old 401k"]),
+        ("Uncategorized", ["Mystery"]),
+    ]
+    assert [g["retired"] for g in groups] == [False, False, False]
+    assert category_groups([row("Gone", "credit_cards", retired=True)])[0]["retired"]
 
 
 @pytest.mark.db
@@ -272,6 +297,41 @@ class TestAccountsPage:
             r'class="account-name" href="/accounts/\d+/edit">([^<]+)</a>', text
         )
         assert names == ["beta", "zeta", "Alpha"]
+
+    def test_rows_sit_under_category_subheadings(self, client, db_connection):
+        import re
+
+        from asset_manager.models import AccountCategory
+
+        create_account(db_connection, "Mystery", RecordType.ASSET)
+        create_account(
+            db_connection,
+            "Chase",
+            RecordType.ASSET,
+            category=AccountCategory.BANK_ACCOUNTS,
+        )
+        create_account(
+            db_connection,
+            "Visa",
+            RecordType.LIABILITY,
+            category=AccountCategory.CREDIT_CARDS,
+        )
+        login(client)
+        text = client.get("/accounts").text
+        cells = re.findall(
+            r'<tr class="category-row">\s*<td>([^<]+)</td>'
+            r'|class="account-name" href="/accounts/\d+/edit">([^<]+)</a>',
+            text,
+        )
+        assert [heading or name for heading, name in cells] == [
+            "Bank Accounts",
+            "Chase",
+            "Uncategorized",
+            "Mystery",
+            "Credit Cards",
+            "Visa",
+        ]
+        assert 'data-key="asset:bank_accounts"' in text
 
     def test_header_says_today_when_latest_snapshot_is_today(
         self, client, db_connection
@@ -521,6 +581,40 @@ class TestAccountForm:
         assert response.status_code == 303
         loaded = get_account(db_connection, cash.id)
         assert loaded is not None and loaded.name == "Cash (SoFi)"
+
+    def test_create_and_change_category(self, client, db_connection):
+        from asset_manager.models import AccountCategory
+        from asset_manager.repository import get_account_by_name
+
+        login(client)
+        response = client.post(
+            "/accounts",
+            data={"name": "Visa", "type": "liability", "category": "credit_cards"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        visa = get_account_by_name(db_connection, RecordType.LIABILITY, "Visa")
+        assert visa is not None and visa.category == AccountCategory.CREDIT_CARDS
+
+        edit = client.get(f"/accounts/{visa.id}/edit").text
+        assert '<option value="credit_cards" selected>Credit Cards</option>' in edit
+
+        client.post(
+            f"/accounts/{visa.id}",
+            data={"name": "Visa", "category": ""},
+            follow_redirects=False,
+        )
+        db_connection.rollback()
+        reloaded = get_account_by_name(db_connection, RecordType.LIABILITY, "Visa")
+        assert reloaded is not None and reloaded.category is None
+
+    def test_unknown_category_rerenders_with_error(self, client):
+        login(client)
+        response = client.post(
+            "/accounts", data={"name": "X", "type": "asset", "category": "boats"}
+        )
+        assert response.status_code == 400
+        assert "&#39;boats&#39; is not a category" in response.text
 
     def test_retire_blocked_by_formula_shows_flash(self, client, db_connection):
         from asset_manager.models import ProportionalFormula

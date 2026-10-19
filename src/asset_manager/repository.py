@@ -18,7 +18,7 @@ _RECORD_SELECT = """
 """
 
 _ACCOUNT_SELECT = """
-    SELECT a.id, a.name, a.type, a.formula, a.retired_at, a.created_at,
+    SELECT a.id, a.name, a.type, a.formula, a.retired_at, a.created_at, a.category,
            COALESCE(
                array_agg(fi.input_id ORDER BY fi.input_id)
                    FILTER (WHERE fi.input_id IS NOT NULL),
@@ -130,7 +130,8 @@ def _account_from_row(row: tuple[Any, ...]) -> Account:
             "formula": row[3],
             "retired_at": row[4],
             "created_at": row[5],
-            "input_ids": list(row[6]),
+            "category": row[6],
+            "input_ids": list(row[7]),
         }
     )
 
@@ -149,6 +150,10 @@ def _select_accounts(
 
 def _formula_param(formula: Formula | None) -> Jsonb | None:
     return Jsonb(formula.model_dump(mode="json")) if formula is not None else None
+
+
+def _category_param(account: Account) -> str | None:
+    return account.category.value if account.category is not None else None
 
 
 def _replace_inputs(cur: Cursor, account_id: int, input_ids: list[int]) -> None:
@@ -180,13 +185,14 @@ def insert_account(conn: Connection, account: Account) -> Account:
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO accounts (name, type, formula, retired_at)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO accounts (name, type, category, formula, retired_at)
+            VALUES (%s, %s, %s, %s, %s)
             RETURNING id, created_at
             """,
             (
                 account.name,
                 account.type.value,
+                _category_param(account),
                 _formula_param(account.formula),
                 account.retired_at,
             ),
@@ -205,13 +211,21 @@ def get_account(conn: Connection, account_id: int) -> Account | None:
 
 
 def update_account(conn: Connection, account: Account) -> None:
-    """Replace name, formula document, and inputs. Type and retirement are untouched."""
+    """Replace name, category, formula document, and inputs.
+
+    Type and retirement are untouched.
+    """
     if account.id is None:
         raise ValueError("Cannot update an account without an id")
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE accounts SET name = %s, formula = %s WHERE id = %s",
-            (account.name, _formula_param(account.formula), account.id),
+            "UPDATE accounts SET name = %s, category = %s, formula = %s WHERE id = %s",
+            (
+                account.name,
+                _category_param(account),
+                _formula_param(account.formula),
+                account.id,
+            ),
         )
         _replace_inputs(cur, account.id, account.input_ids)
 

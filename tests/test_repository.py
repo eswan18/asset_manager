@@ -4,7 +4,12 @@ from decimal import Decimal
 import psycopg
 import pytest
 
-from asset_manager.models import Account, ProportionalFormula, RecordType
+from asset_manager.models import (
+    Account,
+    AccountCategory,
+    ProportionalFormula,
+    RecordType,
+)
 from asset_manager.repository import (
     get_account,
     get_account_by_name,
@@ -232,6 +237,32 @@ class TestAccountOperations:
             rate=Decimal("0.2"), cost_basis=Decimal("5")
         )
         assert loaded.input_ids == [b.id]
+
+    def test_category_round_trips_through_insert_and_update(self, db_connection):
+        card = make_account(
+            db_connection,
+            "Visa",
+            RecordType.LIABILITY,
+            category=AccountCategory.CREDIT_CARDS,
+        )
+        loaded = get_account(db_connection, card.id)
+        assert loaded is not None and loaded.category == AccountCategory.CREDIT_CARDS
+
+        update_account(db_connection, loaded.model_copy(update={"category": None}))
+        loaded = get_account(db_connection, card.id)
+        assert loaded is not None and loaded.category is None
+
+    def test_category_check_constraint_matches_enum(self, db_connection):
+        account = make_account(db_connection, "Visa", RecordType.LIABILITY)
+        for category in AccountCategory:
+            db_connection.execute(
+                "UPDATE accounts SET category = %s WHERE id = %s",
+                (category.value, account.id),
+            )
+        with pytest.raises(psycopg.errors.CheckViolation):
+            db_connection.execute(
+                "UPDATE accounts SET category = 'boats' WHERE id = %s", (account.id,)
+            )
 
     def test_update_account_can_clear_formula(self, db_connection):
         a = make_account(db_connection, "A")

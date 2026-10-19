@@ -133,7 +133,7 @@ asset_manager/
 ### Core Modules
 
 - **`config.py`**: Environment configuration using pydantic-settings, loads from `.env.{ENV}` files
-- **`models.py`**: `Account` (with `formula` JSON document and `input_ids`), `ProportionalFormula`, `Record`, `DailySummary`
+- **`models.py`**: `Account` (with `category`, `formula` JSON document and `input_ids`), `AccountCategory`, `ProportionalFormula`, `Record`, `DailySummary`
 - **`formulas.py`**: `compute_snapshot(accounts, values, as_of)`: pure evaluation, raises `MissingValueError`
 - **`accounts.py`**: Service layer. `create_account`/`update_account` enforce input rules; `retire_account` refuses only inputs of active computed accounts; `save_snapshot` is all-or-nothing. Raises `AccountError` with user-facing messages. Commits.
 - **`repository.py`**: Thin SQL. Never commits.
@@ -161,6 +161,7 @@ CREATE TABLE accounts (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     type VARCHAR(10) NOT NULL CHECK (type IN ('asset', 'liability')),
+    category TEXT CHECK (category IN (...)),  -- NULL = Uncategorized; values = models.AccountCategory
     formula JSONB,              -- NULL = plain; {"kind": "proportional", "rate": "0.15", "cost_basis": "70634.00"}
     retired_at DATE,            -- NULL = active
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -226,4 +227,5 @@ To run tests: `uv run pytest`
 - **Retire flow**: Retire from the edit page at any amount; a non-zero last value only produces a warning (`retire_warning`). Blocked (`retire_blocker`) only while an active computed account lists it as an input. Retirement writes no row: the series ends at the last saved value.
 - **Same-day Save replaces** that day's rows. Retired accounts get no row.
 - **Repository never commits**; the service layer does. `save_snapshot` uses `conn.transaction()`.
+- **Categories** group rows under subheadings on `/accounts` (enum order, Uncategorized last, empty groups hidden). Any category may be used on either type. Adding one means a value in `AccountCategory` *and* a migration widening the CHECK constraint.
 - **Adding a formula kind** later: one Pydantic class in `models.py` (make `Formula` a discriminated union on `kind`), one branch in `formulas._evaluate`, one form variant. No migration.

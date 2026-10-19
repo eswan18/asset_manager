@@ -11,6 +11,22 @@ class RecordType(str, Enum):
     LIABILITY = "liability"
 
 
+class AccountCategory(str, Enum):
+    """Grouping on the accounts page. Declaration order is display order.
+
+    Values must match the CHECK constraint on accounts.category.
+    """
+
+    BANK_ACCOUNTS = "bank_accounts"
+    INVESTMENT_ACCOUNTS = "investment_accounts"
+    CREDIT_CARDS = "credit_cards"
+    TAX_LIABILITY = "tax_liability"
+
+    @property
+    def label(self) -> str:
+        return self.value.replace("_", " ").title()
+
+
 class ProportionalFormula(BaseModel):
     """rate × (sum of inputs − cost_basis)."""
 
@@ -28,6 +44,7 @@ class Account(BaseModel):
     id: int | None = None
     name: str
     type: RecordType
+    category: AccountCategory | None = None
     formula: Formula | None = None
     input_ids: list[int] = []
     retired_at: date | None = None
