@@ -191,3 +191,31 @@ def test_workspaces_migration_on_an_empty_database_creates_no_rows(fresh_db_url)
         _apply(conn, [WORKSPACES])
         for table in ("workspaces", "users", "workspace_members"):
             assert conn.execute(f"SELECT count(*) FROM {table}").fetchone() == (0,)
+
+
+@pytest.mark.db
+def test_every_migration_reverses_cleanly(fresh_db_url):
+    """All ups, all downs in reverse, then all ups again, on an empty database."""
+    with psycopg.connect(fresh_db_url) as conn:
+        _apply(conn, MIGRATIONS)
+        _apply(conn, list(reversed(MIGRATIONS)), part=1)
+        tables = conn.execute(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+        ).fetchall()
+        assert tables == []
+        _apply(conn, MIGRATIONS)
+
+
+@pytest.mark.db
+def test_an_invite_has_at_most_one_resolution(db_connection):
+    from tests.support import USER_ID, WS
+
+    with pytest.raises(psycopg.errors.CheckViolation):
+        db_connection.execute(
+            """
+            INSERT INTO workspace_invites
+                (workspace_id, email, role, invited_by, expires_at, declined_at, revoked_at)
+            VALUES (%s, 'a@b.com', 'viewer', %s, now(), now(), now())
+            """,
+            (WS, USER_ID),
+        )

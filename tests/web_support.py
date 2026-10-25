@@ -1,5 +1,7 @@
 """Helpers for web tests: sessions, fake identity, users, and route sweeps."""
 
+import re
+
 from itsdangerous import URLSafeTimedSerializer
 
 from tests.support import SEED_USER, WS
@@ -67,9 +69,7 @@ def protected_routes(fill: str = "1"):
     for path, operations in app.openapi()["paths"].items():
         if path not in PUBLIC_PATHS:
             for method in sorted(operations):
-                for param in ("{workspace_id}", "{account_id}", "{user_id}"):
-                    path = path.replace(param, fill)
-                yield method.upper(), path
+                yield method.upper(), re.sub(r"\{[a-z_]+\}", fill, path)
 
 
 def sweep(client):

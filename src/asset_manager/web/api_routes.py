@@ -18,7 +18,15 @@ from asset_manager import repository as repo
 from asset_manager.accounts import AccountError, save_snapshot
 from asset_manager.clock import default_timezone, today
 from asset_manager.db import get_connection_context
-from asset_manager.models import Account, Member, Role, Workspace
+from asset_manager.invites import (
+    InviteError,
+    InviteNotFound,
+    accept_invite,
+    create_invite,
+    decline_invite,
+    revoke_invite,
+)
+from asset_manager.models import Account, Invite, Member, Role, Workspace
 from asset_manager.repository import get_accounts, get_latest_snapshot_records
 from asset_manager.workspaces import (
     WorkspaceError,
@@ -177,6 +185,106 @@ async def remove_member_route(user_id: int, access: ViewerAccess) -> JSONRespons
     except WorkspaceError as e:
         return error(str(e))
     return JSONResponse({"removed": user_id})
+
+
+# --- invites ---------------------------------------------------------------
+
+
+class InviteCreate(BaseModel):
+    email: str
+    role: Role
+
+
+def invite_json(invite: Invite) -> dict[str, Any]:
+    return {
+        "id": invite.id,
+        "workspace_id": invite.workspace_id,
+        "email": invite.email,
+        "role": invite.role.value,
+        "invited_by": invite.invited_by,
+        "created_at": invite.created_at.isoformat(),
+        "expires_at": invite.expires_at.isoformat(),
+    }
+
+
+def _invite_not_found() -> HTTPException:
+    return HTTPException(status_code=404, detail="Invite not found")
+
+
+@router.post("/workspaces/{workspace_id}/invites")
+async def create_invite_route(
+    payload: InviteCreate, access: OwnerAccess
+) -> JSONResponse:
+    """Owners only. Expires in 14 days. The invitee must already be able to
+    log in (ALLOWED_EMAILS); an invite does not get anyone past it."""
+    try:
+        with get_connection_context() as conn:
+            invite = create_invite(
+                conn,
+                access.workspace.id,
+                access.user["id"],
+                payload.email,
+                payload.role,
+            )
+    except InviteError as e:
+        return error(str(e))
+    return JSONResponse(invite_json(invite), status_code=201)
+
+
+@router.get("/workspaces/{workspace_id}/invites")
+async def list_workspace_invites(access: OwnerAccess) -> JSONResponse:
+    """Pending (unexpired, unresolved) invites to this workspace. An invite
+    whose sender is no longer an owner is listed but cannot be accepted."""
+    with get_connection_context() as conn:
+        invites = repo.get_pending_workspace_invites(conn, access.workspace.id)
+    return JSONResponse({"invites": [invite_json(i) for i in invites]})
+
+
+@router.delete("/workspaces/{workspace_id}/invites/{invite_id}")
+async def revoke_invite_route(invite_id: int, access: OwnerAccess) -> JSONResponse:
+    try:
+        with get_connection_context() as conn:
+            revoke_invite(conn, access.workspace.id, invite_id)
+    except InviteNotFound:
+        raise _invite_not_found() from None
+    except InviteError as e:
+        return error(str(e))
+    return JSONResponse({"revoked": invite_id})
+
+
+@router.get("/invites")
+async def my_invites(user: CurrentUser) -> JSONResponse:
+    """Pending invites addressed to your email."""
+    with get_connection_context() as conn:
+        found = repo.get_pending_invites_for_email(conn, user["email"])
+    return JSONResponse(
+        {"invites": [{**invite_json(i), "workspace_name": w.name} for i, w in found]}
+    )
+
+
+@router.post("/invites/{invite_id}/accept")
+async def accept_invite_route(invite_id: int, user: CurrentUser) -> JSONResponse:
+    """Join the workspace. 404 unless the invite is pending and yours."""
+    try:
+        with get_connection_context() as conn:
+            invite = accept_invite(conn, user["id"], user["email"], invite_id)
+    except InviteNotFound:
+        raise _invite_not_found() from None
+    except InviteError as e:
+        return error(str(e))
+    return JSONResponse(
+        {"workspace_id": invite.workspace_id, "role": invite.role.value}
+    )
+
+
+@router.post("/invites/{invite_id}/decline")
+async def decline_invite_route(invite_id: int, user: CurrentUser) -> JSONResponse:
+    try:
+        with get_connection_context() as conn:
+            decline_invite(conn, user["email"], invite_id)
+    except InviteNotFound:
+        raise _invite_not_found() from None
+    return JSONResponse({"declined": invite_id})
 
 
 # --- accounts and snapshots --------------------------------------------------
