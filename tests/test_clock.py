@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timezone
 
-from asset_manager.clock import local_date, today
+from asset_manager.clock import default_timezone, local_date, today
 from asset_manager.config import get_settings
 
 
@@ -16,11 +16,18 @@ def test_local_date_after_local_midnight_rolls_over():
     assert local_date(now, "America/Chicago") == date(2026, 9, 7)
 
 
-def test_today_honors_timezone_setting(monkeypatch):
+def test_today_is_the_date_in_the_given_zone():
+    # UTC+14 and UTC-11 are 25 hours apart, so their dates always differ.
+    ahead, behind = today("Pacific/Kiritimati"), today("Pacific/Pago_Pago")
+    assert ahead == local_date(datetime.now(timezone.utc), "Pacific/Kiritimati")
+    assert ahead > behind
+
+
+def test_default_timezone_comes_from_the_setting(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://x/y")
     monkeypatch.setenv("TIMEZONE", "Pacific/Kiritimati")
     get_settings.cache_clear()
     try:
-        assert today() == local_date(datetime.now(timezone.utc), "Pacific/Kiritimati")
+        assert default_timezone() == "Pacific/Kiritimati"
     finally:
         get_settings.cache_clear()

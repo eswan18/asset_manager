@@ -11,8 +11,14 @@ from typing import Annotated, Any
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import Depends
 from itsdangerous import URLSafeTimedSerializer
+from psycopg import Connection
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
+
+from asset_manager import repository as repo
+from asset_manager.db import get_connection_context
+from asset_manager.models import User
+from asset_manager.users import record_login
 
 # Session cookie configuration
 SESSION_COOKIE_NAME = "session"
@@ -97,17 +103,41 @@ class LoginRequired(Exception):
 
 
 class EmailNotAllowed(Exception):
-    """Raised by handle_callback when ALLOWED_EMAILS refuses the login."""
+    """Raised by handle_callback when ALLOWED_EMAILS or verification refuses the login."""
+
+
+def current_user(conn: Connection, session: dict[str, Any] | None) -> User | None:
+    """The user a session belongs to, if the session is still good.
+
+    Checked against the database on every request: the row must exist with
+    the same identity sub, and its email must still be allowed, so removing
+    an email from ALLOWED_EMAILS locks that user out at once rather than when
+    their session expires. Sessions from before users existed have no "id"
+    and so are refused, which forces one fresh login.
+    """
+    if not session or not isinstance(session.get("id"), int):
+        return None
+    user = repo.get_user(conn, session["id"])
+    if user is None or user.idp_sub is None or user.idp_sub != session.get("sub"):
+        return None
+    if not is_email_allowed(user.email):
+        return None
+    return user
 
 
 def require_user(request: Request) -> dict[str, Any]:
     """FastAPI dependency: the session user, or LoginRequired."""
-    user = get_session_user(request)
-    # Re-checked on every request, so removing an email from ALLOWED_EMAILS
-    # locks that user out at once rather than when their session expires.
-    if not user or not is_email_allowed(user.get("email")):
+    with get_connection_context() as conn:
+        user = current_user(conn, get_session_user(request))
+    if user is None:
         raise LoginRequired()
-    return user
+    return {
+        "id": user.id,
+        "sub": user.idp_sub,
+        "email": user.email,
+        "name": user.name,
+        "is_admin": user.is_admin,
+    }
 
 
 CurrentUser = Annotated[dict[str, Any], Depends(require_user)]
@@ -193,15 +223,26 @@ async def handle_callback(request: Request, oauth: OAuth) -> RedirectResponse:
     email = user_info.get("email")
     if not is_email_allowed(email):
         raise EmailNotAllowed(f"{email} is not in ALLOWED_EMAILS")
+    # Identity lets unverified accounts log in. Without this, someone could
+    # register an allowed person's email at identity before they do, and
+    # later claim that person's pre-provisioned user or invites.
+    if not email or user_info.get("email_verified") is not True:
+        raise EmailNotAllowed(f"{email} is not verified at identity")
+    sub = user_info.get("sub")
+    if not sub:
+        raise RuntimeError("Identity returned no sub")
 
-    # Create session with user data
-    user_data = {
-        "sub": user_info.get("sub"),
-        "email": user_info.get("email"),
-        "name": user_info.get("name") or user_info.get("username"),
-    }
+    name = (
+        user_info.get("name")
+        or user_info.get("preferred_username")
+        or user_info.get("username")
+    )
+    with get_connection_context() as conn:
+        user = record_login(conn, sub, email, name)
 
-    return create_session_response("/", user_data)
+    return create_session_response(
+        "/", {"id": user.id, "sub": sub, "email": user.email, "name": user.name}
+    )
 
 
 def handle_logout() -> RedirectResponse:

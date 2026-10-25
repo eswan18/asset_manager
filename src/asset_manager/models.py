@@ -42,6 +42,7 @@ Formula = ProportionalFormula
 
 class Account(BaseModel):
     id: int | None = None
+    workspace_id: int | None = None
     name: str
     type: RecordType
     category: AccountCategory | None = None
@@ -73,3 +74,44 @@ class DailySummary(BaseModel):
     date: date
     type: RecordType
     total_amount: Decimal
+
+
+class Role(str, Enum):
+    """A member's role in a workspace. Each role can do everything the ones
+    after it can: owners manage members, editors change data, viewers read."""
+
+    OWNER = "owner"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+
+    def allows(self, needed: "Role") -> bool:
+        order = [Role.VIEWER, Role.EDITOR, Role.OWNER]
+        return order.index(self) >= order.index(needed)
+
+
+class User(BaseModel):
+    id: int
+    idp_sub: str | None
+    email: str
+    name: str | None = None
+    is_admin: bool = False
+    created_at: datetime | None = None
+    last_login_at: datetime | None = None
+
+
+class Workspace(BaseModel):
+    id: int
+    name: str
+    timezone: str
+    created_at: datetime | None = None
+    deleted_at: datetime | None = None
+
+
+class Member(BaseModel):
+    """A user as seen from one workspace."""
+
+    user_id: int
+    email: str
+    name: str | None
+    role: Role
+    joined_at: datetime

@@ -6,6 +6,8 @@ import psycopg
 import pytest
 from testcontainers.community.postgres import PostgresContainer
 
+from tests.support import SEED_USER, USER_ID, WS
+
 
 @pytest.fixture(scope="session")
 def postgres_container():
@@ -49,19 +51,41 @@ def _run_migrations(db_url):
 
 @pytest.fixture
 def db_connection(db_url, _run_migrations):
-    """Get a database connection for testing."""
+    """A database connection, seeded with workspace WS owned by user USER_ID."""
     conn = psycopg.connect(db_url)
+    _truncate(conn)
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO users (idp_sub, email, name) VALUES (%s, %s, %s)",
+            (SEED_USER["sub"], SEED_USER["email"], SEED_USER["name"]),
+        )
+        cur.execute(
+            "INSERT INTO workspaces (name, timezone) VALUES ('Test', 'America/Chicago')"
+        )
+        cur.execute(
+            "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (%s, %s, 'owner')",
+            (WS, USER_ID),
+        )
+    conn.commit()
 
     yield conn
 
     # Clean up: roll back anything left open, then truncate every table
     conn.rollback()
+    _truncate(conn)
+    conn.close()
+
+
+def _truncate(conn) -> None:
     with conn.cursor() as cur:
         cur.execute(
-            "TRUNCATE TABLE snapshots, formula_inputs, accounts RESTART IDENTITY CASCADE"
+            """
+            TRUNCATE TABLE snapshots, formula_inputs, accounts,
+                           workspace_members, workspaces, users
+            RESTART IDENTITY CASCADE
+            """
         )
     conn.commit()
-    conn.close()
 
 
 @pytest.fixture(autouse=True)
@@ -70,3 +94,24 @@ def skip_db_tests_in_ci(request):
     if request.node.get_closest_marker("db"):
         if os.getenv("CI") == "true" and os.getenv("SKIP_DB_TESTS") == "true":
             pytest.skip("Skipping DB tests in CI (Docker not available)")
+
+
+@pytest.fixture
+def client(db_connection, db_url, monkeypatch):
+    """A TestClient wired to the test container. db_connection handles cleanup."""
+    from tests.web_support import SECRET
+
+    monkeypatch.setenv("SECRET_KEY", SECRET)
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    monkeypatch.setenv("ENV", "dev")
+    monkeypatch.delenv("ALLOWED_EMAILS", raising=False)
+
+    from fastapi.testclient import TestClient
+
+    from asset_manager.config import get_settings
+    from asset_manager.web.app import app
+
+    get_settings.cache_clear()
+    with TestClient(app) as test_client:
+        yield test_client
+    get_settings.cache_clear()

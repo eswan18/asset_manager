@@ -38,7 +38,7 @@ from asset_manager.repository import (
     get_latest_snapshot_records,
 )
 
-from .auth import CurrentUser
+from .access import PageEditor, PageViewer
 from .rendering import render, set_flash
 
 logger = logging.getLogger(__name__)
@@ -132,12 +132,13 @@ def category_groups(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 @router.get("/accounts", response_class=HTMLResponse)
-async def accounts_page(request: Request, user: CurrentUser):
+async def accounts_page(request: Request, access: PageViewer):
     """Render the editable accounts page."""
+    user, workspace = access.user, access.workspace
     try:
         with get_connection_context() as conn:
-            accounts = get_accounts(conn)
-            latest = get_latest_snapshot_records(conn)
+            accounts = get_accounts(conn, workspace.id)
+            latest = get_latest_snapshot_records(conn, workspace.id)
     except Exception:
         logger.exception("Database error in accounts")
         return render(
@@ -167,7 +168,8 @@ async def accounts_page(request: Request, user: CurrentUser):
             ),
             "retired_count": sum(1 for r in rows if r["retired"]),
             "snapshot_date": latest[0].date if latest else None,
-            "snapshot_is_today": bool(latest) and latest[0].date == today(),
+            "snapshot_is_today": bool(latest)
+            and latest[0].date == today(workspace.timezone),
         },
     )
 
@@ -182,13 +184,16 @@ class SnapshotPayload(BaseModel):
 
 @router.post("/snapshots")
 async def save_snapshot_route(
-    payload: SnapshotPayload, user: CurrentUser
+    payload: SnapshotPayload, access: PageEditor
 ) -> JSONResponse:
     """Write a complete snapshot for today from the page's staged values."""
-    as_of = today()
+    workspace = access.workspace
+    as_of = today(workspace.timezone)
     try:
         with get_connection_context() as conn:
-            count = save_snapshot(conn, payload.values, payload.cost_bases, as_of)
+            count = save_snapshot(
+                conn, workspace.id, payload.values, payload.cost_bases, as_of
+            )
     except AccountError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"date": as_of.isoformat(), "count": count})
@@ -285,12 +290,14 @@ def format_change(change: Decimal) -> str:
     return f"+{format_money(change)}" if change > 0 else format_money(change)
 
 
-def _retire_state(conn: Connection, account: Account) -> tuple[str | None, str | None]:
+def _retire_state(
+    conn: Connection, workspace_id: int, account: Account
+) -> tuple[str | None, str | None]:
     """(blocker, warning) for the edit page's Retire button; both None when retired."""
     if not account.is_active:
         return None, None
-    blocker = retire_blocker(conn, account)
-    warning = None if blocker else retire_warning(conn, account)
+    blocker = retire_blocker(conn, workspace_id, account)
+    warning = None if blocker else retire_warning(conn, workspace_id, account)
     return blocker, warning
 
 
@@ -332,20 +339,24 @@ def _render_form(
 
 @router.get("/accounts/new", response_class=HTMLResponse)
 async def new_account_page(
-    request: Request, user: CurrentUser, type: Annotated[str, Query()] = "asset"
+    request: Request, access: PageEditor, type: Annotated[str, Query()] = "asset"
 ):
     type_ = type if type in ("asset", "liability") else "asset"
     with get_connection_context() as conn:
-        candidates = _candidates(get_accounts(conn), None)
+        candidates = _candidates(get_accounts(conn, access.workspace.id), None)
     return _render_form(
-        request, user, account=None, form=_form_defaults(type_), candidates=candidates
+        request,
+        access.user,
+        account=None,
+        form=_form_defaults(type_),
+        candidates=candidates,
     )
 
 
 @router.post("/accounts")
 async def create_account_route(
     request: Request,
-    user: CurrentUser,
+    access: PageEditor,
     name: Annotated[str, Form()] = "",
     type: Annotated[str, Form()] = "asset",
     category: Annotated[str, Form()] = "",
@@ -363,11 +374,13 @@ async def create_account_route(
         "cost_basis": cost_basis,
         "input_ids": input_ids,
     }
+    user, workspace_id = access.user, access.workspace.id
     with get_connection_context() as conn:
         try:
             formula = _parse_formula(computed, rate_percent, cost_basis)
             account = create_account(
                 conn,
+                workspace_id,
                 name,
                 RecordType(type),
                 formula,
@@ -375,7 +388,7 @@ async def create_account_route(
                 category=_parse_category(category),
             )
         except ValueError as e:
-            candidates = _candidates(get_accounts(conn), None)
+            candidates = _candidates(get_accounts(conn, workspace_id), None)
             return _render_form(
                 request,
                 user,
@@ -390,17 +403,18 @@ async def create_account_route(
 
 
 @router.get("/accounts/{account_id}/edit", response_class=HTMLResponse)
-async def edit_account_page(request: Request, user: CurrentUser, account_id: int):
+async def edit_account_page(request: Request, access: PageViewer, account_id: int):
+    workspace_id = access.workspace.id
     with get_connection_context() as conn:
-        account = get_account(conn, account_id)
+        account = get_account(conn, workspace_id, account_id)
         if account is None:
             raise HTTPException(status_code=404, detail="Account not found")
-        candidates = _candidates(get_accounts(conn), account_id)
-        blocker, warning = _retire_state(conn, account)
-        history = history_rows(get_account_history(conn, account_id))
+        candidates = _candidates(get_accounts(conn, workspace_id), account_id)
+        blocker, warning = _retire_state(conn, workspace_id, account)
+        history = history_rows(get_account_history(conn, workspace_id, account_id))
     return _render_form(
         request,
-        user,
+        access.user,
         account=account,
         form=_form_from_account(account),
         candidates=candidates,
@@ -413,7 +427,7 @@ async def edit_account_page(request: Request, user: CurrentUser, account_id: int
 @router.post("/accounts/{account_id}")
 async def update_account_route(
     request: Request,
-    user: CurrentUser,
+    access: PageEditor,
     account_id: int,
     name: Annotated[str, Form()] = "",
     category: Annotated[str, Form()] = "",
@@ -422,8 +436,9 @@ async def update_account_route(
     cost_basis: Annotated[str, Form()] = "",
     input_ids: Annotated[list[int], Form()] = [],
 ):
+    user, workspace_id = access.user, access.workspace.id
     with get_connection_context() as conn:
-        account = get_account(conn, account_id)
+        account = get_account(conn, workspace_id, account_id)
         if account is None:
             raise HTTPException(status_code=404, detail="Account not found")
         form = {
@@ -439,6 +454,7 @@ async def update_account_route(
             formula = _parse_formula(computed, rate_percent, cost_basis)
             updated = update_account(
                 conn,
+                workspace_id,
                 account_id,
                 name,
                 formula,
@@ -446,9 +462,9 @@ async def update_account_route(
                 category=_parse_category(category),
             )
         except ValueError as e:
-            candidates = _candidates(get_accounts(conn), account_id)
-            blocker, warning = _retire_state(conn, account)
-            history = history_rows(get_account_history(conn, account_id))
+            candidates = _candidates(get_accounts(conn, workspace_id), account_id)
+            blocker, warning = _retire_state(conn, workspace_id, account)
+            history = history_rows(get_account_history(conn, workspace_id, account_id))
             return _render_form(
                 request,
                 user,
@@ -466,10 +482,13 @@ async def update_account_route(
 
 
 @router.post("/accounts/{account_id}/retire")
-async def retire_account_route(request: Request, user: CurrentUser, account_id: int):
+async def retire_account_route(request: Request, access: PageEditor, account_id: int):
+    workspace = access.workspace
     with get_connection_context() as conn:
         try:
-            account = retire_account(conn, account_id, today())
+            account = retire_account(
+                conn, workspace.id, account_id, today(workspace.timezone)
+            )
         except AccountError as e:
             set_flash(request, "error", str(e))
             return RedirectResponse("/accounts", status_code=303)
@@ -478,10 +497,10 @@ async def retire_account_route(request: Request, user: CurrentUser, account_id: 
 
 
 @router.post("/accounts/{account_id}/unretire")
-async def unretire_account_route(request: Request, user: CurrentUser, account_id: int):
+async def unretire_account_route(request: Request, access: PageEditor, account_id: int):
     with get_connection_context() as conn:
         try:
-            account = unretire_account(conn, account_id)
+            account = unretire_account(conn, access.workspace.id, account_id)
         except AccountError as e:
             set_flash(request, "error", str(e))
             return RedirectResponse("/accounts", status_code=303)
