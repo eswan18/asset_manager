@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from asset_manager.db import get_connection_context
 from asset_manager.repository import get_accounts, get_all_records
 
+from .access import NoWorkspace, PageViewer
 from .accounts_routes import router as accounts_router
 from .api_routes import router as api_router
 from .auth import (
-    CurrentUser,
     EmailNotAllowed,
     LoginRequired,
     get_oauth,
@@ -58,20 +58,41 @@ def get_oauth_client():
 @app.exception_handler(LoginRequired)
 async def login_required_handler(request: Request, exc: LoginRequired):
     """Pages redirect to login; JSON clients and /api/ get a 401."""
-    if request.url.path.startswith(
-        "/api/"
-    ) or "application/json" in request.headers.get("accept", ""):
+    if _wants_json(request):
         return JSONResponse({"error": "Login required"}, status_code=401)
     return RedirectResponse(url="/login", status_code=302)
 
 
+def _wants_json(request: Request) -> bool:
+    return request.url.path.startswith(
+        "/api/"
+    ) or "application/json" in request.headers.get("accept", "")
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Every error body is {"error": message}, matching the API's own errors."""
+    return JSONResponse(
+        {"error": exc.detail}, status_code=exc.status_code, headers=exc.headers
+    )
+
+
+@app.exception_handler(NoWorkspace)
+async def no_workspace_handler(request: Request, exc: NoWorkspace):
+    message = "You are not a member of any workspace yet."
+    if _wants_json(request):
+        return JSONResponse({"error": message}, status_code=403)
+    return HTMLResponse(message, status_code=403)
+
+
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, user: CurrentUser):
+async def dashboard(request: Request, access: PageViewer):
     """Render the main dashboard."""
+    user, workspace_id = access.user, access.workspace.id
     try:
         with get_connection_context() as conn:
-            records = get_all_records(conn)
-            accounts = get_accounts(conn)
+            records = get_all_records(conn, workspace_id)
+            accounts = get_accounts(conn, workspace_id)
     except Exception:
         logger.exception("Database error in dashboard")
         return render(

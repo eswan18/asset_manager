@@ -23,6 +23,10 @@ app = typer.Typer(
 
 @app.command()
 def report(
+    workspace: Annotated[
+        int,
+        typer.Option("--workspace", "-w", help="Id of the workspace to report on"),
+    ],
     output: Annotated[
         Path | None,
         typer.Option("--output", "-o", help="Save report to this file path"),
@@ -35,13 +39,13 @@ def report(
     """Generate an interactive HTML report of your finances."""
     try:
         with get_connection_context() as conn:
-            records = get_all_records(conn)
+            records = get_all_records(conn, workspace)
     except Exception as exc:
         typer.echo(f"Error connecting to database: {exc}", err=True)
         raise typer.Exit(code=1)
 
     if not records:
-        typer.echo("No records found in database.", err=True)
+        typer.echo(f"No records found in workspace {workspace}.", err=True)
         raise typer.Exit(code=1)
 
     path = generate_report(records, output_path=output, open_browser=not no_open)

@@ -58,23 +58,29 @@ def _clean_name(name: str) -> str:
     return cleaned
 
 
-def _get_or_error(conn: Connection, account_id: int) -> Account:
-    account = repo.get_account(conn, account_id)
+def _get_or_error(conn: Connection, workspace_id: int, account_id: int) -> Account:
+    account = repo.get_account(conn, workspace_id, account_id)
     if account is None:
         raise AccountError(f"Account {account_id} does not exist")
     return account
 
 
 def _check_name_free(
-    conn: Connection, type: RecordType, name: str, *, except_id: int | None = None
+    conn: Connection,
+    workspace_id: int,
+    type: RecordType,
+    name: str,
+    *,
+    except_id: int | None = None,
 ) -> None:
-    other = repo.get_account_by_name(conn, type, name)
+    other = repo.get_account_by_name(conn, workspace_id, type, name)
     if other is not None and other.id != except_id:
         raise AccountError(f"A {type.value} named {name!r} already exists")
 
 
 def _validate_inputs(
     conn: Connection,
+    workspace_id: int,
     account_id: int | None,
     formula: Formula | None,
     input_ids: Iterable[int],
@@ -87,7 +93,7 @@ def _validate_inputs(
     for input_id in ids:
         if input_id == account_id:
             raise AccountError("An account cannot be its own input")
-        candidate = repo.get_account(conn, input_id)
+        candidate = repo.get_account(conn, workspace_id, input_id)
         if candidate is None:
             raise AccountError(f"Input account {input_id} does not exist")
         if not candidate.is_active:
@@ -102,14 +108,16 @@ def _dependents_message(account: Account, dependents: list[Account]) -> str:
     return f"{account.name} is an input to {names}"
 
 
-def _not_active_message(conn: Connection, account_id: int, noun: str) -> str:
+def _not_active_message(
+    conn: Connection, workspace_id: int, account_id: int, noun: str
+) -> str:
     """Message for an id missing from the active-accounts set.
 
     Named ("X is retired ...") if the account exists (so it must be
     retired, since it isn't in the active set), id-based if it doesn't
     exist at all.
     """
-    account = repo.get_account(conn, account_id)
+    account = repo.get_account(conn, workspace_id, account_id)
     if account is not None:
         return f"{account.name} is retired and is not an {noun}"
     return f"Account {account_id} is not an {noun}"
@@ -117,6 +125,7 @@ def _not_active_message(conn: Connection, account_id: int, noun: str) -> str:
 
 def create_account(
     conn: Connection,
+    workspace_id: int,
     name: str,
     type: RecordType,
     formula: Formula | None = None,
@@ -124,10 +133,11 @@ def create_account(
     category: AccountCategory | None = None,
 ) -> Account:
     name = _clean_name(name)
-    _check_name_free(conn, type, name)
-    ids = _validate_inputs(conn, None, formula, input_ids)
+    _check_name_free(conn, workspace_id, type, name)
+    ids = _validate_inputs(conn, workspace_id, None, formula, input_ids)
     account = repo.insert_account(
         conn,
+        workspace_id,
         Account(
             name=name, type=type, category=category, formula=formula, input_ids=ids
         ),
@@ -138,6 +148,7 @@ def create_account(
 
 def update_account(
     conn: Connection,
+    workspace_id: int,
     account_id: int,
     name: str,
     formula: Formula | None = None,
@@ -150,16 +161,16 @@ def update_account(
     default, `None`) makes a computed account plain, an omitted `input_ids`
     clears the input list, and an omitted `category` makes it Uncategorized.
     """
-    existing = _get_or_error(conn, account_id)
+    existing = _get_or_error(conn, workspace_id, account_id)
     name = _clean_name(name)
-    _check_name_free(conn, existing.type, name, except_id=account_id)
+    _check_name_free(conn, workspace_id, existing.type, name, except_id=account_id)
     if formula is not None:
-        dependents = repo.get_dependents(conn, account_id)
+        dependents = repo.get_dependents(conn, workspace_id, account_id)
         if dependents:
             raise AccountError(
                 f"{_dependents_message(existing, dependents)} and cannot be computed"
             )
-    ids = _validate_inputs(conn, account_id, formula, input_ids)
+    ids = _validate_inputs(conn, workspace_id, account_id, formula, input_ids)
     updated = existing.model_copy(
         update={
             "name": name,
@@ -168,7 +179,7 @@ def update_account(
             "input_ids": ids,
         }
     )
-    repo.update_account(conn, updated)
+    repo.update_account(conn, workspace_id, updated)
     conn.commit()
     return updated
 
@@ -178,7 +189,7 @@ def _money(amount: Decimal) -> str:
     return f"-${-amount:,.2f}" if amount < 0 else f"${amount:,.2f}"
 
 
-def retire_blocker(conn: Connection, account: Account) -> str | None:
+def retire_blocker(conn: Connection, workspace_id: int, account: Account) -> str | None:
     """Why this account cannot be retired right now, or None if it can.
 
     The only blocker is formula integrity: an input to an active computed
@@ -186,7 +197,7 @@ def retire_blocker(conn: Connection, account: Account) -> str | None:
     """
     if account.id is None:
         return "Account has not been saved"
-    dependents = repo.get_dependents(conn, account.id)
+    dependents = repo.get_dependents(conn, workspace_id, account.id)
     if dependents:
         return (
             f"{_dependents_message(account, dependents)}. Retire or edit those first."
@@ -194,11 +205,11 @@ def retire_blocker(conn: Connection, account: Account) -> str | None:
     return None
 
 
-def retire_warning(conn: Connection, account: Account) -> str | None:
+def retire_warning(conn: Connection, workspace_id: int, account: Account) -> str | None:
     """Text to show before retiring an account whose last saved amount is not zero."""
     if account.id is None:
         return None
-    entry = repo.get_latest_entry(conn, account.id)
+    entry = repo.get_latest_entry(conn, workspace_id, account.id)
     if entry is None or entry[1] == 0:
         return None
     on, amount = entry
@@ -208,36 +219,41 @@ def retire_warning(conn: Connection, account: Account) -> str | None:
     )
 
 
-def retire_account(conn: Connection, account_id: int, on: date) -> Account:
-    account = _get_or_error(conn, account_id)
+def retire_account(
+    conn: Connection, workspace_id: int, account_id: int, on: date
+) -> Account:
+    account = _get_or_error(conn, workspace_id, account_id)
     if not account.is_active:
         raise AccountError(f"{account.name} is already retired")
-    blocker = retire_blocker(conn, account)
+    blocker = retire_blocker(conn, workspace_id, account)
     if blocker is not None:
         raise AccountError(blocker)
-    repo.set_retired_at(conn, account_id, on)
+    repo.set_retired_at(conn, workspace_id, account_id, on)
     conn.commit()
     return account.model_copy(update={"retired_at": on})
 
 
-def unretire_account(conn: Connection, account_id: int) -> Account:
-    account = _get_or_error(conn, account_id)
+def unretire_account(conn: Connection, workspace_id: int, account_id: int) -> Account:
+    account = _get_or_error(conn, workspace_id, account_id)
     if account.is_active:
         raise AccountError(f"{account.name} is not retired")
     if account.is_computed:
         try:
-            _validate_inputs(conn, account_id, account.formula, account.input_ids)
+            _validate_inputs(
+                conn, workspace_id, account_id, account.formula, account.input_ids
+            )
         except AccountError as e:
             raise AccountError(
                 f"Cannot unretire {account.name}: {e}. Edit its formula first."
             ) from e
-    repo.set_retired_at(conn, account_id, None)
+    repo.set_retired_at(conn, workspace_id, account_id, None)
     conn.commit()
     return account.model_copy(update={"retired_at": None})
 
 
 def save_snapshot(
     conn: Connection,
+    workspace_id: int,
     values: dict[int, Decimal],
     cost_bases: dict[int, Decimal],
     as_of: date,
@@ -253,14 +269,16 @@ def save_snapshot(
     """
     try:
         with conn.transaction():
-            accounts = repo.get_accounts(conn, include_retired=False)
+            accounts = repo.get_accounts(conn, workspace_id, include_retired=False)
             by_id = {a.id: a for a in accounts if a.id is not None}
 
             for account_id, amount in values.items():
                 account = by_id.get(account_id)
                 if account is None:
                     raise AccountError(
-                        _not_active_message(conn, account_id, "active account")
+                        _not_active_message(
+                            conn, workspace_id, account_id, "active account"
+                        )
                     )
                 if account.is_computed:
                     raise AccountError(
@@ -277,7 +295,9 @@ def save_snapshot(
                 account = by_id.get(account_id)
                 if account is None:
                     raise AccountError(
-                        _not_active_message(conn, account_id, "active computed account")
+                        _not_active_message(
+                            conn, workspace_id, account_id, "active computed account"
+                        )
                     )
                 if account.formula is None:
                     raise AccountError(f"{account.name} is not a computed account")
@@ -293,7 +313,7 @@ def save_snapshot(
                 updated_formula = formula.model_copy(
                     update={"cost_basis": quantize_cents(basis)}
                 )
-                repo.set_formula(conn, account_id, updated_formula)
+                repo.set_formula(conn, workspace_id, account_id, updated_formula)
                 by_id[account_id] = account.model_copy(
                     update={"formula": updated_formula}
                 )
@@ -303,13 +323,13 @@ def save_snapshot(
                 # account with no row there (new, unretired) must be sent.
                 latest = {
                     r.account_id: r.amount
-                    for r in repo.get_latest_snapshot_records(conn)
+                    for r in repo.get_latest_snapshot_records(conn, workspace_id)
                     if r.account_id in by_id and not by_id[r.account_id].is_computed
                 }
                 values = {**latest, **values}
 
             amounts = compute_snapshot(list(by_id.values()), values, as_of)
-            count = repo.upsert_amounts(conn, as_of, amounts)
+            count = repo.upsert_amounts(conn, workspace_id, as_of, amounts)
         # `conn.transaction()` only issues a real COMMIT if the connection
         # was idle when the block was entered; on a connection with an
         # already-open transaction (e.g. after a prior SELECT) it uses a

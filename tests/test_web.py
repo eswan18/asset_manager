@@ -10,32 +10,22 @@ from asset_manager.accounts import create_account, retire_account
 from asset_manager.clock import today
 from asset_manager.models import Account, Record, RecordType
 from asset_manager.repository import upsert_amounts
-
-SECRET = "test-secret-key"
-USER = {"sub": "user-1", "email": "me@example.com", "name": "Me"}
-
-
-@pytest.fixture
-def client(db_connection, db_url, monkeypatch):
-    """A TestClient wired to the test container. db_connection handles cleanup."""
-    monkeypatch.setenv("SECRET_KEY", SECRET)
-    monkeypatch.setenv("DATABASE_URL", db_url)
-    monkeypatch.setenv("ENV", "dev")
-    monkeypatch.delenv("ALLOWED_EMAILS", raising=False)
-
-    from fastapi.testclient import TestClient
-
-    from asset_manager.config import get_settings
-    from asset_manager.web.app import app
-
-    get_settings.cache_clear()
-    with TestClient(app) as test_client:
-        yield test_client
-    get_settings.cache_clear()
-
-
-def login(client) -> None:
-    client.cookies.set("session", URLSafeTimedSerializer(SECRET).dumps(USER))
+from tests.support import WS
+from tests.web_support import (
+    ACCOUNTS,
+    SECRET,
+    SNAPSHOTS,
+    STRANGER,
+    TZ,
+    USER,
+    FakeIdp,
+    add_user,
+    claims,
+    login,
+    protected_routes,
+    session_for,
+    sweep,
+)
 
 
 @pytest.mark.db
@@ -136,8 +126,8 @@ def test_deployed_environments_set_an_allowlist(env):
 @pytest.mark.db
 class TestTheme:
     def test_pages_carry_a_light_theme(self, client, db_connection):
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
-        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("1")})
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("1")})
         db_connection.commit()
         login(client)
         for path in ("/", "/accounts", f"/accounts/{cash.id}/edit"):
@@ -147,8 +137,8 @@ class TestTheme:
         assert "@media (prefers-color-scheme: light)" in client.get("/login").text
 
     def test_dashboard_retheme_script_targets_plotly(self, client, db_connection):
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
-        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("1")})
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("1")})
         db_connection.commit()
         login(client)
         text = client.get("/").text
@@ -165,8 +155,10 @@ class TestDashboard:
         assert "No data yet" in response.text
 
     def test_renders_with_data(self, client, db_connection):
-        savings = create_account(db_connection, "Savings Account", RecordType.ASSET)
-        upsert_amounts(db_connection, date(2026, 9, 1), {savings.id: Decimal("1000")})
+        savings = create_account(db_connection, WS, "Savings Account", RecordType.ASSET)
+        upsert_amounts(
+            db_connection, WS, date(2026, 9, 1), {savings.id: Decimal("1000")}
+        )
         db_connection.commit()
         login(client)
         response = client.get("/")
@@ -320,17 +312,20 @@ class TestAccountsPage:
     def test_renders_rows_and_embeds_json(self, client, db_connection):
         from asset_manager.models import ProportionalFormula
 
-        schwab = create_account(db_connection, "Schwab Trading", RecordType.ASSET)
+        schwab = create_account(db_connection, WS, "Schwab Trading", RecordType.ASSET)
         create_account(
             db_connection,
+            WS,
             "Cap Gains Tax",
             RecordType.LIABILITY,
             ProportionalFormula(rate=Decimal("0.15"), cost_basis=Decimal("100")),
             [schwab.id],
         )
-        old = create_account(db_connection, "Old 401k", RecordType.ASSET)
-        retire_account(db_connection, old.id, date(2026, 1, 1))
-        upsert_amounts(db_connection, date(2026, 9, 1), {schwab.id: Decimal("1000")})
+        old = create_account(db_connection, WS, "Old 401k", RecordType.ASSET)
+        retire_account(db_connection, WS, old.id, date(2026, 1, 1))
+        upsert_amounts(
+            db_connection, WS, date(2026, 9, 1), {schwab.id: Decimal("1000")}
+        )
         db_connection.commit()
         login(client)
 
@@ -355,10 +350,10 @@ class TestAccountsPage:
     def test_rows_are_alphabetical_with_retired_last(self, client, db_connection):
         import re
 
-        create_account(db_connection, "zeta", RecordType.ASSET)
-        old = create_account(db_connection, "Alpha", RecordType.ASSET)
-        create_account(db_connection, "beta", RecordType.ASSET)
-        retire_account(db_connection, old.id, date(2026, 1, 1))
+        create_account(db_connection, WS, "zeta", RecordType.ASSET)
+        old = create_account(db_connection, WS, "Alpha", RecordType.ASSET)
+        create_account(db_connection, WS, "beta", RecordType.ASSET)
+        retire_account(db_connection, WS, old.id, date(2026, 1, 1))
         login(client)
         text = client.get("/accounts").text
         names = re.findall(
@@ -371,15 +366,17 @@ class TestAccountsPage:
 
         from asset_manager.models import AccountCategory
 
-        create_account(db_connection, "Mystery", RecordType.ASSET)
+        create_account(db_connection, WS, "Mystery", RecordType.ASSET)
         create_account(
             db_connection,
+            WS,
             "Chase",
             RecordType.ASSET,
             category=AccountCategory.BANK_ACCOUNTS,
         )
         create_account(
             db_connection,
+            WS,
             "Visa",
             RecordType.LIABILITY,
             category=AccountCategory.CREDIT_CARDS,
@@ -406,20 +403,20 @@ class TestAccountsPage:
     ):
         from asset_manager.clock import today
 
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
-        upsert_amounts(db_connection, today(), {cash.id: Decimal("1")})
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, today(TZ), {cash.id: Decimal("1")})
         db_connection.commit()
         login(client)
         text = client.get("/accounts").text
         assert 'id="snapshot-saved" data-today="1"' in text
         assert "Snapshot <strong>Today</strong>" in text
-        assert today().strftime("%B %-d, %Y") not in text
+        assert today(TZ).strftime("%B %-d, %Y") not in text
 
     def test_header_carries_date_when_latest_snapshot_is_older(
         self, client, db_connection
     ):
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
-        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("1")})
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("1")})
         db_connection.commit()
         login(client)
         text = client.get("/accounts").text
@@ -433,9 +430,10 @@ class TestSaveSnapshot:
         from asset_manager.models import ProportionalFormula
         from asset_manager.repository import get_all_records
 
-        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         tax = create_account(
             db_connection,
+            WS,
             "Tax",
             RecordType.LIABILITY,
             ProportionalFormula(rate=Decimal("0.15"), cost_basis=Decimal("100")),
@@ -453,8 +451,8 @@ class TestSaveSnapshot:
         )
 
         assert response.status_code == 200
-        assert response.json() == {"date": today().isoformat(), "count": 2}
-        rows = {(r.description, r.amount) for r in get_all_records(db_connection)}
+        assert response.json() == {"date": today(TZ).isoformat(), "count": 2}
+        rows = {(r.description, r.amount) for r in get_all_records(db_connection, WS)}
         assert rows == {("Schwab", Decimal("1000.00")), ("Tax", Decimal("90.00"))}
 
     def test_rounds_more_than_two_decimals_half_up_on_the_server(
@@ -463,7 +461,7 @@ class TestSaveSnapshot:
         """The server, not the browser, decides the final cent (ROUND_HALF_UP)."""
         from asset_manager.repository import get_all_records
 
-        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         login(client)
 
         response = client.post(
@@ -473,7 +471,7 @@ class TestSaveSnapshot:
         )
 
         assert response.status_code == 200
-        records = get_all_records(db_connection)
+        records = get_all_records(db_connection, WS)
         assert [r.amount for r in records] == [Decimal("10.01")]
 
     def test_oversized_amount_returns_400_and_writes_nothing(
@@ -481,7 +479,7 @@ class TestSaveSnapshot:
     ):
         from asset_manager.repository import get_all_records
 
-        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         login(client)
 
         response = client.post(
@@ -491,20 +489,20 @@ class TestSaveSnapshot:
         )
 
         assert response.status_code == 400
-        assert get_all_records(db_connection) == []
+        assert get_all_records(db_connection, WS) == []
 
     def test_missing_value_returns_400_and_writes_nothing(self, client, db_connection):
         from asset_manager.repository import get_all_records
 
-        create_account(db_connection, "Schwab", RecordType.ASSET)
-        create_account(db_connection, "Cash", RecordType.ASSET)
+        create_account(db_connection, WS, "Schwab", RecordType.ASSET)
+        create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
 
         response = client.post("/snapshots", json={"values": {}, "cost_bases": {}})
 
         assert response.status_code == 400
         assert "Missing value for" in response.json()["error"]
-        assert get_all_records(db_connection) == []
+        assert get_all_records(db_connection, WS) == []
 
     def test_requires_login(self, client):
         response = client.post(
@@ -518,18 +516,20 @@ class TestApi:
     def _setup(self, conn):
         from asset_manager.models import ProportionalFormula
 
-        schwab = create_account(conn, "Schwab", RecordType.ASSET)
-        cash = create_account(conn, "Cash", RecordType.ASSET)
+        schwab = create_account(conn, WS, "Schwab", RecordType.ASSET)
+        cash = create_account(conn, WS, "Cash", RecordType.ASSET)
         tax = create_account(
             conn,
+            WS,
             "Tax",
             RecordType.LIABILITY,
             ProportionalFormula(rate=Decimal("0.15"), cost_basis=Decimal("100")),
             [schwab.id],
         )
-        old = create_account(conn, "Old", RecordType.ASSET)
+        old = create_account(conn, WS, "Old", RecordType.ASSET)
         upsert_amounts(
             conn,
+            WS,
             date(2026, 9, 1),
             {
                 schwab.id: Decimal("1000"),
@@ -538,7 +538,7 @@ class TestApi:
                 old.id: Decimal("7"),
             },
         )
-        retire_account(conn, old.id, date(2026, 9, 2))
+        retire_account(conn, WS, old.id, date(2026, 9, 2))
         conn.commit()
         return schwab, cash, tax
 
@@ -548,7 +548,7 @@ class TestApi:
         schwab, cash, tax = self._setup(db_connection)
         login(client)
 
-        response = client.get("/api/accounts")
+        response = client.get(ACCOUNTS)
 
         assert response.status_code == 200
         body = response.json()
@@ -570,9 +570,9 @@ class TestApi:
         assert by_name["Tax"]["formula"]["cost_basis"] == "100"
 
     def test_accounts_with_no_snapshots(self, client, db_connection):
-        create_account(db_connection, "Cash", RecordType.ASSET)
+        create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
-        body = client.get("/api/accounts").json()
+        body = client.get(ACCOUNTS).json()
         assert body["as_of"] is None
         assert [a["amount"] for a in body["accounts"]] == [None]
 
@@ -582,13 +582,11 @@ class TestApi:
         schwab, cash, tax = self._setup(db_connection)
         login(client)
 
-        response = client.post(
-            "/api/snapshots", json={"values": {str(schwab.id): "2000"}}
-        )
+        response = client.post(SNAPSHOTS, json={"values": {str(schwab.id): "2000"}})
 
         assert response.status_code == 200
         body = response.json()
-        assert body["date"] == today().isoformat()
+        assert body["date"] == today(TZ).isoformat()
         assert body["count"] == 3
         got = {a["name"]: (a["amount"], a["source"]) for a in body["accounts"]}
         assert got == {
@@ -601,18 +599,18 @@ class TestApi:
         from asset_manager.repository import get_all_records
 
         _, _, tax = self._setup(db_connection)
-        before = get_all_records(db_connection)
+        before = get_all_records(db_connection, WS)
         login(client)
 
-        response = client.post("/api/snapshots", json={"values": {str(tax.id): "1"}})
+        response = client.post(SNAPSHOTS, json={"values": {str(tax.id): "1"}})
 
         assert response.status_code == 400
         assert "is computed" in response.json()["error"]
-        assert get_all_records(db_connection) == before
+        assert get_all_records(db_connection, WS) == before
 
     def test_require_login_without_json_accept_header(self, client):
-        assert client.get("/api/accounts").status_code == 401
-        assert client.post("/api/snapshots", json={}).status_code == 401
+        assert client.get(ACCOUNTS).status_code == 401
+        assert client.post(SNAPSHOTS, json={}).status_code == 401
 
     def test_snapshot_accepts_json_numbers_without_float_error(
         self, client, db_connection
@@ -620,7 +618,7 @@ class TestApi:
         schwab, cash, _ = self._setup(db_connection)
         login(client)
         response = client.post(
-            "/api/snapshots",
+            SNAPSHOTS,
             json={"values": {str(schwab.id): 2000.1, str(cash.id): 0.29}},
         )
         assert response.status_code == 200
@@ -651,25 +649,20 @@ class TestApi:
         schwab, _, tax = self._setup(db_connection)
         text = json.dumps(body)
         text = text.replace("SCHWAB", str(schwab.id)).replace("TAX", str(tax.id))
-        before = get_all_records(db_connection)
+        before = get_all_records(db_connection, WS)
         login(client)
 
         response = client.post(
-            "/api/snapshots",
+            SNAPSHOTS,
             content=text,
             headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == status
-        assert get_all_records(db_connection) == before
-        loaded = get_account(db_connection, tax.id)
+        assert get_all_records(db_connection, WS) == before
+        loaded = get_account(db_connection, WS, tax.id)
         assert loaded is not None and loaded.formula is not None
         assert loaded.formula.cost_basis == Decimal("100")
-
-
-# Routes reachable without a session. Every other route must refuse. The
-# docs routes are public too but are not in the schema, so not listed here.
-PUBLIC_PATHS = {"/login", "/auth/start", "/auth/callback", "/logout", "/health"}
 
 
 @pytest.mark.db
@@ -680,40 +673,17 @@ def test_api_docs_are_public(client):
         assert "/openapi.json" in response.text, path
     schema = client.get("/openapi.json")
     assert schema.status_code == 200
-    assert {"/api/accounts", "/api/snapshots"} <= set(schema.json()["paths"])
-
-
-def protected_routes():
-    """(method, path) for every non-public route, with 1 for {account_id}."""
-    # The OpenAPI schema, not app.routes: since FastAPI 0.162, routes from
-    # include_router sit behind a wrapper there and would be skipped.
-    from asset_manager.web.app import app
-
-    for path, operations in app.openapi()["paths"].items():
-        if path not in PUBLIC_PATHS:
-            for method in sorted(operations):
-                yield method.upper(), path.replace("{account_id}", "1")
-
-
-def sweep(client):
-    """Hit every protected route as a JSON client; return {(method, path): status}."""
-    return {
-        (method, path): client.request(
-            method,
-            path,
-            json={"values": {"1": "5"}},
-            headers={"Accept": "application/json"},
-            follow_redirects=False,
-        ).status_code
-        for method, path in protected_routes()
-    }
+    assert {
+        "/api/workspaces/{workspace_id}/accounts",
+        "/api/workspaces/{workspace_id}/snapshots",
+    } <= set(schema.json()["paths"])
 
 
 def assert_nothing_written(conn, account_id: int) -> None:
     from asset_manager.repository import get_account, get_all_records
 
-    assert get_all_records(conn) == []
-    loaded = get_account(conn, account_id)
+    assert get_all_records(conn, WS) == []
+    loaded = get_account(conn, WS, account_id)
     assert loaded is not None and loaded.is_active and loaded.name == "Cash"
 
 
@@ -725,15 +695,15 @@ class TestEveryRouteRequiresLogin:
             "/",
             "/accounts",
             "/snapshots",
-            "/api/accounts",
-            "/api/snapshots",
+            ACCOUNTS,
+            SNAPSHOTS,
             "/accounts/1/retire",
         } <= paths
 
     def test_logged_out_requests_are_refused_and_write_nothing(
         self, client, db_connection
     ):
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         db_connection.commit()
         assert cash.id == 1  # the sweep substitutes 1 for {account_id}
 
@@ -753,13 +723,13 @@ class TestEveryRouteRequiresLogin:
     def test_cookie_signed_with_another_key_is_refused(self, client):
         forged = URLSafeTimedSerializer("not-the-secret").dumps(USER)
         client.cookies.set("session", forged)
-        assert client.get("/api/accounts").status_code == 401
+        assert client.get(ACCOUNTS).status_code == 401
 
     def test_tampered_cookie_is_refused(self, client):
         good = URLSafeTimedSerializer(SECRET).dumps(USER)
         payload, rest = good.split(".", 1)
         client.cookies.set("session", payload[:-1] + "A" + "." + rest)
-        assert client.get("/api/accounts").status_code == 401
+        assert client.get(ACCOUNTS).status_code == 401
 
     def test_expired_cookie_is_refused(self, client, monkeypatch):
         import time
@@ -769,18 +739,13 @@ class TestEveryRouteRequiresLogin:
         from asset_manager.web.auth import SESSION_MAX_AGE
 
         old = int(time.time()) - SESSION_MAX_AGE - 60
-        monkeypatch.setattr(TimestampSigner, "get_timestamp", lambda self: old)
-        cookie = URLSafeTimedSerializer(SECRET).dumps(USER)
-        monkeypatch.undo()
+        # A scoped patch: monkeypatch.undo() would also revert the client
+        # fixture's environment, including DATABASE_URL.
+        with monkeypatch.context() as clock:
+            clock.setattr(TimestampSigner, "get_timestamp", lambda self: old)
+            cookie = URLSafeTimedSerializer(SECRET).dumps(USER)
         client.cookies.set("session", cookie)
-        assert client.get("/api/accounts").status_code == 401
-
-
-STRANGER = {"sub": "user-2", "email": "stranger@example.com", "name": "Stranger"}
-
-
-def session_for(client, user) -> None:
-    client.cookies.set("session", URLSafeTimedSerializer(SECRET).dumps(user))
+        assert client.get(ACCOUNTS).status_code == 401
 
 
 @pytest.mark.db
@@ -789,7 +754,10 @@ class TestEveryRouteRequiresAnAllowedEmail:
 
     @pytest.fixture
     def cash(self, db_connection):
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        # The stranger is a real user and even an owner of the workspace, so
+        # the allowlist is the only thing that can refuse them.
+        add_user(db_connection, STRANGER, "owner")
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         db_connection.commit()
         assert cash.id == 1  # the sweep substitutes 1 for {account_id}
         return cash
@@ -804,11 +772,14 @@ class TestEveryRouteRequiresAnAllowedEmail:
             ("prod", None, USER),
             ("prod", "", USER),
             ("staging", None, USER),
-            # A session with no email at all.
-            ("prod", USER["email"], {k: v for k, v in USER.items() if k != "email"}),
-            ("prod", USER["email"], {**USER, "email": None}),
             # Dev is only open when the allowlist is blank.
             ("dev", USER["email"], STRANGER),
+            # Validly signed, but not a session for any current user.
+            ("prod", USER["email"], {k: v for k, v in USER.items() if k != "id"}),
+            ("prod", USER["email"], {**USER, "id": 99}),
+            ("prod", USER["email"], {**USER, "id": "1"}),
+            ("prod", USER["email"], {**USER, "sub": "someone-else"}),
+            ("prod", USER["email"], {**STRANGER, "id": USER["id"]}),
         ],
     )
     def test_every_route_refuses_and_writes_nothing(
@@ -842,7 +813,7 @@ class TestEveryRouteRequiresAnAllowedEmail:
         monkeypatch.setenv("ENV", "prod")
         monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
         session_for(client, USER)
-        assert client.get("/api/accounts").status_code == 200
+        assert client.get(ACCOUNTS).status_code == 200
 
         monkeypatch.setenv("ALLOWED_EMAILS", "someone-else@example.com")
 
@@ -855,23 +826,6 @@ class TestEveryRouteRequiresAnAllowedEmail:
         response = client.get("/accounts", follow_redirects=False)
         assert response.status_code == 302
         assert response.headers["location"] == "/login"
-
-
-class FakeIdp:
-    """Stands in for authlib's registered client in the callback route."""
-
-    def __init__(self, token=None, error=None, userinfo=None):
-        self.token = token
-        self.error = error
-        self.userinfo_data = userinfo
-
-    async def authorize_access_token(self, request):
-        if self.error:
-            raise self.error
-        return self.token
-
-    async def userinfo(self, token):
-        return self.userinfo_data
 
 
 @pytest.mark.db
@@ -894,7 +848,7 @@ class TestCallback:
     def test_login_sets_a_session_that_authenticates(
         self, client, db_connection, monkeypatch
     ):
-        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+        self._use(monkeypatch, FakeIdp(token={"userinfo": claims(USER)}))
 
         response = client.get("/auth/callback", follow_redirects=False)
 
@@ -904,10 +858,10 @@ class TestCallback:
         assert header is not None
         assert "HttpOnly" in header and "samesite=lax" in header.lower()
         assert "Secure" not in header  # ENV=dev
-        assert client.get("/api/accounts").status_code == 200
+        assert client.get(ACCOUNTS).status_code == 200
 
     def test_session_cookie_is_secure_outside_dev(self, client, monkeypatch):
-        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+        self._use(monkeypatch, FakeIdp(token={"userinfo": claims(USER)}))
         monkeypatch.setenv("ENV", "prod")
         monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
         response = client.get("/auth/callback", follow_redirects=False)
@@ -915,7 +869,7 @@ class TestCallback:
         assert header is not None and "Secure" in header
 
     def test_falls_back_to_the_userinfo_endpoint(self, client, monkeypatch):
-        self._use(monkeypatch, FakeIdp(token={}, userinfo=USER))
+        self._use(monkeypatch, FakeIdp(token={}, userinfo=claims(USER)))
         response = client.get("/auth/callback", follow_redirects=False)
         assert response.status_code == 302
         assert self._session_cookie(response) is not None
@@ -924,19 +878,19 @@ class TestCallback:
     def test_allowlist_refuses_with_403_and_no_session(
         self, client, monkeypatch, email
     ):
-        self._use(monkeypatch, FakeIdp(token={"userinfo": {**USER, "email": email}}))
+        self._use(monkeypatch, FakeIdp(token={"userinfo": claims(USER, email=email)}))
         monkeypatch.setenv("ALLOWED_EMAILS", "me@example.com")
 
         response = client.get("/auth/callback", follow_redirects=False)
 
         assert response.status_code == 403
         assert self._session_cookie(response) is None
-        assert client.get("/api/accounts").status_code == 401
+        assert client.get(ACCOUNTS).status_code == 401
 
     def test_login_is_refused_outside_dev_without_an_allowlist(
         self, client, monkeypatch
     ):
-        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+        self._use(monkeypatch, FakeIdp(token={"userinfo": claims(USER)}))
         monkeypatch.setenv("ENV", "prod")
 
         response = client.get("/auth/callback", follow_redirects=False)
@@ -945,7 +899,7 @@ class TestCallback:
         assert self._session_cookie(response) is None
 
     def test_refusal_also_applies_to_the_userinfo_fallback(self, client, monkeypatch):
-        self._use(monkeypatch, FakeIdp(token={}, userinfo=STRANGER))
+        self._use(monkeypatch, FakeIdp(token={}, userinfo=claims(STRANGER)))
         monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
 
         response = client.get("/auth/callback", follow_redirects=False)
@@ -954,7 +908,7 @@ class TestCallback:
         assert self._session_cookie(response) is None
 
     def test_allowed_email_logs_in_regardless_of_case(self, client, monkeypatch):
-        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+        self._use(monkeypatch, FakeIdp(token={"userinfo": claims(USER)}))
         monkeypatch.setenv("ENV", "prod")
         monkeypatch.setenv("ALLOWED_EMAILS", USER["email"].upper())
 
@@ -976,21 +930,21 @@ class TestCallback:
     def test_logout_clears_the_session(self, client, monkeypatch):
         # Log in through the callback so the client holds the cookie exactly
         # as the server set it; one set by hand is never matched for deletion.
-        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+        self._use(monkeypatch, FakeIdp(token={"userinfo": claims(USER)}))
         client.get("/auth/callback", follow_redirects=False)
-        assert client.get("/api/accounts").status_code == 200
+        assert client.get(ACCOUNTS).status_code == 200
 
         response = client.get("/logout", follow_redirects=False)
         assert response.status_code == 302
         header = self._session_cookie(response)
         assert header is not None and "Max-Age=0" in header
-        assert client.get("/api/accounts").status_code == 401
+        assert client.get(ACCOUNTS).status_code == 401
 
 
 @pytest.mark.db
 class TestAccountForm:
     def test_new_page_presets_type_and_lists_inputs(self, client, db_connection):
-        create_account(db_connection, "Schwab", RecordType.ASSET)
+        create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         login(client)
         response = client.get("/accounts/new?type=liability")
         assert response.status_code == 200
@@ -1007,14 +961,14 @@ class TestAccountForm:
         )
         assert response.status_code == 303
         assert response.headers["location"] == "/accounts"
-        assert [a.name for a in get_accounts(db_connection)] == ["Cash"]
+        assert [a.name for a in get_accounts(db_connection, WS)] == ["Cash"]
         page = client.get("/accounts")
         assert "Added Cash" in page.text
 
     def test_create_computed_account(self, client, db_connection):
         from asset_manager.repository import get_accounts
 
-        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         login(client)
         response = client.post(
             "/accounts",
@@ -1029,14 +983,16 @@ class TestAccountForm:
             follow_redirects=False,
         )
         assert response.status_code == 303
-        tax = [a for a in get_accounts(db_connection) if a.name == "Cap Gains Tax"][0]
+        tax = [a for a in get_accounts(db_connection, WS) if a.name == "Cap Gains Tax"][
+            0
+        ]
         assert tax.formula is not None
         assert tax.formula.rate == Decimal("0.15")
         assert tax.formula.cost_basis == Decimal("70634.00")
         assert tax.input_ids == [schwab.id]
 
     def test_create_duplicate_rerenders_with_error(self, client, db_connection):
-        create_account(db_connection, "Cash", RecordType.ASSET)
+        create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
         response = client.post("/accounts", data={"name": "Cash", "type": "asset"})
         assert response.status_code == 400
@@ -1060,9 +1016,10 @@ class TestAccountForm:
     def test_edit_page_prefills_formula(self, client, db_connection):
         from asset_manager.models import ProportionalFormula
 
-        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         tax = create_account(
             db_connection,
+            WS,
             "Tax",
             RecordType.LIABILITY,
             ProportionalFormula(rate=Decimal("0.325"), cost_basis=Decimal("100")),
@@ -1080,10 +1037,12 @@ class TestAccountForm:
     def test_edit_page_shows_history_newest_first_with_changes(
         self, client, db_connection
     ):
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
-        upsert_amounts(db_connection, date(2026, 7, 1), {cash.id: Decimal("1000")})
-        upsert_amounts(db_connection, date(2026, 8, 1), {cash.id: Decimal("1250.50")})
-        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("900")})
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2026, 7, 1), {cash.id: Decimal("1000")})
+        upsert_amounts(
+            db_connection, WS, date(2026, 8, 1), {cash.id: Decimal("1250.50")}
+        )
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("900")})
         db_connection.commit()
         login(client)
         text = client.get(f"/accounts/{cash.id}/edit").text
@@ -1103,7 +1062,7 @@ class TestAccountForm:
         assert 'class="num change up">+$250.50' in text
 
     def test_edit_page_history_empty_state(self, client, db_connection):
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
         text = client.get(f"/accounts/{cash.id}/edit").text
         assert "No snapshots yet" in text
@@ -1115,13 +1074,13 @@ class TestAccountForm:
     def test_update_account(self, client, db_connection):
         from asset_manager.repository import get_account
 
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
         response = client.post(
             f"/accounts/{cash.id}", data={"name": "Cash (SoFi)"}, follow_redirects=False
         )
         assert response.status_code == 303
-        loaded = get_account(db_connection, cash.id)
+        loaded = get_account(db_connection, WS, cash.id)
         assert loaded is not None and loaded.name == "Cash (SoFi)"
 
     def test_create_and_change_category(self, client, db_connection):
@@ -1135,7 +1094,7 @@ class TestAccountForm:
             follow_redirects=False,
         )
         assert response.status_code == 303
-        visa = get_account_by_name(db_connection, RecordType.LIABILITY, "Visa")
+        visa = get_account_by_name(db_connection, WS, RecordType.LIABILITY, "Visa")
         assert visa is not None and visa.category == AccountCategory.CREDIT_CARDS
 
         edit = client.get(f"/accounts/{visa.id}/edit").text
@@ -1147,7 +1106,7 @@ class TestAccountForm:
             follow_redirects=False,
         )
         db_connection.rollback()
-        reloaded = get_account_by_name(db_connection, RecordType.LIABILITY, "Visa")
+        reloaded = get_account_by_name(db_connection, WS, RecordType.LIABILITY, "Visa")
         assert reloaded is not None and reloaded.category is None
 
     def test_unknown_category_rerenders_with_error(self, client):
@@ -1161,9 +1120,10 @@ class TestAccountForm:
     def test_retire_blocked_by_formula_shows_flash(self, client, db_connection):
         from asset_manager.models import ProportionalFormula
 
-        schwab = create_account(db_connection, "Schwab", RecordType.ASSET)
+        schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         create_account(
             db_connection,
+            WS,
             "Tax",
             RecordType.LIABILITY,
             ProportionalFormula(rate=Decimal("0.15")),
@@ -1181,8 +1141,8 @@ class TestAccountForm:
     def test_retire_nonzero_warns_then_succeeds(self, client, db_connection):
         from asset_manager.repository import get_account
 
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
-        upsert_amounts(db_connection, date(2026, 9, 1), {cash.id: Decimal("5")})
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("5")})
         db_connection.commit()
         login(client)
         edit = client.get(f"/accounts/{cash.id}/edit")
@@ -1191,20 +1151,20 @@ class TestAccountForm:
         assert 'class="btn btn-secondary" disabled' not in edit.text
         response = client.post(f"/accounts/{cash.id}/retire", follow_redirects=False)
         assert response.status_code == 303
-        loaded = get_account(db_connection, cash.id)
+        loaded = get_account(db_connection, WS, cash.id)
         assert loaded is not None and loaded.retired_at is not None
         assert "Retired Cash" in client.get("/accounts").text
 
     def test_retire_and_unretire(self, client, db_connection):
         from asset_manager.repository import get_account
 
-        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
         client.post(f"/accounts/{cash.id}/retire", follow_redirects=False)
-        loaded = get_account(db_connection, cash.id)
-        assert loaded is not None and loaded.retired_at == today()
+        loaded = get_account(db_connection, WS, cash.id)
+        assert loaded is not None and loaded.retired_at == today(TZ)
         assert "Retired Cash" in client.get("/accounts").text
 
         client.post(f"/accounts/{cash.id}/unretire", follow_redirects=False)
-        loaded = get_account(db_connection, cash.id)
+        loaded = get_account(db_connection, WS, cash.id)
         assert loaded is not None and loaded.retired_at is None
