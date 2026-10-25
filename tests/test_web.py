@@ -51,63 +51,74 @@ class TestAuth:
         assert response.json() == {"error": "Login required"}
 
 
-def test_is_email_allowed(monkeypatch):
-    from asset_manager.web.auth import is_email_allowed
+class TestIsEmailAllowed:
+    @pytest.fixture(autouse=True)
+    def _clean(self, monkeypatch):
+        monkeypatch.delenv("ALLOWED_EMAILS", raising=False)
+        monkeypatch.delenv("ENV", raising=False)
 
-    monkeypatch.delenv("ALLOWED_EMAILS", raising=False)
-    monkeypatch.setenv("ENV", "dev")
-    assert is_email_allowed("anyone@example.com")
-    assert is_email_allowed(None)
+    @staticmethod
+    def allowed(email):
+        from asset_manager.web.auth import is_email_allowed
 
-    # Outside dev, an unset or blank allowlist lets nobody in.
-    for env in ("prod", "staging", ""):
+        return is_email_allowed(email)
+
+    def test_dev_with_no_allowlist_is_open(self, monkeypatch):
+        monkeypatch.setenv("ENV", "dev")
+        assert self.allowed("anyone@example.com")
+        assert self.allowed(None)
+
+    @pytest.mark.parametrize(
+        "env",
+        [None, "", "prod", "staging", "Dev", "DEV", " dev", "dev ", "development"],
+    )
+    @pytest.mark.parametrize("raw", [None, "", " ", ",", " , "])
+    def test_anything_but_exactly_dev_with_no_allowlist_is_closed(
+        self, monkeypatch, env, raw
+    ):
+        if env is not None:
+            monkeypatch.setenv("ENV", env)
+        if raw is not None:
+            monkeypatch.setenv("ALLOWED_EMAILS", raw)
+        assert not self.allowed("me@example.com")
+        assert not self.allowed(None)
+
+    @pytest.mark.parametrize("env", ["dev", "prod"])
+    def test_a_set_allowlist_applies_in_dev_too(self, monkeypatch, env):
         monkeypatch.setenv("ENV", env)
-        for raw in (None, "", " , "):
-            if raw is None:
-                monkeypatch.delenv("ALLOWED_EMAILS", raising=False)
-            else:
-                monkeypatch.setenv("ALLOWED_EMAILS", raw)
-            assert not is_email_allowed("me@example.com"), (env, raw)
-            assert not is_email_allowed(None), (env, raw)
-    monkeypatch.delenv("ENV")
-    assert not is_email_allowed("me@example.com")
+        monkeypatch.setenv("ALLOWED_EMAILS", "me@example.com")
+        assert self.allowed("me@example.com")
+        assert not self.allowed("stranger@example.com")
 
-    monkeypatch.setenv("ALLOWED_EMAILS", "Me@Example.com, other@example.com")
-    assert is_email_allowed("me@example.com")
-    assert is_email_allowed("OTHER@example.com")
-    assert not is_email_allowed("stranger@example.com")
-    assert not is_email_allowed(None)
-
-
-@pytest.mark.db
-class TestAllowlistOnEveryRequest:
-    def test_an_email_removed_from_the_allowlist_loses_access_at_once(
-        self, client, monkeypatch
-    ):
-        login(client)
-        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
-        assert client.get("/accounts").status_code == 200
-
-        monkeypatch.setenv("ALLOWED_EMAILS", "someone-else@example.com")
-        response = client.get("/accounts", headers={"Accept": "application/json"})
-        assert response.status_code == 401
-
-    def test_a_valid_session_is_refused_outside_dev_without_an_allowlist(
-        self, client, monkeypatch
-    ):
-        login(client)
+    @pytest.mark.parametrize(
+        "email", ["me@example.com", "ME@EXAMPLE.COM", "other@example.com"]
+    )
+    def test_listed_emails_match_case_insensitively(self, monkeypatch, email):
         monkeypatch.setenv("ENV", "prod")
-        response = client.get("/accounts", headers={"Accept": "application/json"})
-        assert response.status_code == 401
+        monkeypatch.setenv("ALLOWED_EMAILS", " Me@Example.com ,other@example.com,")
+        assert self.allowed(email)
 
-    def test_a_session_with_no_email_is_refused_once_an_allowlist_is_set(
-        self, client, monkeypatch
-    ):
-        no_email = {k: v for k, v in USER.items() if k != "email"}
-        client.cookies.set("session", URLSafeTimedSerializer(SECRET).dumps(no_email))
-        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
-        response = client.get("/accounts", headers={"Accept": "application/json"})
-        assert response.status_code == 401
+    @pytest.mark.parametrize(
+        "email",
+        [
+            None,
+            "",
+            "stranger@example.com",
+            "me@example.co",
+            "me@example.com.evil.com",
+            "evil-me@example.com",
+            "me@example",
+            "me",
+            "example.com",
+            "me@example.com,other@example.com",
+            "me@example.com ",
+            " me@example.com",
+        ],
+    )
+    def test_only_exact_matches_are_allowed(self, monkeypatch, email):
+        monkeypatch.setenv("ENV", "prod")
+        monkeypatch.setenv("ALLOWED_EMAILS", "me@example.com,other@example.com")
+        assert not self.allowed(email)
 
 
 @pytest.mark.parametrize("env", ["staging", "prod"])
@@ -672,20 +683,44 @@ def test_api_docs_are_public(client):
     assert {"/api/accounts", "/api/snapshots"} <= set(schema.json()["paths"])
 
 
+def protected_routes():
+    """(method, path) for every non-public route, with 1 for {account_id}."""
+    # The OpenAPI schema, not app.routes: since FastAPI 0.162, routes from
+    # include_router sit behind a wrapper there and would be skipped.
+    from asset_manager.web.app import app
+
+    for path, operations in app.openapi()["paths"].items():
+        if path not in PUBLIC_PATHS:
+            for method in sorted(operations):
+                yield method.upper(), path.replace("{account_id}", "1")
+
+
+def sweep(client):
+    """Hit every protected route as a JSON client; return {(method, path): status}."""
+    return {
+        (method, path): client.request(
+            method,
+            path,
+            json={"values": {"1": "5"}},
+            headers={"Accept": "application/json"},
+            follow_redirects=False,
+        ).status_code
+        for method, path in protected_routes()
+    }
+
+
+def assert_nothing_written(conn, account_id: int) -> None:
+    from asset_manager.repository import get_account, get_all_records
+
+    assert get_all_records(conn) == []
+    loaded = get_account(conn, account_id)
+    assert loaded is not None and loaded.is_active and loaded.name == "Cash"
+
+
 @pytest.mark.db
 class TestEveryRouteRequiresLogin:
-    def _protected(self):
-        # The OpenAPI schema, not app.routes: since FastAPI 0.162, routes from
-        # include_router sit behind a wrapper there and would be skipped.
-        from asset_manager.web.app import app
-
-        for path, operations in app.openapi()["paths"].items():
-            if path not in PUBLIC_PATHS:
-                for method in sorted(operations):
-                    yield method.upper(), path.replace("{account_id}", "1")
-
     def test_the_sweep_sees_every_route_family(self, client):
-        paths = {path for _, path in self._protected()}
+        paths = {path for _, path in protected_routes()}
         assert {
             "/",
             "/accounts",
@@ -698,28 +733,17 @@ class TestEveryRouteRequiresLogin:
     def test_logged_out_requests_are_refused_and_write_nothing(
         self, client, db_connection
     ):
-        from asset_manager.repository import get_account, get_all_records
-
         cash = create_account(db_connection, "Cash", RecordType.ASSET)
         db_connection.commit()
         assert cash.id == 1  # the sweep substitutes 1 for {account_id}
 
-        for method, path in self._protected():
-            response = client.request(
-                method,
-                path,
-                json={"values": {"1": "5"}},
-                headers={"Accept": "application/json"},
-                follow_redirects=False,
-            )
-            assert response.status_code == 401, (method, path)
+        statuses = sweep(client)
 
-        assert get_all_records(db_connection) == []
-        loaded = get_account(db_connection, cash.id)
-        assert loaded is not None and loaded.is_active and loaded.name == "Cash"
+        assert {k: v for k, v in statuses.items() if v != 401} == {}
+        assert_nothing_written(db_connection, cash.id)
 
     def test_pages_redirect_to_login_when_logged_out(self, client):
-        for method, path in self._protected():
+        for method, path in protected_routes():
             if path.startswith("/api/"):
                 continue
             response = client.request(method, path, follow_redirects=False)
@@ -750,6 +774,87 @@ class TestEveryRouteRequiresLogin:
         monkeypatch.undo()
         client.cookies.set("session", cookie)
         assert client.get("/api/accounts").status_code == 401
+
+
+STRANGER = {"sub": "user-2", "email": "stranger@example.com", "name": "Stranger"}
+
+
+def session_for(client, user) -> None:
+    client.cookies.set("session", URLSafeTimedSerializer(SECRET).dumps(user))
+
+
+@pytest.mark.db
+class TestEveryRouteRequiresAnAllowedEmail:
+    """A validly signed session is not enough: the email must be allowed."""
+
+    @pytest.fixture
+    def cash(self, db_connection):
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        db_connection.commit()
+        assert cash.id == 1  # the sweep substitutes 1 for {account_id}
+        return cash
+
+    @pytest.mark.parametrize(
+        ("env", "allowlist", "user"),
+        [
+            # Another identity user, with the allowlist set as in prod.
+            ("prod", USER["email"], STRANGER),
+            ("staging", USER["email"], STRANGER),
+            # The real user, but the allowlist was lost from config.
+            ("prod", None, USER),
+            ("prod", "", USER),
+            ("staging", None, USER),
+            # A session with no email at all.
+            ("prod", USER["email"], {k: v for k, v in USER.items() if k != "email"}),
+            ("prod", USER["email"], {**USER, "email": None}),
+            # Dev is only open when the allowlist is blank.
+            ("dev", USER["email"], STRANGER),
+        ],
+    )
+    def test_every_route_refuses_and_writes_nothing(
+        self, client, db_connection, monkeypatch, cash, env, allowlist, user
+    ):
+        monkeypatch.setenv("ENV", env)
+        if allowlist is not None:
+            monkeypatch.setenv("ALLOWED_EMAILS", allowlist)
+        session_for(client, user)
+
+        statuses = sweep(client)
+
+        assert {k: v for k, v in statuses.items() if v != 401} == {}
+        assert_nothing_written(db_connection, cash.id)
+
+    def test_the_allowed_user_gets_through_every_route(self, client, monkeypatch, cash):
+        """Control: the refusals above are the allowlist, not a broken sweep."""
+        monkeypatch.setenv("ENV", "prod")
+        monkeypatch.setenv(
+            "ALLOWED_EMAILS", f"other@example.com,{USER['email'].upper()}"
+        )
+        session_for(client, USER)
+
+        statuses = sweep(client)
+
+        assert {k: v for k, v in statuses.items() if v == 401} == {}
+
+    def test_removing_an_email_locks_out_its_live_session(
+        self, client, monkeypatch, cash
+    ):
+        monkeypatch.setenv("ENV", "prod")
+        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
+        session_for(client, USER)
+        assert client.get("/api/accounts").status_code == 200
+
+        monkeypatch.setenv("ALLOWED_EMAILS", "someone-else@example.com")
+
+        assert set(sweep(client).values()) == {401}
+
+    def test_a_refused_page_request_redirects_to_login(self, client, monkeypatch):
+        monkeypatch.setenv("ENV", "prod")
+        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
+        session_for(client, STRANGER)
+        response = client.get("/accounts", follow_redirects=False)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/login"
 
 
 class FakeIdp:
@@ -827,6 +932,36 @@ class TestCallback:
         assert response.status_code == 403
         assert self._session_cookie(response) is None
         assert client.get("/api/accounts").status_code == 401
+
+    def test_login_is_refused_outside_dev_without_an_allowlist(
+        self, client, monkeypatch
+    ):
+        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+        monkeypatch.setenv("ENV", "prod")
+
+        response = client.get("/auth/callback", follow_redirects=False)
+
+        assert response.status_code == 403
+        assert self._session_cookie(response) is None
+
+    def test_refusal_also_applies_to_the_userinfo_fallback(self, client, monkeypatch):
+        self._use(monkeypatch, FakeIdp(token={}, userinfo=STRANGER))
+        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
+
+        response = client.get("/auth/callback", follow_redirects=False)
+
+        assert response.status_code == 403
+        assert self._session_cookie(response) is None
+
+    def test_allowed_email_logs_in_regardless_of_case(self, client, monkeypatch):
+        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+        monkeypatch.setenv("ENV", "prod")
+        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"].upper())
+
+        response = client.get("/auth/callback", follow_redirects=False)
+
+        assert response.status_code == 302
+        assert self._session_cookie(response) is not None
 
     def test_oauth_error_is_400_with_no_session(self, client, monkeypatch):
         from authlib.integrations.starlette_client import OAuthError
