@@ -1,7 +1,7 @@
 """Snapshot dates are dated in a configured timezone, not the pod's clock.
 
 Pods run in UTC; if we date snapshots with `date.today()`, an evening Save
-(or a Sheets import) in Central time gets tomorrow's date. `today()` instead
+in Central time gets tomorrow's date. `today()` instead
 converts the current instant into the configured local zone before taking
 the date.
 """

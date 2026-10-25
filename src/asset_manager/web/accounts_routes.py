@@ -71,7 +71,7 @@ def account_rows(accounts: list[Account], latest: list[Record]) -> list[dict[str
     """JSON-safe view model for the accounts page, one dict per account.
 
     `amount` is the account's value on the latest snapshot date, or None if it
-    has no row on that date (new, just unretired, or dropped from the sheet).
+    has no row on that date (new or just unretired).
     """
     by_id = {a.id: a for a in accounts if a.id is not None}
     amounts = {r.account_id: r.amount for r in latest}

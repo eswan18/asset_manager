@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Asset Manager is a Python application for tracking personal financial assets and liabilities. Values are entered on the web dashboard's Accounts tab and saved as dated snapshots in PostgreSQL. Liabilities can be computed from other accounts by a formula. The Google Sheets `fetch` path is legacy and slated for removal.
+Asset Manager is a Python application for tracking personal financial assets and liabilities. Values are entered on the web dashboard's Accounts tab and saved as dated snapshots in PostgreSQL. Liabilities can be computed from other accounts by a formula.
 
 ## Development Setup
 
@@ -31,7 +31,6 @@ Edit the `.env.dev` and `.env.prod` files with your database credentials:
 
 ```
 DATABASE_URL=postgresql://user:password@host:5432/dbname
-GOOGLE_APPLICATION_CREDENTIALS=credentials/asset-manager-369122-7861d911d7b5.json
 ```
 
 ### Database Setup
@@ -62,10 +61,6 @@ uv run dotenv -f .env.dev run dbmate status
 
 ### CLI Commands
 ```bash
-# Fetch data from Google Sheets and save to database (legacy)
-ENV=dev uv run asset-manager fetch
-ENV=prod uv run asset-manager fetch
-
 # Generate interactive HTML report
 ENV=dev uv run asset-manager report
 ENV=dev uv run asset-manager report --output report.html --no-open
@@ -78,7 +73,7 @@ ENV=dev uv run asset-manager serve --port 8080
 uv run asset-manager version
 
 # Or use python -m invocation
-ENV=dev uv run python -m asset_manager fetch
+ENV=dev uv run python -m asset_manager report
 ```
 
 ### Development Commands
@@ -106,10 +101,7 @@ asset_manager/
 │       ├── accounts.py         # Account rules, retire checks, snapshot save transaction
 │       ├── formulas.py         # Pure formula evaluation (compute_snapshot)
 │       ├── report.py           # Interactive HTML report generation
-│       ├── sheets.py           # Google Sheets fetching (legacy)
 │       ├── py.typed            # PEP 561 marker
-│       ├── data/
-│       │   └── config.ini      # Sheet ID and range
 │       └── web/                # Web dashboard
 │           ├── __init__.py
 │           ├── app.py          # FastAPI application
@@ -139,9 +131,8 @@ asset_manager/
 - **`accounts.py`**: Service layer. `create_account`/`update_account` enforce input rules; `retire_account` refuses only inputs of active computed accounts; `save_snapshot` is all-or-nothing. Raises `AccountError` with user-facing messages. Commits.
 - **`repository.py`**: Thin SQL. Never commits.
 - **`db.py`**: Database connection management using psycopg3
-- **`sheets.py`**: Legacy Google Sheets import (`save_rows` resolves names to accounts)
 - **`report.py`**: Interactive HTML report generation using Plotly
-- **`cli.py`**: Typer CLI with `fetch`, `report`, `serve`, and `version` commands
+- **`cli.py`**: Typer CLI with `report`, `serve`, and `version` commands
 - **`web/app.py`**: App wiring, dashboard, auth routes. `/docs`, `/redoc` and `/openapi.json` are public
 - **`web/accounts_routes.py`**: Accounts page, account form, `POST /snapshots`
 - **`web/api_routes.py`**: JSON API for agents. `GET /api/accounts` (active accounts + latest amounts); `POST /api/snapshots` saves today's snapshot with `carry_forward=True`, so omitted plain accounts keep their latest amount, and reports each account's `source` (`updated`/`carried_forward`/`computed`). Session auth for now; logged-out `/api/` requests always get 401
@@ -189,8 +180,7 @@ CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, account_id);
 
 ### Configuration
 
-- **`.env.dev` / `.env.prod`**: Database URL and Google credentials per environment
-- **`data/config.ini`**: Contains Google Sheets ID and sheet range
+- **`.env.dev` / `.env.prod`**: Database URL and web settings per environment
 - **Environment variable `ENV`**: Controls which `.env` file is loaded (default: `dev`)
 
 #### Web Dashboard Environment Variables
@@ -209,7 +199,6 @@ CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, account_id);
 ### Testing
 
 Tests are organized by module with pytest:
-- `test_sheets.py`: Google Sheets fetching and parsing tests
 - `test_repository.py`: Database operations tests (uses testcontainers)
 - `test_cli.py`: CLI command tests
 - `test_models.py`, `test_formulas.py`: Pure unit tests (Hypothesis for the formula property)

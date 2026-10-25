@@ -13,56 +13,12 @@ from . import __version__
 from .db import get_connection_context
 from .report import generate_report
 from .repository import get_all_records
-from .sheets import describe_rows, fetch_and_save, fetch_rows
 
 app = typer.Typer(
     name="asset-manager",
     help="Track personal financial assets and liabilities.",
     no_args_is_help=True,
 )
-
-
-@app.command()
-def fetch(
-    dry_run: Annotated[
-        bool,
-        typer.Option(
-            "--dry-run", help="Fetch and display records without saving to the database"
-        ),
-    ] = False,
-) -> None:
-    """Fetch data from Google Sheets and save to the database."""
-    if dry_run:
-        try:
-            rows = fetch_rows()
-        except Exception as exc:
-            typer.echo(f"Error fetching data: {exc}", err=True)
-            raise typer.Exit(code=1)
-
-        if not rows:
-            typer.echo("No rows found.")
-            raise typer.Exit(code=1)
-
-        typer.echo(f"Found {len(rows)} rows (dry run, not saving):\n")
-        try:
-            with get_connection_context() as conn:
-                for line in describe_rows(conn, rows):
-                    typer.echo(line)
-        except Exception as exc:
-            typer.echo(f"Error connecting to database: {exc}", err=True)
-            raise typer.Exit(code=1)
-        return
-
-    try:
-        count = fetch_and_save()
-    except Exception as exc:
-        typer.echo(f"Error fetching data: {exc}", err=True)
-        raise typer.Exit(code=1)
-
-    if count > 0:
-        typer.echo(f"Successfully saved {count} records.")
-    else:
-        raise typer.Exit(code=1)
 
 
 @app.command()
