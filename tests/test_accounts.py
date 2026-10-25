@@ -297,6 +297,44 @@ class TestSaveSnapshot:
             ("Tax", Decimal("285.00")),
         }
 
+    def test_carry_forward_fills_omitted_accounts_from_latest_snapshot(
+        self, db_connection
+    ):
+        schwab, cash, tax, _ = self._setup(db_connection)
+        upsert_amounts(
+            db_connection,
+            date(2026, 9, 1),
+            {
+                schwab.id: Decimal("1000"),
+                cash.id: Decimal("50"),
+                tax.id: Decimal("135"),
+            },
+        )
+        count = save_snapshot(
+            db_connection, {schwab.id: Decimal("2000")}, {}, TODAY, carry_forward=True
+        )
+        assert count == 3
+        rows = {
+            (r.description, r.amount)
+            for r in get_all_records(db_connection)
+            if r.date == TODAY
+        }
+        # Tax is re-evaluated from the new Schwab value, not carried.
+        assert rows == {
+            ("Schwab", Decimal("2000.00")),
+            ("Cash", Decimal("50.00")),
+            ("Tax", Decimal("285.00")),
+        }
+
+    def test_carry_forward_still_needs_accounts_missing_from_latest(
+        self, db_connection
+    ):
+        schwab, cash, _, _ = self._setup(db_connection)
+        upsert_amounts(db_connection, date(2026, 9, 1), {schwab.id: Decimal("1000")})
+        with pytest.raises(AccountError, match="Missing value for Cash"):
+            save_snapshot(db_connection, {}, {}, TODAY, carry_forward=True)
+        assert [r.date for r in get_all_records(db_connection)] == [date(2026, 9, 1)]
+
     def test_missing_value_writes_nothing_including_basis(self, db_connection):
         schwab, cash, tax, _ = self._setup(db_connection)
         with pytest.raises(AccountError, match="Missing value for Cash"):

@@ -446,6 +446,108 @@ class TestSaveSnapshot:
 
 
 @pytest.mark.db
+class TestApi:
+    def _setup(self, conn):
+        from asset_manager.models import ProportionalFormula
+
+        schwab = create_account(conn, "Schwab", RecordType.ASSET)
+        cash = create_account(conn, "Cash", RecordType.ASSET)
+        tax = create_account(
+            conn,
+            "Tax",
+            RecordType.LIABILITY,
+            ProportionalFormula(rate=Decimal("0.15"), cost_basis=Decimal("100")),
+            [schwab.id],
+        )
+        old = create_account(conn, "Old", RecordType.ASSET)
+        upsert_amounts(
+            conn,
+            date(2026, 9, 1),
+            {
+                schwab.id: Decimal("1000"),
+                cash.id: Decimal("50"),
+                tax.id: Decimal("135"),
+                old.id: Decimal("7"),
+            },
+        )
+        retire_account(conn, old.id, date(2026, 9, 2))
+        conn.commit()
+        return schwab, cash, tax
+
+    def test_accounts_lists_active_accounts_with_latest_amounts(
+        self, client, db_connection
+    ):
+        schwab, cash, tax = self._setup(db_connection)
+        login(client)
+
+        response = client.get("/api/accounts")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["as_of"] == "2026-09-01"
+        by_name = {a["name"]: a for a in body["accounts"]}
+        assert set(by_name) == {"Schwab", "Cash", "Tax"}
+        assert by_name["Schwab"] == {
+            "id": schwab.id,
+            "name": "Schwab",
+            "type": "asset",
+            "category": None,
+            "computed": False,
+            "formula": None,
+            "input_ids": [],
+            "amount": "1000.00",
+        }
+        assert by_name["Tax"]["computed"] is True
+        assert by_name["Tax"]["input_ids"] == [schwab.id]
+        assert by_name["Tax"]["formula"]["cost_basis"] == "100"
+
+    def test_accounts_with_no_snapshots(self, client, db_connection):
+        create_account(db_connection, "Cash", RecordType.ASSET)
+        login(client)
+        body = client.get("/api/accounts").json()
+        assert body["as_of"] is None
+        assert [a["amount"] for a in body["accounts"]] == [None]
+
+    def test_snapshot_merges_with_latest_and_reports_sources(
+        self, client, db_connection
+    ):
+        schwab, cash, tax = self._setup(db_connection)
+        login(client)
+
+        response = client.post(
+            "/api/snapshots", json={"values": {str(schwab.id): "2000"}}
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["date"] == today().isoformat()
+        assert body["count"] == 3
+        got = {a["name"]: (a["amount"], a["source"]) for a in body["accounts"]}
+        assert got == {
+            "Schwab": ("2000.00", "updated"),
+            "Cash": ("50.00", "carried_forward"),
+            "Tax": ("285.00", "computed"),
+        }
+
+    def test_snapshot_error_returns_400_and_writes_nothing(self, client, db_connection):
+        from asset_manager.repository import get_all_records
+
+        _, _, tax = self._setup(db_connection)
+        before = get_all_records(db_connection)
+        login(client)
+
+        response = client.post("/api/snapshots", json={"values": {str(tax.id): "1"}})
+
+        assert response.status_code == 400
+        assert "is computed" in response.json()["error"]
+        assert get_all_records(db_connection) == before
+
+    def test_require_login_without_json_accept_header(self, client):
+        assert client.get("/api/accounts").status_code == 401
+        assert client.post("/api/snapshots", json={}).status_code == 401
+
+
+@pytest.mark.db
 class TestAccountForm:
     def test_new_page_presets_type_and_lists_inputs(self, client, db_connection):
         create_account(db_connection, "Schwab", RecordType.ASSET)
