@@ -739,9 +739,11 @@ class TestEveryRouteRequiresLogin:
         from asset_manager.web.auth import SESSION_MAX_AGE
 
         old = int(time.time()) - SESSION_MAX_AGE - 60
-        monkeypatch.setattr(TimestampSigner, "get_timestamp", lambda self: old)
-        cookie = URLSafeTimedSerializer(SECRET).dumps(USER)
-        monkeypatch.undo()
+        # A scoped patch: monkeypatch.undo() would also revert the client
+        # fixture's environment, including DATABASE_URL.
+        with monkeypatch.context() as clock:
+            clock.setattr(TimestampSigner, "get_timestamp", lambda self: old)
+            cookie = URLSafeTimedSerializer(SECRET).dumps(USER)
         client.cookies.set("session", cookie)
         assert client.get(ACCOUNTS).status_code == 401
 
