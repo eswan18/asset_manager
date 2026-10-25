@@ -103,7 +103,9 @@ class EmailNotAllowed(Exception):
 def require_user(request: Request) -> dict[str, Any]:
     """FastAPI dependency: the session user, or LoginRequired."""
     user = get_session_user(request)
-    if not user:
+    # Re-checked on every request, so removing an email from ALLOWED_EMAILS
+    # locks that user out at once rather than when their session expires.
+    if not user or not is_email_allowed(user.get("email")):
         raise LoginRequired()
     return user
 
@@ -112,11 +114,16 @@ CurrentUser = Annotated[dict[str, Any], Depends(require_user)]
 
 
 def is_email_allowed(email: str | None) -> bool:
-    """True unless ALLOWED_EMAILS is set and does not list this email (case-insensitive)."""
+    """True if ALLOWED_EMAILS lists this email (case-insensitive).
+
+    Fails closed: with ALLOWED_EMAILS unset or empty, nobody is allowed, except
+    under ENV=dev where everyone is, for local development. Identity has open
+    registration, so "has an identity account" must never mean "allowed".
+    """
     raw = os.environ.get("ALLOWED_EMAILS", "")
     allowed = {e.strip().lower() for e in raw.split(",") if e.strip()}
     if not allowed:
-        return True
+        return os.environ.get("ENV") == "dev"
     return email is not None and email.lower() in allowed
 
 

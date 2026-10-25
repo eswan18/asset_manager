@@ -33,7 +33,7 @@ A Python application for tracking personal financial assets and liabilities. Val
    CLIENT_ID=your-oauth-client-id
    CLIENT_SECRET=your-oauth-client-secret
    SECRET_KEY=random-secret-for-session-signing
-   ALLOWED_EMAILS=you@example.com   # optional; comma-separated allowlist for login
+   ALLOWED_EMAILS=you@example.com   # comma-separated allowlist; required outside ENV=dev
    TIMEZONE=America/Chicago   # optional; zone used to date snapshots
    ```
 

@@ -55,14 +55,71 @@ def test_is_email_allowed(monkeypatch):
     from asset_manager.web.auth import is_email_allowed
 
     monkeypatch.delenv("ALLOWED_EMAILS", raising=False)
+    monkeypatch.setenv("ENV", "dev")
     assert is_email_allowed("anyone@example.com")
     assert is_email_allowed(None)
+
+    # Outside dev, an unset or blank allowlist lets nobody in.
+    for env in ("prod", "staging", ""):
+        monkeypatch.setenv("ENV", env)
+        for raw in (None, "", " , "):
+            if raw is None:
+                monkeypatch.delenv("ALLOWED_EMAILS", raising=False)
+            else:
+                monkeypatch.setenv("ALLOWED_EMAILS", raw)
+            assert not is_email_allowed("me@example.com"), (env, raw)
+            assert not is_email_allowed(None), (env, raw)
+    monkeypatch.delenv("ENV")
+    assert not is_email_allowed("me@example.com")
 
     monkeypatch.setenv("ALLOWED_EMAILS", "Me@Example.com, other@example.com")
     assert is_email_allowed("me@example.com")
     assert is_email_allowed("OTHER@example.com")
     assert not is_email_allowed("stranger@example.com")
     assert not is_email_allowed(None)
+
+
+@pytest.mark.db
+class TestAllowlistOnEveryRequest:
+    def test_an_email_removed_from_the_allowlist_loses_access_at_once(
+        self, client, monkeypatch
+    ):
+        login(client)
+        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
+        assert client.get("/accounts").status_code == 200
+
+        monkeypatch.setenv("ALLOWED_EMAILS", "someone-else@example.com")
+        response = client.get("/accounts", headers={"Accept": "application/json"})
+        assert response.status_code == 401
+
+    def test_a_valid_session_is_refused_outside_dev_without_an_allowlist(
+        self, client, monkeypatch
+    ):
+        login(client)
+        monkeypatch.setenv("ENV", "prod")
+        response = client.get("/accounts", headers={"Accept": "application/json"})
+        assert response.status_code == 401
+
+    def test_a_session_with_no_email_is_refused_once_an_allowlist_is_set(
+        self, client, monkeypatch
+    ):
+        no_email = {k: v for k, v in USER.items() if k != "email"}
+        client.cookies.set("session", URLSafeTimedSerializer(SECRET).dumps(no_email))
+        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
+        response = client.get("/accounts", headers={"Accept": "application/json"})
+        assert response.status_code == 401
+
+
+@pytest.mark.parametrize("env", ["staging", "prod"])
+def test_deployed_environments_set_an_allowlist(env):
+    """Without it a deployed app refuses everyone, so it must stay in config."""
+    import re
+    from pathlib import Path
+
+    manifest = Path(__file__).parent.parent / "k8s" / env / "configmap-env.yaml"
+    match = re.search(r'^\s+ALLOWED_EMAILS:\s*"([^"]*)"', manifest.read_text(), re.M)
+    assert match is not None
+    assert "ethanpswan@gmail.com" in match.group(1).split(",")
 
 
 @pytest.mark.db
