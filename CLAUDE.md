@@ -142,7 +142,7 @@ asset_manager/
 - **`sheets.py`**: Legacy Google Sheets import (`save_rows` resolves names to accounts)
 - **`report.py`**: Interactive HTML report generation using Plotly
 - **`cli.py`**: Typer CLI with `fetch`, `report`, `serve`, and `version` commands
-- **`web/app.py`**: App wiring, dashboard, auth routes
+- **`web/app.py`**: App wiring, dashboard, auth routes. `/docs`, `/redoc` and `/openapi.json` are public
 - **`web/accounts_routes.py`**: Accounts page, account form, `POST /snapshots`
 - **`web/api_routes.py`**: JSON API for agents. `GET /api/accounts` (active accounts + latest amounts); `POST /api/snapshots` saves today's snapshot with `carry_forward=True`, so omitted plain accounts keep their latest amount, and reports each account's `source` (`updated`/`carried_forward`/`computed`). Session auth for now; logged-out `/api/` requests always get 401
 - **`web/auth.py`**: OAuth/OIDC with PKCE, `require_user` dependency, `ALLOWED_EMAILS` gate
