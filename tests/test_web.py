@@ -599,8 +599,20 @@ class TestApi:
         assert loaded.formula.cost_basis == Decimal("100")
 
 
-# Routes reachable without a session. Every other route must refuse.
+# Routes reachable without a session. Every other route must refuse. The
+# docs routes are public too but are not in the schema, so not listed here.
 PUBLIC_PATHS = {"/login", "/auth/start", "/auth/callback", "/logout", "/health"}
+
+
+@pytest.mark.db
+def test_api_docs_are_public(client):
+    for path in ("/docs", "/redoc"):
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert "/openapi.json" in response.text, path
+    schema = client.get("/openapi.json")
+    assert schema.status_code == 200
+    assert {"/api/accounts", "/api/snapshots"} <= set(schema.json()["paths"])
 
 
 @pytest.mark.db
@@ -735,6 +747,7 @@ class TestCallback:
     def test_session_cookie_is_secure_outside_dev(self, client, monkeypatch):
         self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
         monkeypatch.setenv("ENV", "prod")
+        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
         response = client.get("/auth/callback", follow_redirects=False)
         header = self._session_cookie(response)
         assert header is not None and "Secure" in header

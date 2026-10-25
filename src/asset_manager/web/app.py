@@ -28,7 +28,9 @@ from .rendering import render, templates
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Asset Dashboard", docs_url=None, redoc_url=None)
+# /docs, /redoc and /openapi.json are public: the repo is public, so the
+# schema reveals nothing, and every route behind it requires a session.
+app = FastAPI(title="Asset Dashboard")
 
 # Session middleware for OAuth state and flash messages
 app.add_middleware(
