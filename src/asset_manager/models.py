@@ -115,3 +115,29 @@ class Member(BaseModel):
     name: str | None
     role: Role
     joined_at: datetime
+
+
+class Invite(BaseModel):
+    id: int
+    workspace_id: int
+    email: str
+    role: Role
+    invited_by: int
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: datetime | None = None
+    declined_at: datetime | None = None
+    revoked_at: datetime | None = None
+
+    @property
+    def is_open(self) -> bool:
+        """Not yet accepted, declined or revoked. May still have expired."""
+        return (
+            self.accepted_at is None
+            and self.declined_at is None
+            and self.revoked_at is None
+        )
+
+    def is_pending(self, now: datetime) -> bool:
+        """Open and unexpired: the only state that can be accepted."""
+        return self.is_open and now < self.expires_at

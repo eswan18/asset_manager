@@ -7,7 +7,7 @@ exist. The composite foreign keys in the schema back this up.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, LiteralString
 
@@ -18,6 +18,7 @@ from asset_manager.models import (
     Account,
     DailySummary,
     Formula,
+    Invite,
     Member,
     Record,
     RecordType,
@@ -584,3 +585,157 @@ def delete_member(conn: Connection, workspace_id: int, user_id: int) -> None:
             "DELETE FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
             (workspace_id, user_id),
         )
+
+
+# --- invites ---------------------------------------------------------------
+
+_INVITE_COLUMNS = """
+    i.id, i.workspace_id, i.email, i.role, i.invited_by, i.created_at,
+    i.expires_at, i.accepted_at, i.declined_at, i.revoked_at
+"""
+
+
+def _invite_from_row(row: tuple[Any, ...]) -> Invite:
+    return Invite(
+        id=row[0],
+        workspace_id=row[1],
+        email=row[2],
+        role=Role(row[3]),
+        invited_by=row[4],
+        created_at=row[5],
+        expires_at=row[6],
+        accepted_at=row[7],
+        declined_at=row[8],
+        revoked_at=row[9],
+    )
+
+
+def insert_invite(
+    conn: Connection,
+    workspace_id: int,
+    email: str,
+    role: Role,
+    invited_by: int,
+    expires_at: datetime,
+) -> Invite:
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            INSERT INTO workspace_invites AS i
+                (workspace_id, email, role, invited_by, expires_at)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING {_INVITE_COLUMNS}
+            """,
+            (workspace_id, email, role.value, invited_by, expires_at),
+        )
+        row = cur.fetchone()
+    if row is None:
+        raise RuntimeError("INSERT returned no row")
+    return _invite_from_row(row)
+
+
+def get_invite(
+    conn: Connection, invite_id: int, *, for_update: bool = False
+) -> Invite | None:
+    lock: LiteralString = "FOR UPDATE" if for_update else ""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"SELECT {_INVITE_COLUMNS} FROM workspace_invites i WHERE i.id = %s {lock}",
+            (invite_id,),
+        )
+        row = cur.fetchone()
+    return _invite_from_row(row) if row else None
+
+
+def get_open_invite(conn: Connection, workspace_id: int, email: str) -> Invite | None:
+    """The open (unresolved, possibly expired) invite for this email, if any."""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT {_INVITE_COLUMNS} FROM workspace_invites i
+            WHERE i.workspace_id = %s AND i.email = %s
+              AND i.accepted_at IS NULL AND i.declined_at IS NULL
+              AND i.revoked_at IS NULL
+            """,
+            (workspace_id, email),
+        )
+        row = cur.fetchone()
+    return _invite_from_row(row) if row else None
+
+
+def get_pending_workspace_invites(conn: Connection, workspace_id: int) -> list[Invite]:
+    """Open, unexpired invites to this workspace, oldest first."""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT {_INVITE_COLUMNS} FROM workspace_invites i
+            WHERE i.workspace_id = %s
+              AND i.accepted_at IS NULL AND i.declined_at IS NULL
+              AND i.revoked_at IS NULL AND i.expires_at > now()
+            ORDER BY i.created_at, i.id
+            """,
+            (workspace_id,),
+        )
+        rows = cur.fetchall()
+    return [_invite_from_row(row) for row in rows]
+
+
+def get_pending_invites_for_email(
+    conn: Connection, email: str
+) -> list[tuple[Invite, Workspace]]:
+    """Open, unexpired invites to live workspaces for this email."""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT {_INVITE_COLUMNS}, {_WORKSPACE_COLUMNS}
+            FROM workspace_invites i
+            JOIN workspaces w ON w.id = i.workspace_id
+            WHERE i.email = %s AND w.deleted_at IS NULL
+              AND i.accepted_at IS NULL AND i.declined_at IS NULL
+              AND i.revoked_at IS NULL AND i.expires_at > now()
+            ORDER BY i.created_at, i.id
+            """,
+            (email,),
+        )
+        rows = cur.fetchall()
+    return [(_invite_from_row(row[:10]), _workspace_from_row(row[10:])) for row in rows]
+
+
+def set_invite_accepted(conn: Connection, invite_id: int, user_id: int) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE workspace_invites SET accepted_at = now(), accepted_by = %s
+            WHERE id = %s
+            """,
+            (user_id, invite_id),
+        )
+
+
+def set_invite_declined(conn: Connection, invite_id: int) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE workspace_invites SET declined_at = now() WHERE id = %s",
+            (invite_id,),
+        )
+
+
+def set_invite_revoked(conn: Connection, invite_id: int) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE workspace_invites SET revoked_at = now() WHERE id = %s",
+            (invite_id,),
+        )
+
+
+def is_member_email(conn: Connection, workspace_id: int, email: str) -> bool:
+    """Whether a member of this workspace currently has this email."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1 FROM workspace_members m JOIN users u ON u.id = m.user_id
+            WHERE m.workspace_id = %s AND u.email = %s
+            """,
+            (workspace_id, email),
+        )
+        return cur.fetchone() is not None

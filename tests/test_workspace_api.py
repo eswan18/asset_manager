@@ -146,13 +146,16 @@ class TestIsolation:
 @pytest.mark.db
 class TestRoles:
     def _expected_403_for_viewer(self) -> set[tuple[str, str]]:
-        """Every write except creating your own workspace, plus the add-account
-        form, which only exists to write."""
+        """Every write to the workspace, plus the owner-only invite list and
+        the add-account form, which only exists to write. Creating your own
+        workspace and answering your own invites are not workspace writes."""
         return {
             (method, path)
             for method, path in protected_routes()
-            if method != "GET" and path != "/api/workspaces"
-        } | {("GET", "/accounts/new")}
+            if method != "GET"
+            and path != "/api/workspaces"
+            and not path.startswith("/api/invites/")
+        } | {("GET", "/accounts/new"), ("GET", f"/api/workspaces/{WS}/invites")}
 
     def test_a_viewer_can_read_but_not_write_anywhere(self, client, db_connection, ws1):
         add_user(db_connection, STRANGER, "viewer")
@@ -183,6 +186,9 @@ class TestRoles:
             ("DELETE", f"/api/workspaces/{WS}"),
             ("PATCH", f"/api/workspaces/{WS}/members/{USER_ID}"),
             ("DELETE", f"/api/workspaces/{WS}/members/{USER_ID}"),
+            ("POST", f"/api/workspaces/{WS}/invites"),
+            ("GET", f"/api/workspaces/{WS}/invites"),
+            ("DELETE", f"/api/workspaces/{WS}/invites/1"),
         }
         workspace = repo.get_workspace(db_connection, WS)
         assert workspace is not None and workspace.deleted_at is None
@@ -380,3 +386,99 @@ class TestLogin:
     def test_a_session_from_before_users_existed_must_log_in_again(self, client):
         session_for(client, {k: v for k, v in USER.items() if k != "id"})
         assert client.get("/api/me").status_code == 401
+
+
+@pytest.mark.db
+class TestInviteEndpoints:
+    def _invite(self, client, email: str = STRANGER["email"], role: str = "viewer"):
+        login(client)
+        response = client.post(
+            f"/api/workspaces/{WS}/invites", json={"email": email, "role": role}
+        )
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    def test_an_invitee_sees_accepts_and_gets_the_role(
+        self, client, db_connection, ws1
+    ):
+        add_user(db_connection, STRANGER)
+        invite = self._invite(client, STRANGER["email"].upper(), "viewer")
+        assert [
+            i["id"]
+            for i in client.get(f"/api/workspaces/{WS}/invites").json()["invites"]
+        ] == [invite["id"]]
+
+        session_for(client, STRANGER)
+        mine = client.get("/api/invites").json()["invites"]
+        assert [(i["id"], i["workspace_name"], i["role"]) for i in mine] == [
+            (invite["id"], "Test", "viewer")
+        ]
+        accepted = client.post(f"/api/invites/{invite['id']}/accept")
+        assert accepted.json() == {"workspace_id": WS, "role": "viewer"}
+
+        assert client.get(ACCOUNTS).status_code == 200
+        assert client.post(SNAPSHOTS, json={}).status_code == 403  # viewer
+        assert client.get("/api/invites").json()["invites"] == []
+
+    def test_someone_else_cannot_see_or_use_it(self, client, db_connection, ws1):
+        add_user(db_connection, STRANGER)
+        third = {
+            "id": 3,
+            "sub": "user-3",
+            "email": "third@example.com",
+            "name": "Third",
+        }
+        add_user(db_connection, third)
+        invite = self._invite(client)
+
+        session_for(client, third)
+        assert client.get("/api/invites").json()["invites"] == []
+        assert client.post(f"/api/invites/{invite['id']}/accept").status_code == 404
+        assert client.post(f"/api/invites/{invite['id']}/decline").status_code == 404
+        assert client.get(ACCOUNTS).status_code == 404
+
+    def test_decline_and_revoke(self, client, db_connection, ws1):
+        add_user(db_connection, STRANGER)
+        first = self._invite(client)
+        session_for(client, STRANGER)
+        assert client.post(f"/api/invites/{first['id']}/decline").status_code == 200
+        assert client.post(f"/api/invites/{first['id']}/accept").status_code == 404
+
+        second = self._invite(client)
+        assert (
+            client.delete(f"/api/workspaces/{WS}/invites/{second['id']}").status_code
+            == 200
+        )
+        session_for(client, STRANGER)
+        assert client.post(f"/api/invites/{second['id']}/accept").status_code == 404
+
+    def test_another_workspaces_owner_cannot_revoke_it(
+        self, client, db_connection, ws1
+    ):
+        add_user(db_connection, STRANGER)
+        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        invite = self._invite(client, "friend@example.com")
+
+        session_for(client, STRANGER)
+        response = client.delete(f"/api/workspaces/{OTHER_WS}/invites/{invite['id']}")
+
+        assert response.status_code == 404
+        assert repo.get_pending_workspace_invites(db_connection, WS) != []
+
+    def test_bad_input_is_400_or_422(self, client, ws1):
+        login(client)
+        url = f"/api/workspaces/{WS}/invites"
+        assert (
+            client.post(url, json={"email": "nope", "role": "viewer"}).status_code
+            == 400
+        )
+        assert (
+            client.post(url, json={"email": "a@b.com", "role": "admin"}).status_code
+            == 422
+        )
+        assert (
+            client.post(
+                url, json={"email": USER["email"], "role": "viewer"}
+            ).status_code
+            == 400
+        )
