@@ -115,6 +115,7 @@ asset_manager/
 │           ├── app.py          # FastAPI application
 │           ├── auth.py         # OAuth/OIDC authentication
 │           ├── accounts_routes.py  # Accounts page, account form, POST /snapshots
+│           ├── api_routes.py   # JSON API: GET /api/accounts, POST /api/snapshots
 │           ├── charts.py       # Plotly chart HTML for the dashboard
 │           ├── rendering.py    # Templates, render(), flash messages
 │           └── templates/
@@ -141,8 +142,9 @@ asset_manager/
 - **`sheets.py`**: Legacy Google Sheets import (`save_rows` resolves names to accounts)
 - **`report.py`**: Interactive HTML report generation using Plotly
 - **`cli.py`**: Typer CLI with `fetch`, `report`, `serve`, and `version` commands
-- **`web/app.py`**: App wiring, dashboard, auth routes
+- **`web/app.py`**: App wiring, dashboard, auth routes. `/docs`, `/redoc` and `/openapi.json` are public
 - **`web/accounts_routes.py`**: Accounts page, account form, `POST /snapshots`
+- **`web/api_routes.py`**: JSON API for agents. `GET /api/accounts` (active accounts + latest amounts); `POST /api/snapshots` saves today's snapshot with `carry_forward=True`, so omitted plain accounts keep their latest amount, and reports each account's `source` (`updated`/`carried_forward`/`computed`). Session auth for now; logged-out `/api/` requests always get 401
 - **`web/auth.py`**: OAuth/OIDC with PKCE, `require_user` dependency, `ALLOWED_EMAILS` gate
 
 ### Data Flow
@@ -225,6 +227,7 @@ To run tests: `uv run pytest`
 
 - **Formula inputs must be plain, active accounts.** A computed account cannot feed another. An account that is an input cannot be made computed.
 - **Retire flow**: Retire from the edit page at any amount; a non-zero last value only produces a warning (`retire_warning`). Blocked (`retire_blocker`) only while an active computed account lists it as an input. Retirement writes no row: the series ends at the last saved value.
+- **Partial saves** (`carry_forward`) fill only from the latest snapshot *date*; an active plain account with no row there must be sent explicitly.
 - **Same-day Save replaces** that day's rows. Retired accounts get no row.
 - **Repository never commits**; the service layer does. `save_snapshot` uses `conn.transaction()`.
 - **Categories** group rows under subheadings on `/accounts` (enum order, Uncategorized last, empty groups hidden). Any category may be used on either type. Adding one means a value in `AccountCategory` *and* a migration widening the CHECK constraint.

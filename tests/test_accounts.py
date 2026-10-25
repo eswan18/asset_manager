@@ -297,6 +297,172 @@ class TestSaveSnapshot:
             ("Tax", Decimal("285.00")),
         }
 
+    def test_carry_forward_fills_omitted_accounts_from_latest_snapshot(
+        self, db_connection
+    ):
+        schwab, cash, tax, _ = self._setup(db_connection)
+        upsert_amounts(
+            db_connection,
+            date(2026, 9, 1),
+            {
+                schwab.id: Decimal("1000"),
+                cash.id: Decimal("50"),
+                tax.id: Decimal("135"),
+            },
+        )
+        count = save_snapshot(
+            db_connection, {schwab.id: Decimal("2000")}, {}, TODAY, carry_forward=True
+        )
+        assert count == 3
+        rows = {
+            (r.description, r.amount)
+            for r in get_all_records(db_connection)
+            if r.date == TODAY
+        }
+        # Tax is re-evaluated from the new Schwab value, not carried.
+        assert rows == {
+            ("Schwab", Decimal("2000.00")),
+            ("Cash", Decimal("50.00")),
+            ("Tax", Decimal("285.00")),
+        }
+
+    def test_carry_forward_still_needs_accounts_missing_from_latest(
+        self, db_connection
+    ):
+        schwab, cash, _, _ = self._setup(db_connection)
+        upsert_amounts(db_connection, date(2026, 9, 1), {schwab.id: Decimal("1000")})
+        with pytest.raises(AccountError, match="Missing value for Cash"):
+            save_snapshot(db_connection, {}, {}, TODAY, carry_forward=True)
+        assert [r.date for r in get_all_records(db_connection)] == [date(2026, 9, 1)]
+
+    def _today_rows(self, conn) -> dict[str, Decimal]:
+        return {
+            r.description: r.amount for r in get_all_records(conn) if r.date == TODAY
+        }
+
+    def test_carry_forward_twice_in_one_day_keeps_the_first_update(self, db_connection):
+        """The second partial save carries from today's rows, not yesterday's."""
+        schwab, cash, tax, _ = self._setup(db_connection)
+        upsert_amounts(
+            db_connection,
+            date(2026, 9, 1),
+            {
+                schwab.id: Decimal("1000"),
+                cash.id: Decimal("50"),
+                tax.id: Decimal("135"),
+            },
+        )
+        save_snapshot(
+            db_connection, {schwab.id: Decimal("2000")}, {}, TODAY, carry_forward=True
+        )
+        save_snapshot(
+            db_connection, {cash.id: Decimal("75")}, {}, TODAY, carry_forward=True
+        )
+        assert self._today_rows(db_connection) == {
+            "Schwab": Decimal("2000.00"),
+            "Cash": Decimal("75.00"),
+            "Tax": Decimal("285.00"),
+        }
+
+    def test_carry_forward_recomputes_from_carried_inputs_and_new_basis(
+        self, db_connection
+    ):
+        schwab, cash, tax, _ = self._setup(db_connection)
+        upsert_amounts(
+            db_connection,
+            date(2026, 9, 1),
+            {
+                schwab.id: Decimal("1000"),
+                cash.id: Decimal("50"),
+                tax.id: Decimal("135"),
+            },
+        )
+        save_snapshot(
+            db_connection,
+            {cash.id: Decimal("60")},
+            {tax.id: Decimal("400")},
+            TODAY,
+            carry_forward=True,
+        )
+        assert self._today_rows(db_connection) == {
+            "Schwab": Decimal("1000.00"),
+            "Cash": Decimal("60.00"),
+            "Tax": Decimal("90.00"),
+        }
+
+    def test_carry_forward_does_not_revive_a_retired_account(self, db_connection):
+        schwab, cash, tax, old = self._setup(db_connection)
+        # Old has a row on the latest date, then is retired after it.
+        upsert_amounts(
+            db_connection,
+            date(2026, 9, 1),
+            {schwab.id: Decimal("1000"), cash.id: Decimal("50"), old.id: Decimal("7")},
+        )
+        count = save_snapshot(db_connection, {}, {}, TODAY, carry_forward=True)
+        assert count == 3
+        assert "Old" not in self._today_rows(db_connection)
+
+    def test_carry_forward_ignores_a_stale_computed_amount(self, db_connection):
+        """A computed account's latest row is never carried, even if wrong."""
+        schwab, cash, tax, _ = self._setup(db_connection)
+        upsert_amounts(
+            db_connection,
+            date(2026, 9, 1),
+            {schwab.id: Decimal("1000"), cash.id: Decimal("50"), tax.id: Decimal("-1")},
+        )
+        save_snapshot(db_connection, {}, {}, TODAY, carry_forward=True)
+        assert self._today_rows(db_connection)["Tax"] == Decimal("135.00")
+
+    def test_carry_forward_with_no_snapshots_needs_every_value(self, db_connection):
+        schwab, cash, _, _ = self._setup(db_connection)
+        with pytest.raises(AccountError, match="Missing value for Cash"):
+            save_snapshot(
+                db_connection, {schwab.id: Decimal("1")}, {}, TODAY, carry_forward=True
+            )
+        save_snapshot(
+            db_connection,
+            {schwab.id: Decimal("1"), cash.id: Decimal("2")},
+            {},
+            TODAY,
+            carry_forward=True,
+        )
+        assert set(self._today_rows(db_connection)) == {"Schwab", "Cash", "Tax"}
+
+    def test_carry_forward_failure_writes_nothing_including_basis(self, db_connection):
+        schwab, cash, tax, old = self._setup(db_connection)
+        upsert_amounts(
+            db_connection,
+            date(2026, 9, 1),
+            {
+                schwab.id: Decimal("1000"),
+                cash.id: Decimal("50"),
+                tax.id: Decimal("135"),
+            },
+        )
+        before = get_all_records(db_connection)
+        with pytest.raises(AccountError, match="not an active account"):
+            save_snapshot(
+                db_connection,
+                {schwab.id: Decimal("5"), old.id: Decimal("1")},
+                {tax.id: Decimal("999")},
+                TODAY,
+                carry_forward=True,
+            )
+        assert get_all_records(db_connection) == before
+        loaded = get_account(db_connection, tax.id)
+        assert loaded is not None and loaded.formula is not None
+        assert loaded.formula.cost_basis == Decimal("100")
+
+    @pytest.mark.parametrize("bad", ["NaN", "Infinity", "-Infinity", "sNaN"])
+    def test_rejects_non_finite_amounts_and_bases(self, db_connection, bad):
+        schwab, cash, tax, _ = self._setup(db_connection)
+        base = {schwab.id: Decimal("1"), cash.id: Decimal("1")}
+        with pytest.raises(AccountError, match="invalid amount"):
+            save_snapshot(db_connection, {**base, cash.id: Decimal(bad)}, {}, TODAY)
+        with pytest.raises(AccountError, match="invalid cost basis"):
+            save_snapshot(db_connection, base, {tax.id: Decimal(bad)}, TODAY)
+        assert get_all_records(db_connection) == []
+
     def test_missing_value_writes_nothing_including_basis(self, db_connection):
         schwab, cash, tax, _ = self._setup(db_connection)
         with pytest.raises(AccountError, match="Missing value for Cash"):

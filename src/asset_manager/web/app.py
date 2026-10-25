@@ -12,6 +12,7 @@ from asset_manager.db import get_connection_context
 from asset_manager.repository import get_accounts, get_all_records
 
 from .accounts_routes import router as accounts_router
+from .api_routes import router as api_router
 from .auth import (
     CurrentUser,
     EmailNotAllowed,
@@ -27,7 +28,9 @@ from .rendering import render, templates
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Asset Dashboard", docs_url=None, redoc_url=None)
+# /docs, /redoc and /openapi.json are public: the repo is public, so the
+# schema reveals nothing, and every route behind it requires a session.
+app = FastAPI(title="Asset Dashboard")
 
 # Session middleware for OAuth state and flash messages
 app.add_middleware(
@@ -38,6 +41,7 @@ app.add_middleware(
 )
 
 app.include_router(accounts_router)
+app.include_router(api_router)
 
 # OAuth client (lazy initialization)
 _oauth = None
@@ -53,8 +57,10 @@ def get_oauth_client():
 
 @app.exception_handler(LoginRequired)
 async def login_required_handler(request: Request, exc: LoginRequired):
-    """Pages redirect to login; JSON clients get a 401."""
-    if "application/json" in request.headers.get("accept", ""):
+    """Pages redirect to login; JSON clients and /api/ get a 401."""
+    if request.url.path.startswith(
+        "/api/"
+    ) or "application/json" in request.headers.get("accept", ""):
         return JSONResponse({"error": "Login required"}, status_code=401)
     return RedirectResponse(url="/login", status_code=302)
 

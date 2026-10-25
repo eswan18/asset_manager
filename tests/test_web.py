@@ -503,6 +503,356 @@ class TestSaveSnapshot:
 
 
 @pytest.mark.db
+class TestApi:
+    def _setup(self, conn):
+        from asset_manager.models import ProportionalFormula
+
+        schwab = create_account(conn, "Schwab", RecordType.ASSET)
+        cash = create_account(conn, "Cash", RecordType.ASSET)
+        tax = create_account(
+            conn,
+            "Tax",
+            RecordType.LIABILITY,
+            ProportionalFormula(rate=Decimal("0.15"), cost_basis=Decimal("100")),
+            [schwab.id],
+        )
+        old = create_account(conn, "Old", RecordType.ASSET)
+        upsert_amounts(
+            conn,
+            date(2026, 9, 1),
+            {
+                schwab.id: Decimal("1000"),
+                cash.id: Decimal("50"),
+                tax.id: Decimal("135"),
+                old.id: Decimal("7"),
+            },
+        )
+        retire_account(conn, old.id, date(2026, 9, 2))
+        conn.commit()
+        return schwab, cash, tax
+
+    def test_accounts_lists_active_accounts_with_latest_amounts(
+        self, client, db_connection
+    ):
+        schwab, cash, tax = self._setup(db_connection)
+        login(client)
+
+        response = client.get("/api/accounts")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["as_of"] == "2026-09-01"
+        by_name = {a["name"]: a for a in body["accounts"]}
+        assert set(by_name) == {"Schwab", "Cash", "Tax"}
+        assert by_name["Schwab"] == {
+            "id": schwab.id,
+            "name": "Schwab",
+            "type": "asset",
+            "category": None,
+            "computed": False,
+            "formula": None,
+            "input_ids": [],
+            "amount": "1000.00",
+        }
+        assert by_name["Tax"]["computed"] is True
+        assert by_name["Tax"]["input_ids"] == [schwab.id]
+        assert by_name["Tax"]["formula"]["cost_basis"] == "100"
+
+    def test_accounts_with_no_snapshots(self, client, db_connection):
+        create_account(db_connection, "Cash", RecordType.ASSET)
+        login(client)
+        body = client.get("/api/accounts").json()
+        assert body["as_of"] is None
+        assert [a["amount"] for a in body["accounts"]] == [None]
+
+    def test_snapshot_merges_with_latest_and_reports_sources(
+        self, client, db_connection
+    ):
+        schwab, cash, tax = self._setup(db_connection)
+        login(client)
+
+        response = client.post(
+            "/api/snapshots", json={"values": {str(schwab.id): "2000"}}
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["date"] == today().isoformat()
+        assert body["count"] == 3
+        got = {a["name"]: (a["amount"], a["source"]) for a in body["accounts"]}
+        assert got == {
+            "Schwab": ("2000.00", "updated"),
+            "Cash": ("50.00", "carried_forward"),
+            "Tax": ("285.00", "computed"),
+        }
+
+    def test_snapshot_error_returns_400_and_writes_nothing(self, client, db_connection):
+        from asset_manager.repository import get_all_records
+
+        _, _, tax = self._setup(db_connection)
+        before = get_all_records(db_connection)
+        login(client)
+
+        response = client.post("/api/snapshots", json={"values": {str(tax.id): "1"}})
+
+        assert response.status_code == 400
+        assert "is computed" in response.json()["error"]
+        assert get_all_records(db_connection) == before
+
+    def test_require_login_without_json_accept_header(self, client):
+        assert client.get("/api/accounts").status_code == 401
+        assert client.post("/api/snapshots", json={}).status_code == 401
+
+    def test_snapshot_accepts_json_numbers_without_float_error(
+        self, client, db_connection
+    ):
+        schwab, cash, _ = self._setup(db_connection)
+        login(client)
+        response = client.post(
+            "/api/snapshots",
+            json={"values": {str(schwab.id): 2000.1, str(cash.id): 0.29}},
+        )
+        assert response.status_code == 200
+        got = {a["name"]: a["amount"] for a in response.json()["accounts"]}
+        assert got["Schwab"] == "2000.10"
+        assert got["Cash"] == "0.29"
+
+    @pytest.mark.parametrize(
+        ("body", "status"),
+        [
+            ({"values": {"abc": "1"}}, 422),
+            ({"values": {"SCHWAB": "lots"}}, 422),
+            ({"values": {"SCHWAB": None}}, 422),
+            ({"values": ["SCHWAB", "1"]}, 422),
+            ({"values": {"SCHWAB": "NaN"}}, 422),
+            ({"values": {"SCHWAB": "Infinity"}}, 422),
+            ({"values": {"999999": "1"}}, 400),
+            ({"cost_bases": {"TAX": "-Infinity"}}, 422),
+        ],
+    )
+    def test_snapshot_rejects_bad_payloads_and_writes_nothing(
+        self, client, db_connection, body, status
+    ):
+        import json
+
+        from asset_manager.repository import get_account, get_all_records
+
+        schwab, _, tax = self._setup(db_connection)
+        text = json.dumps(body)
+        text = text.replace("SCHWAB", str(schwab.id)).replace("TAX", str(tax.id))
+        before = get_all_records(db_connection)
+        login(client)
+
+        response = client.post(
+            "/api/snapshots",
+            content=text,
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == status
+        assert get_all_records(db_connection) == before
+        loaded = get_account(db_connection, tax.id)
+        assert loaded is not None and loaded.formula is not None
+        assert loaded.formula.cost_basis == Decimal("100")
+
+
+# Routes reachable without a session. Every other route must refuse. The
+# docs routes are public too but are not in the schema, so not listed here.
+PUBLIC_PATHS = {"/login", "/auth/start", "/auth/callback", "/logout", "/health"}
+
+
+@pytest.mark.db
+def test_api_docs_are_public(client):
+    for path in ("/docs", "/redoc"):
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert "/openapi.json" in response.text, path
+    schema = client.get("/openapi.json")
+    assert schema.status_code == 200
+    assert {"/api/accounts", "/api/snapshots"} <= set(schema.json()["paths"])
+
+
+@pytest.mark.db
+class TestEveryRouteRequiresLogin:
+    def _protected(self):
+        # The OpenAPI schema, not app.routes: since FastAPI 0.162, routes from
+        # include_router sit behind a wrapper there and would be skipped.
+        from asset_manager.web.app import app
+
+        for path, operations in app.openapi()["paths"].items():
+            if path not in PUBLIC_PATHS:
+                for method in sorted(operations):
+                    yield method.upper(), path.replace("{account_id}", "1")
+
+    def test_the_sweep_sees_every_route_family(self, client):
+        paths = {path for _, path in self._protected()}
+        assert {
+            "/",
+            "/accounts",
+            "/snapshots",
+            "/api/accounts",
+            "/api/snapshots",
+            "/accounts/1/retire",
+        } <= paths
+
+    def test_logged_out_requests_are_refused_and_write_nothing(
+        self, client, db_connection
+    ):
+        from asset_manager.repository import get_account, get_all_records
+
+        cash = create_account(db_connection, "Cash", RecordType.ASSET)
+        db_connection.commit()
+        assert cash.id == 1  # the sweep substitutes 1 for {account_id}
+
+        for method, path in self._protected():
+            response = client.request(
+                method,
+                path,
+                json={"values": {"1": "5"}},
+                headers={"Accept": "application/json"},
+                follow_redirects=False,
+            )
+            assert response.status_code == 401, (method, path)
+
+        assert get_all_records(db_connection) == []
+        loaded = get_account(db_connection, cash.id)
+        assert loaded is not None and loaded.is_active and loaded.name == "Cash"
+
+    def test_pages_redirect_to_login_when_logged_out(self, client):
+        for method, path in self._protected():
+            if path.startswith("/api/"):
+                continue
+            response = client.request(method, path, follow_redirects=False)
+            assert response.status_code == 302, (method, path)
+            assert response.headers["location"] == "/login"
+
+    def test_cookie_signed_with_another_key_is_refused(self, client):
+        forged = URLSafeTimedSerializer("not-the-secret").dumps(USER)
+        client.cookies.set("session", forged)
+        assert client.get("/api/accounts").status_code == 401
+
+    def test_tampered_cookie_is_refused(self, client):
+        good = URLSafeTimedSerializer(SECRET).dumps(USER)
+        payload, rest = good.split(".", 1)
+        client.cookies.set("session", payload[:-1] + "A" + "." + rest)
+        assert client.get("/api/accounts").status_code == 401
+
+    def test_expired_cookie_is_refused(self, client, monkeypatch):
+        import time
+
+        from itsdangerous import TimestampSigner
+
+        from asset_manager.web.auth import SESSION_MAX_AGE
+
+        old = int(time.time()) - SESSION_MAX_AGE - 60
+        monkeypatch.setattr(TimestampSigner, "get_timestamp", lambda self: old)
+        cookie = URLSafeTimedSerializer(SECRET).dumps(USER)
+        monkeypatch.undo()
+        client.cookies.set("session", cookie)
+        assert client.get("/api/accounts").status_code == 401
+
+
+class FakeIdp:
+    """Stands in for authlib's registered client in the callback route."""
+
+    def __init__(self, token=None, error=None, userinfo=None):
+        self.token = token
+        self.error = error
+        self.userinfo_data = userinfo
+
+    async def authorize_access_token(self, request):
+        if self.error:
+            raise self.error
+        return self.token
+
+    async def userinfo(self, token):
+        return self.userinfo_data
+
+
+@pytest.mark.db
+class TestCallback:
+    def _use(self, monkeypatch, idp):
+        from types import SimpleNamespace
+
+        import asset_manager.web.app as app_module
+
+        monkeypatch.setattr(
+            app_module, "get_oauth_client", lambda: SimpleNamespace(idp=idp)
+        )
+
+    def _session_cookie(self, response) -> str | None:
+        for header in response.headers.get_list("set-cookie"):
+            if header.startswith("session="):
+                return header
+        return None
+
+    def test_login_sets_a_session_that_authenticates(
+        self, client, db_connection, monkeypatch
+    ):
+        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+
+        response = client.get("/auth/callback", follow_redirects=False)
+
+        assert response.status_code == 302
+        assert response.headers["location"] == "/"
+        header = self._session_cookie(response)
+        assert header is not None
+        assert "HttpOnly" in header and "samesite=lax" in header.lower()
+        assert "Secure" not in header  # ENV=dev
+        assert client.get("/api/accounts").status_code == 200
+
+    def test_session_cookie_is_secure_outside_dev(self, client, monkeypatch):
+        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+        monkeypatch.setenv("ENV", "prod")
+        monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
+        response = client.get("/auth/callback", follow_redirects=False)
+        header = self._session_cookie(response)
+        assert header is not None and "Secure" in header
+
+    def test_falls_back_to_the_userinfo_endpoint(self, client, monkeypatch):
+        self._use(monkeypatch, FakeIdp(token={}, userinfo=USER))
+        response = client.get("/auth/callback", follow_redirects=False)
+        assert response.status_code == 302
+        assert self._session_cookie(response) is not None
+
+    @pytest.mark.parametrize("email", ["stranger@example.com", None])
+    def test_allowlist_refuses_with_403_and_no_session(
+        self, client, monkeypatch, email
+    ):
+        self._use(monkeypatch, FakeIdp(token={"userinfo": {**USER, "email": email}}))
+        monkeypatch.setenv("ALLOWED_EMAILS", "me@example.com")
+
+        response = client.get("/auth/callback", follow_redirects=False)
+
+        assert response.status_code == 403
+        assert self._session_cookie(response) is None
+        assert client.get("/api/accounts").status_code == 401
+
+    def test_oauth_error_is_400_with_no_session(self, client, monkeypatch):
+        from authlib.integrations.starlette_client import OAuthError
+
+        self._use(monkeypatch, FakeIdp(error=OAuthError(error="access_denied")))
+
+        response = client.get("/auth/callback", follow_redirects=False)
+
+        assert response.status_code == 400
+        assert self._session_cookie(response) is None
+
+    def test_logout_clears_the_session(self, client, monkeypatch):
+        # Log in through the callback so the client holds the cookie exactly
+        # as the server set it; one set by hand is never matched for deletion.
+        self._use(monkeypatch, FakeIdp(token={"userinfo": USER}))
+        client.get("/auth/callback", follow_redirects=False)
+        assert client.get("/api/accounts").status_code == 200
+
+        response = client.get("/logout", follow_redirects=False)
+        assert response.status_code == 302
+        header = self._session_cookie(response)
+        assert header is not None and "Max-Age=0" in header
+        assert client.get("/api/accounts").status_code == 401
+
+
+@pytest.mark.db
 class TestAccountForm:
     def test_new_page_presets_type_and_lists_inputs(self, client, db_connection):
         create_account(db_connection, "Schwab", RecordType.ASSET)

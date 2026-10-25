@@ -241,12 +241,15 @@ def save_snapshot(
     values: dict[int, Decimal],
     cost_bases: dict[int, Decimal],
     as_of: date,
+    *,
+    carry_forward: bool = False,
 ) -> int:
     """Write a complete snapshot for `as_of`: every active account gets a row.
 
-    `values` must hold an amount for every active plain account. `cost_bases`
-    updates the formula document of computed accounts before evaluation.
-    All or nothing.
+    `values` must hold an amount for every active plain account, unless
+    `carry_forward` is set: then a plain account left out keeps its amount
+    from the latest snapshot. `cost_bases` updates the formula document of
+    computed accounts before evaluation. All or nothing.
     """
     try:
         with conn.transaction():
@@ -294,6 +297,16 @@ def save_snapshot(
                 by_id[account_id] = account.model_copy(
                     update={"formula": updated_formula}
                 )
+
+            if carry_forward:
+                # Only the latest snapshot date counts, as on the page: an
+                # account with no row there (new, unretired) must be sent.
+                latest = {
+                    r.account_id: r.amount
+                    for r in repo.get_latest_snapshot_records(conn)
+                    if r.account_id in by_id and not by_id[r.account_id].is_computed
+                }
+                values = {**latest, **values}
 
             amounts = compute_snapshot(list(by_id.values()), values, as_of)
             count = repo.upsert_amounts(conn, as_of, amounts)
