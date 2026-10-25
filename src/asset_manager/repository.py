@@ -16,8 +16,12 @@ from psycopg.types.json import Jsonb
 
 from asset_manager.models import (
     Account,
+    CashFlow,
+    CashFlowCategory,
+    CashFlowDirection,
     DailySummary,
     Formula,
+    FrequencyUnit,
     Invite,
     Member,
     Record,
@@ -739,3 +743,197 @@ def is_member_email(conn: Connection, workspace_id: int, email: str) -> bool:
             (workspace_id, email),
         )
         return cur.fetchone() is not None
+
+
+# --- cash flows ------------------------------------------------------------
+
+_CATEGORY_COLUMNS = "c.id, c.workspace_id, c.name, c.position"
+
+
+def _category_from_row(row: tuple[Any, ...]) -> CashFlowCategory:
+    return CashFlowCategory(
+        id=row[0], workspace_id=row[1], name=row[2], position=row[3]
+    )
+
+
+def get_cash_flow_categories(
+    conn: Connection, workspace_id: int
+) -> list[CashFlowCategory]:
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT {_CATEGORY_COLUMNS} FROM cash_flow_categories c
+            WHERE c.workspace_id = %s ORDER BY c.position, c.id
+            """,
+            (workspace_id,),
+        )
+        rows = cur.fetchall()
+    return [_category_from_row(row) for row in rows]
+
+
+def get_cash_flow_category(
+    conn: Connection, workspace_id: int, category_id: int
+) -> CashFlowCategory | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT {_CATEGORY_COLUMNS} FROM cash_flow_categories c
+            WHERE c.workspace_id = %s AND c.id = %s
+            """,
+            (workspace_id, category_id),
+        )
+        row = cur.fetchone()
+    return _category_from_row(row) if row else None
+
+
+def insert_cash_flow_category(
+    conn: Connection, workspace_id: int, name: str
+) -> CashFlowCategory:
+    """Positioned after the workspace's existing categories."""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            INSERT INTO cash_flow_categories AS c (workspace_id, name, position)
+            SELECT %s, %s, COALESCE(MAX(position) + 1, 0)
+            FROM cash_flow_categories WHERE workspace_id = %s
+            RETURNING {_CATEGORY_COLUMNS}
+            """,
+            (workspace_id, name, workspace_id),
+        )
+        row = cur.fetchone()
+    if row is None:
+        raise RuntimeError("INSERT returned no row")
+    return _category_from_row(row)
+
+
+def update_cash_flow_category(conn: Connection, category: CashFlowCategory) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE cash_flow_categories SET name = %s, position = %s
+            WHERE workspace_id = %s AND id = %s
+            """,
+            (category.name, category.position, category.workspace_id, category.id),
+        )
+
+
+def delete_cash_flow_category(
+    conn: Connection, workspace_id: int, category_id: int
+) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM cash_flow_categories WHERE workspace_id = %s AND id = %s",
+            (workspace_id, category_id),
+        )
+        return cur.rowcount == 1
+
+
+_CASH_FLOW_COLUMNS = """
+    f.id, f.workspace_id, f.name, f.direction, f.amount, f.every, f.unit,
+    f.category_id, f.description, f.is_estimate, f.created_at, f.updated_at
+"""
+
+
+def _cash_flow_from_row(row: tuple[Any, ...]) -> CashFlow:
+    return CashFlow(
+        id=row[0],
+        workspace_id=row[1],
+        name=row[2],
+        direction=CashFlowDirection(row[3]),
+        amount=Decimal(row[4]),
+        every=row[5],
+        unit=FrequencyUnit(row[6]),
+        category_id=row[7],
+        description=row[8],
+        is_estimate=row[9],
+        created_at=row[10],
+        updated_at=row[11],
+    )
+
+
+def get_cash_flows(conn: Connection, workspace_id: int) -> list[CashFlow]:
+    """Income first, then by category order (uncategorized last), then name."""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT {_CASH_FLOW_COLUMNS}
+            FROM cash_flows f
+            LEFT JOIN cash_flow_categories c
+                ON c.workspace_id = f.workspace_id AND c.id = f.category_id
+            WHERE f.workspace_id = %s
+            ORDER BY f.direction DESC, c.position NULLS LAST, c.id,
+                     lower(f.name), f.id
+            """,
+            (workspace_id,),
+        )
+        rows = cur.fetchall()
+    return [_cash_flow_from_row(row) for row in rows]
+
+
+def get_cash_flow(
+    conn: Connection, workspace_id: int, cash_flow_id: int
+) -> CashFlow | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT {_CASH_FLOW_COLUMNS} FROM cash_flows f
+            WHERE f.workspace_id = %s AND f.id = %s
+            """,
+            (workspace_id, cash_flow_id),
+        )
+        row = cur.fetchone()
+    return _cash_flow_from_row(row) if row else None
+
+
+def _cash_flow_params(flow: CashFlow) -> tuple[Any, ...]:
+    return (
+        flow.name,
+        flow.direction.value,
+        flow.amount,
+        flow.every,
+        flow.unit.value,
+        flow.category_id,
+        flow.description,
+        flow.is_estimate,
+    )
+
+
+def insert_cash_flow(conn: Connection, workspace_id: int, flow: CashFlow) -> CashFlow:
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            INSERT INTO cash_flows AS f
+                (name, direction, amount, every, unit, category_id, description,
+                 is_estimate, workspace_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING {_CASH_FLOW_COLUMNS}
+            """,
+            (*_cash_flow_params(flow), workspace_id),
+        )
+        row = cur.fetchone()
+    if row is None:
+        raise RuntimeError("INSERT returned no row")
+    return _cash_flow_from_row(row)
+
+
+def update_cash_flow(conn: Connection, workspace_id: int, flow: CashFlow) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE cash_flows SET
+                name = %s, direction = %s, amount = %s, every = %s, unit = %s,
+                category_id = %s, description = %s, is_estimate = %s,
+                updated_at = now()
+            WHERE workspace_id = %s AND id = %s
+            """,
+            (*_cash_flow_params(flow), workspace_id, flow.id),
+        )
+
+
+def delete_cash_flow(conn: Connection, workspace_id: int, cash_flow_id: int) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM cash_flows WHERE workspace_id = %s AND id = %s",
+            (workspace_id, cash_flow_id),
+        )
+        return cur.rowcount == 1

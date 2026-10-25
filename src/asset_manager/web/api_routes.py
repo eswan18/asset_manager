@@ -16,6 +16,18 @@ from pydantic import BaseModel, Field
 
 from asset_manager import repository as repo
 from asset_manager.accounts import AccountError, save_snapshot
+from asset_manager.cashflows import (
+    CashFlowError,
+    create_cash_flow,
+    create_category,
+    delete_cash_flow,
+    delete_category,
+    per_year,
+    rates,
+    totals,
+    update_cash_flow,
+    update_category,
+)
 from asset_manager.clock import default_timezone, today
 from asset_manager.db import get_connection_context
 from asset_manager.invites import (
@@ -26,7 +38,17 @@ from asset_manager.invites import (
     decline_invite,
     revoke_invite,
 )
-from asset_manager.models import Account, Invite, Member, Role, Workspace
+from asset_manager.models import (
+    Account,
+    CashFlow,
+    CashFlowCategory,
+    CashFlowDirection,
+    FrequencyUnit,
+    Invite,
+    Member,
+    Role,
+    Workspace,
+)
 from asset_manager.repository import get_accounts, get_latest_snapshot_records
 from asset_manager.workspaces import (
     WorkspaceError,
@@ -374,3 +396,166 @@ async def update_snapshot(
             ],
         }
     )
+
+
+# --- cash flows --------------------------------------------------------------
+
+
+def category_json(category: CashFlowCategory) -> dict[str, Any]:
+    return {"id": category.id, "name": category.name, "position": category.position}
+
+
+class CategoryCreate(BaseModel):
+    name: str
+
+
+class CategoryUpdate(BaseModel):
+    name: str | None = None
+    position: int | None = None
+
+
+@router.get("/workspaces/{workspace_id}/cash-flow-categories")
+async def list_categories(access: ViewerAccess) -> JSONResponse:
+    """In display order."""
+    with get_connection_context() as conn:
+        categories = repo.get_cash_flow_categories(conn, access.workspace.id)
+    return JSONResponse({"categories": [category_json(c) for c in categories]})
+
+
+@router.post("/workspaces/{workspace_id}/cash-flow-categories")
+async def create_category_route(
+    payload: CategoryCreate, access: EditorAccess
+) -> JSONResponse:
+    """Added after the existing categories."""
+    try:
+        with get_connection_context() as conn:
+            category = create_category(conn, access.workspace.id, payload.name)
+    except CashFlowError as e:
+        return error(str(e))
+    return JSONResponse(category_json(category), status_code=201)
+
+
+@router.patch("/workspaces/{workspace_id}/cash-flow-categories/{category_id}")
+async def update_category_route(
+    category_id: int, payload: CategoryUpdate, access: EditorAccess
+) -> JSONResponse:
+    """Rename, or move by setting `position` (lower comes first)."""
+    try:
+        with get_connection_context() as conn:
+            category = update_category(
+                conn,
+                access.workspace.id,
+                category_id,
+                name=payload.name,
+                position=payload.position,
+            )
+    except CashFlowError as e:
+        return error(str(e))
+    return JSONResponse(category_json(category))
+
+
+@router.delete("/workspaces/{workspace_id}/cash-flow-categories/{category_id}")
+async def delete_category_route(category_id: int, access: EditorAccess) -> JSONResponse:
+    """Its cash flows become uncategorized."""
+    try:
+        with get_connection_context() as conn:
+            delete_category(conn, access.workspace.id, category_id)
+    except CashFlowError as e:
+        return error(str(e))
+    return JSONResponse({"deleted": category_id})
+
+
+def cash_flow_json(flow: CashFlow) -> dict[str, Any]:
+    return {
+        "id": flow.id,
+        "name": flow.name,
+        "direction": flow.direction.value,
+        "amount": str(flow.amount),
+        "every": flow.every,
+        "unit": flow.unit.value,
+        "category_id": flow.category_id,
+        "description": flow.description,
+        "is_estimate": flow.is_estimate,
+        **rates(per_year(flow)),
+    }
+
+
+class CashFlowCreate(BaseModel):
+    name: str
+    direction: CashFlowDirection
+    amount: Decimal
+    every: int = 1
+    unit: FrequencyUnit
+    category_id: int | None = None
+    description: str | None = None
+    is_estimate: bool = False
+
+
+class CashFlowUpdate(BaseModel):
+    """Only the fields sent change. category_id and description may be null
+    to clear them; the others may not."""
+
+    name: str | None = None
+    direction: CashFlowDirection | None = None
+    amount: Decimal | None = None
+    every: int | None = None
+    unit: FrequencyUnit | None = None
+    category_id: int | None = None
+    description: str | None = None
+    is_estimate: bool | None = None
+
+
+_CLEARABLE = {"category_id", "description"}
+
+
+@router.get("/workspaces/{workspace_id}/cash-flows")
+async def list_cash_flows(access: ViewerAccess) -> JSONResponse:
+    """Every cash flow with its per-day, per-month and per-year amounts
+    (signed: expenses negative), and income, expense and net totals."""
+    with get_connection_context() as conn:
+        flows = repo.get_cash_flows(conn, access.workspace.id)
+    return JSONResponse(
+        {"cash_flows": [cash_flow_json(f) for f in flows], "totals": totals(flows)}
+    )
+
+
+@router.post("/workspaces/{workspace_id}/cash-flows")
+async def create_cash_flow_route(
+    payload: CashFlowCreate, access: EditorAccess
+) -> JSONResponse:
+    try:
+        with get_connection_context() as conn:
+            flow = create_cash_flow(
+                conn, access.workspace.id, CashFlow(**payload.model_dump())
+            )
+    except CashFlowError as e:
+        return error(str(e))
+    return JSONResponse(cash_flow_json(flow), status_code=201)
+
+
+@router.patch("/workspaces/{workspace_id}/cash-flows/{cash_flow_id}")
+async def update_cash_flow_route(
+    cash_flow_id: int, payload: CashFlowUpdate, access: EditorAccess
+) -> JSONResponse:
+    changes = payload.model_dump(exclude_unset=True)
+    for field, value in changes.items():
+        if value is None and field not in _CLEARABLE:
+            return error(f"{field} cannot be null")
+    try:
+        with get_connection_context() as conn:
+            flow = update_cash_flow(conn, access.workspace.id, cash_flow_id, changes)
+    except CashFlowError as e:
+        return error(str(e))
+    return JSONResponse(cash_flow_json(flow))
+
+
+@router.delete("/workspaces/{workspace_id}/cash-flows/{cash_flow_id}")
+async def delete_cash_flow_route(
+    cash_flow_id: int, access: EditorAccess
+) -> JSONResponse:
+    try:
+        with get_connection_context() as conn:
+            delete_cash_flow(conn, access.workspace.id, cash_flow_id)
+    except CashFlowError as e:
+        return error(str(e))
+    return JSONResponse({"deleted": cash_flow_id})

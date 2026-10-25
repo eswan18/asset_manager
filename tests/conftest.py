@@ -81,6 +81,7 @@ def _truncate(conn) -> None:
         cur.execute(
             """
             TRUNCATE TABLE snapshots, formula_inputs, accounts,
+                           cash_flows, cash_flow_categories, workspace_invites,
                            workspace_members, workspaces, users
             RESTART IDENTITY CASCADE
             """

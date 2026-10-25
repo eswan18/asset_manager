@@ -482,3 +482,195 @@ class TestInviteEndpoints:
             ).status_code
             == 400
         )
+
+
+@pytest.mark.db
+class TestCashFlowEndpoints:
+    BASE = f"/api/workspaces/{WS}"
+
+    def _category(self, client, name: str) -> int:
+        response = client.post(f"{self.BASE}/cash-flow-categories", json={"name": name})
+        assert response.status_code == 201, response.text
+        return response.json()["id"]
+
+    def _flow(self, client, **body) -> dict:
+        response = client.post(f"{self.BASE}/cash-flows", json=body)
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    def test_a_budget_round_trip(self, client):
+        login(client)
+        housing = self._category(client, "Mortgage Payment")
+        subs = self._category(client, "Subscription Services")
+        self._flow(
+            client,
+            name="Take Home Pay",
+            direction="income",
+            amount="5103.83",
+            every=2,
+            unit="week",
+        )
+        rent = self._flow(
+            client,
+            name="Rent",
+            direction="expense",
+            amount=3820,
+            every=1,
+            unit="month",
+            category_id=housing,
+            description="Monthly mortgage payment",
+        )
+        self._flow(
+            client,
+            name="Groceries",
+            direction="expense",
+            amount="581.00",
+            unit="month",
+            is_estimate=True,
+        )
+        self._flow(
+            client,
+            name="Spotify Premium",
+            direction="expense",
+            amount="13.00",
+            unit="month",
+            category_id=subs,
+        )
+        assert rent["amount"] == "3820.00" and rent["per_day"] == "-125.59"
+
+        body = client.get(f"{self.BASE}/cash-flows").json()
+
+        assert [f["name"] for f in body["cash_flows"]] == [
+            "Take Home Pay",
+            "Rent",
+            "Spotify Premium",
+            "Groceries",
+        ]
+        groceries = body["cash_flows"][-1]
+        assert (groceries["is_estimate"], groceries["category_id"]) == (True, None)
+        # 364.56 - 125.59 - 0.43 - 19.10, summed unrounded and rounded once.
+        assert body["totals"]["net"]["per_day"] == "219.44"
+        assert (
+            body["totals"]["income"]["per_month"] == "11088.68"
+        )  # 5103.83 × 365 / 14 / 12
+
+    def test_patch_changes_only_what_is_sent_and_can_clear(self, client):
+        login(client)
+        fitness = self._category(client, "Fitness")
+        gym = self._flow(
+            client,
+            name="Gym",
+            direction="expense",
+            amount="579",
+            unit="year",
+            category_id=fitness,
+            description="Annual",
+        )
+        url = f"{self.BASE}/cash-flows/{gym['id']}"
+
+        patched = client.patch(url, json={"category_id": None, "is_estimate": True})
+
+        assert patched.status_code == 200
+        assert (patched.json()["category_id"], patched.json()["is_estimate"]) == (
+            None,
+            True,
+        )
+        assert patched.json()["description"] == "Annual"
+        refused = client.patch(url, json={"name": None})
+        assert refused.status_code == 400
+        assert "name cannot be null" in refused.json()["error"]
+
+    @pytest.mark.parametrize(
+        ("body", "status"),
+        [
+            (
+                {"name": "X", "direction": "expense", "amount": "-1", "unit": "month"},
+                400,
+            ),
+            (
+                {"name": "X", "direction": "expense", "amount": "NaN", "unit": "month"},
+                422,
+            ),
+            (
+                {"name": "X", "direction": "outflow", "amount": "1", "unit": "month"},
+                422,
+            ),
+            (
+                {
+                    "name": "X",
+                    "direction": "expense",
+                    "amount": "1",
+                    "unit": "fortnight",
+                },
+                422,
+            ),
+            (
+                {
+                    "name": "X",
+                    "direction": "expense",
+                    "amount": "1",
+                    "unit": "month",
+                    "every": 0,
+                },
+                400,
+            ),
+            (
+                {
+                    "name": "X",
+                    "direction": "expense",
+                    "amount": "1",
+                    "unit": "month",
+                    "category_id": 99,
+                },
+                400,
+            ),
+            ({"direction": "expense", "amount": "1", "unit": "month"}, 422),
+        ],
+    )
+    def test_bad_input(self, client, db_connection, body, status):
+        login(client)
+        response = client.post(f"{self.BASE}/cash-flows", json=body)
+        assert response.status_code == status
+        assert repo.get_cash_flows(db_connection, WS) == []
+
+    def test_deleting_a_category_keeps_its_flows(self, client):
+        login(client)
+        fitness = self._category(client, "Fitness")
+        gym = self._flow(
+            client,
+            name="Gym",
+            direction="expense",
+            amount="85",
+            unit="month",
+            category_id=fitness,
+        )
+        assert (
+            client.delete(f"{self.BASE}/cash-flow-categories/{fitness}").status_code
+            == 200
+        )
+        flows = client.get(f"{self.BASE}/cash-flows").json()["cash_flows"]
+        assert [(f["id"], f["category_id"]) for f in flows] == [(gym["id"], None)]
+        assert client.get(f"{self.BASE}/cash-flow-categories").json() == {
+            "categories": []
+        }
+
+    def test_another_workspaces_category_cannot_be_used(self, client, db_connection):
+        add_user(db_connection, STRANGER)
+        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        login(client)
+        mine = self._category(client, "Fitness")
+
+        session_for(client, STRANGER)
+        response = client.post(
+            f"/api/workspaces/{OTHER_WS}/cash-flows",
+            json={
+                "name": "Gym",
+                "direction": "expense",
+                "amount": "1",
+                "unit": "month",
+                "category_id": mine,
+            },
+        )
+
+        assert response.status_code == 400
+        assert repo.get_cash_flows(db_connection, OTHER_WS) == []
