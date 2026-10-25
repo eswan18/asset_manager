@@ -102,6 +102,7 @@ asset_manager/
 │       ├── workspaces.py       # Workspace and membership rules (last owner, time zones)
 │       ├── users.py            # record_login: match/claim/create users at login
 │       ├── invites.py          # Workspace invites: create, revoke, accept, decline
+│       ├── cashflows.py        # Cash flows: per-day/month/year math (pure) and rules
 │       ├── formulas.py         # Pure formula evaluation (compute_snapshot)
 │       ├── report.py           # Interactive HTML report generation
 │       ├── py.typed            # PEP 561 marker
@@ -136,13 +137,14 @@ asset_manager/
 - **`repository.py`**: Thin SQL. Never commits. Every account/snapshot function takes `workspace_id` and filters on it, so another workspace's ids behave as nonexistent.
 - **`workspaces.py`**: `create_workspace` (creator becomes owner), `update_workspace` (name, time zone), `delete_workspace` (soft), `change_role`/`remove_member` (refuse to drop the last owner; lock the member rows `FOR UPDATE`). Raises `WorkspaceError`.
 - **`invites.py`**: Owners invite an email with a role; expires after `INVITE_TTL` (14 days). Only the invited (verified) email can accept or decline; anything else is `InviteNotFound` (404), so ids reveal nothing. An invite lapses once its sender is no longer an owner. Invites never bypass `ALLOWED_EMAILS`. **No email is sent** yet; the invitee is told out of band and uses `GET /api/invites`.
+- **`cashflows.py`**: Recurring income/expenses. `per_year(flow)` is signed (expenses negative) and divides once, at the end, so equivalent frequencies (2 weeks / 14 days, 12 months / 1 year) agree exactly; `rates()` rounds to cents; `totals()` sums unrounded and rounds once. Service: create/update/delete flows and per-workspace categories; raises `CashFlowError`.
 - **`users.py`**: `record_login(sub, email, name)`: match on `idp_sub`, else claim the unclaimed (pre-provisioned) row with this email, else insert. Callers must have checked the email is verified.
 - **`db.py`**: Database connection management using psycopg3
 - **`report.py`**: Interactive HTML report generation using Plotly
 - **`cli.py`**: Typer CLI with `report`, `serve`, and `version` commands
 - **`web/app.py`**: App wiring, dashboard, auth routes. `/docs`, `/redoc` and `/openapi.json` are public
 - **`web/accounts_routes.py`**: Accounts page, account form, `POST /snapshots`. Pages act in the user's **oldest membership** (`PageViewer`/`PageEditor`) until the frontend gets a workspace switcher
-- **`web/api_routes.py`**: JSON API. `GET /api/me` (you + workspaces with roles); `GET /api/invites` (your pending invites), `POST /api/invites/{id}/accept|decline`; `POST /api/workspaces`; `GET/PATCH/DELETE /api/workspaces/{id}`; `/members` (list, `PATCH /{user_id}` role, `DELETE /{user_id}` remove or leave); `/invites` (owner: create, list pending, `DELETE /{invite_id}` revoke); `GET /accounts` (active accounts + latest amounts); `POST /snapshots` saves today's snapshot with `carry_forward=True`, so omitted plain accounts keep their latest amount, and reports each account's `source` (`updated`/`carried_forward`/`computed`). Session auth for now; logged-out `/api/` requests always get 401. All errors are `{"error": ...}`
+- **`web/api_routes.py`**: JSON API. `GET /api/me` (you + workspaces with roles); `GET /api/invites` (your pending invites), `POST /api/invites/{id}/accept|decline`; `POST /api/workspaces`; `GET/PATCH/DELETE /api/workspaces/{id}`; `/members` (list, `PATCH /{user_id}` role, `DELETE /{user_id}` remove or leave); `/invites` (owner: create, list pending, `DELETE /{invite_id}` revoke); `/cash-flows` (list with per-day/month/year and totals, create, `PATCH`, delete) and `/cash-flow-categories` (list, create, `PATCH` name/position, delete); `GET /accounts` (active accounts + latest amounts); `POST /snapshots` saves today's snapshot with `carry_forward=True`, so omitted plain accounts keep their latest amount, and reports each account's `source` (`updated`/`carried_forward`/`computed`). Session auth for now; logged-out `/api/` requests always get 401. All errors are `{"error": ...}`
 - **`web/access.py`**: `ViewerAccess`/`EditorAccess`/`OwnerAccess` for API routes with `{workspace_id}` in the path: **404** if you are not a live member (existence not revealed), **403** if your role is too low
 - **`web/auth.py`**: OAuth/OIDC with PKCE, `ALLOWED_EMAILS` gate. The callback requires `email_verified: true` (identity lets unverified accounts log in) and calls `record_login`; the session holds the user `id` and `sub`. `require_user` reloads the user from the database on every request and refuses a missing row, a mismatched `sub`, or an email no longer allowed
 
@@ -196,6 +198,30 @@ CREATE TABLE workspace_invites (
     declined_at TIMESTAMPTZ,
     revoked_at TIMESTAMPTZ,     -- at most one of accepted/declined/revoked
     -- unique (workspace_id, email) among open (unresolved) invites
+);
+
+CREATE TABLE cash_flow_categories (   -- per-workspace, unlike account categories
+    id SERIAL PRIMARY KEY,
+    workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,   -- display order; new ones go last
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (workspace_id, name), UNIQUE (workspace_id, id)
+);
+
+CREATE TABLE cash_flows (   -- a current list, edited in place; not dated history
+    id SERIAL PRIMARY KEY,
+    workspace_id INTEGER NOT NULL REFERENCES workspaces(id),
+    name TEXT NOT NULL,                     -- unique per workspace
+    direction TEXT NOT NULL,                -- income | expense
+    amount NUMERIC(15, 2) NOT NULL,         -- >= 0; direction carries the sign
+    every INTEGER NOT NULL,                 -- 1..1000
+    unit TEXT NOT NULL,                     -- day | week | month | year
+    category_id INTEGER,                    -- FK (workspace_id, category_id); category delete nulls it
+    description TEXT,
+    is_estimate BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE accounts (
@@ -259,6 +285,7 @@ Tests are organized by module with pytest:
 - `test_models.py`, `test_formulas.py`: Pure unit tests (Hypothesis for the formula property)
 - `test_accounts.py`: Service rules and the save transaction (testcontainers)
 - `test_migration.py`: Applies migrations to legacy rows and checks the backfill and rollback; the workspaces migration also checks the database refuses rows crossing workspaces. `test_every_migration_reverses_cleanly` runs all ups, all downs, all ups, so a new migration needs a working down
+- `test_cashflows.py`: Rate math against rows from the original spreadsheet, Hypothesis properties (equivalent frequencies agree, direction only flips the sign), rules, and workspace scoping down to the repository
 - `test_users.py`, `test_workspaces.py`, `test_invites.py`: Login matching/claiming; workspace and invite rules, including concurrency tests for the last-owner lock and accept-vs-revoke
 - `test_web.py`: FastAPI TestClient with a signed session cookie against the container, including the every-route login and allowlist sweeps
 - `test_workspace_api.py`: Isolation sweep (a member of workspace 2 gets 404 on every workspace-1 route and changes nothing), role sweeps (exact 403 sets for viewer and editor), members, login

@@ -141,3 +141,39 @@ class Invite(BaseModel):
     def is_pending(self, now: datetime) -> bool:
         """Open and unexpired: the only state that can be accepted."""
         return self.is_open and now < self.expires_at
+
+
+class CashFlowDirection(str, Enum):
+    INCOME = "income"
+    EXPENSE = "expense"
+
+
+class FrequencyUnit(str, Enum):
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+
+
+class CashFlowCategory(BaseModel):
+    id: int
+    workspace_id: int
+    name: str
+    position: int
+
+
+class CashFlow(BaseModel):
+    """`amount` (never negative) every `every` `unit`s; `direction` says which way."""
+
+    id: int | None = None
+    workspace_id: int | None = None
+    name: str
+    direction: CashFlowDirection
+    amount: Decimal
+    every: int = 1
+    unit: FrequencyUnit
+    category_id: int | None = None
+    description: str | None = None
+    is_estimate: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
