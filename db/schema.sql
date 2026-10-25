@@ -149,6 +149,49 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
+-- Name: workspace_invites; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.workspace_invites (
+    id integer NOT NULL,
+    workspace_id integer NOT NULL,
+    email text NOT NULL,
+    role text NOT NULL,
+    invited_by integer NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    accepted_at timestamp with time zone,
+    accepted_by integer,
+    declined_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    CONSTRAINT workspace_invites_check CHECK ((num_nonnulls(accepted_at, declined_at, revoked_at) <= 1)),
+    CONSTRAINT workspace_invites_check1 CHECK (((accepted_at IS NULL) = (accepted_by IS NULL))),
+    CONSTRAINT workspace_invites_email_check CHECK (((email = lower(email)) AND (email ~~ '%_@_%'::text))),
+    CONSTRAINT workspace_invites_role_check CHECK ((role = ANY (ARRAY['owner'::text, 'editor'::text, 'viewer'::text])))
+);
+
+
+--
+-- Name: workspace_invites_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.workspace_invites_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: workspace_invites_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.workspace_invites_id_seq OWNED BY public.workspace_invites.id;
+
+
+--
 -- Name: workspace_members; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -214,6 +257,13 @@ ALTER TABLE ONLY public.snapshots ALTER COLUMN id SET DEFAULT nextval('public.sn
 --
 
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
+-- Name: workspace_invites id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_invites ALTER COLUMN id SET DEFAULT nextval('public.workspace_invites_id_seq'::regclass);
 
 
 --
@@ -288,6 +338,14 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: workspace_invites workspace_invites_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_invites
+    ADD CONSTRAINT workspace_invites_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: workspace_members workspace_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -339,6 +397,13 @@ CREATE INDEX idx_snapshots_workspace_date ON public.snapshots USING btree (works
 
 
 --
+-- Name: idx_workspace_invites_email; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_workspace_invites_email ON public.workspace_invites USING btree (email);
+
+
+--
 -- Name: idx_workspace_members_user; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -350,6 +415,13 @@ CREATE INDEX idx_workspace_members_user ON public.workspace_members USING btree 
 --
 
 CREATE UNIQUE INDEX users_unclaimed_email ON public.users USING btree (email) WHERE (idp_sub IS NULL);
+
+
+--
+-- Name: workspace_invites_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX workspace_invites_open ON public.workspace_invites USING btree (workspace_id, email) WHERE ((accepted_at IS NULL) AND (declined_at IS NULL) AND (revoked_at IS NULL));
 
 
 --
@@ -385,6 +457,30 @@ ALTER TABLE ONLY public.snapshots
 
 
 --
+-- Name: workspace_invites workspace_invites_accepted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_invites
+    ADD CONSTRAINT workspace_invites_accepted_by_fkey FOREIGN KEY (accepted_by) REFERENCES public.users(id);
+
+
+--
+-- Name: workspace_invites workspace_invites_invited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_invites
+    ADD CONSTRAINT workspace_invites_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.users(id);
+
+
+--
+-- Name: workspace_invites workspace_invites_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_invites
+    ADD CONSTRAINT workspace_invites_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id);
+
+
+--
 -- Name: workspace_members workspace_members_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -415,4 +511,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260123040144'),
     ('20260906120000'),
     ('20261019120000'),
-    ('20261026120000');
+    ('20261026120000'),
+    ('20261027120000');
