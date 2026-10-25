@@ -5,3 +5,4 @@ metadata:
 data:
   ENV: "prod"
   IDP_URL: "http://identity.identity-prod.svc.cluster.local"
+  ALLOWED_EMAILS: "ethanpswan@gmail.com"

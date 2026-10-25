@@ -200,7 +200,7 @@ CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, account_id);
 | `CLIENT_ID` | OAuth client ID |
 | `CLIENT_SECRET` | OAuth client secret |
 | `SECRET_KEY` | Random secret for signing session cookies |
-| `ALLOWED_EMAILS` | Optional comma-separated allowlist; when set, other identity users get a 403 at login |
+| `ALLOWED_EMAILS` | Comma-separated allowlist, checked at login (403) and on every request (401). **Fails closed**: unset or blank lets nobody in, except under `ENV=dev`. Set in both k8s env configmaps; identity has open registration, so it is the only thing keeping other identity users out |
 | `ENV` | Set to `dev` for local development (disables secure cookies)
 | `TIMEZONE` | IANA zone used to date snapshots and retirements (default America/Chicago) |
 

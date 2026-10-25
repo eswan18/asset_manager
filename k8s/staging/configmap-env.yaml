@@ -5,3 +5,4 @@ metadata:
 data:
   ENV: "staging"
   IDP_URL: "http://identity.identity-staging.svc.cluster.local"
+  ALLOWED_EMAILS: "ethanpswan@gmail.com"
