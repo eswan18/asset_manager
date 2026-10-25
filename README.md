@@ -2,7 +2,7 @@
 
 [![CI Status](https://github.com/eswan18/asset_manager/workflows/Continuous%20Integration/badge.svg)](https://github.com/eswan18/asset_manager/actions)
 
-A Python application for tracking personal financial assets and liabilities. Values are entered on the web dashboard's Accounts tab and saved as dated snapshots in PostgreSQL. Liabilities such as deferred tax can be computed from other accounts by a formula. A legacy `fetch` command still imports from a Google Sheet during the cutover.
+A Python application for tracking personal financial assets and liabilities. Values are entered on the web dashboard's Accounts tab and saved as dated snapshots in PostgreSQL. Liabilities such as deferred tax can be computed from other accounts by a formula.
 
 ## Prerequisites
 
@@ -26,7 +26,6 @@ A Python application for tracking personal financial assets and liabilities. Val
    Edit the `.env.dev` and `.env.prod` files with your credentials:
    ```
    DATABASE_URL=postgresql://user:password@host:5432/dbname
-   GOOGLE_APPLICATION_CREDENTIALS=credentials/your-service-account.json
 
    # For web dashboard (optional)
    IDP_URL=https://your-idp.example.com
@@ -51,14 +50,6 @@ Run the dashboard (below), open **Accounts**, type current amounts, and click **
 - **Add** an asset or liability from the table header. A liability can be **computed**: `rate × (sum of chosen input accounts − cost basis)`. Cost basis is editable inline on the Accounts tab; rate and inputs live on the account's edit page.
 - **Retire** an account from its edit page. If its last saved amount is not zero the page warns you and the button reads "Retire anyway"; from the next snapshot on it is no longer counted. The only hard rule: an account that feeds a computed account cannot be retired until that formula is edited or retired. History is kept; retired accounts are hidden behind a toggle and can be unretired.
 
-### Import from Google Sheets (legacy)
-
-Still works during the cutover. Rows are matched to accounts by name; unknown names create plain accounts and retired accounts are skipped.
-```bash
-ENV=dev uv run asset-manager fetch            # writes today's snapshot
-ENV=dev uv run asset-manager fetch --dry-run  # shows what would be created or skipped
-```
-
 ### Generate HTML Report
 
 Create an interactive HTML report with Plotly charts:
@@ -82,9 +73,6 @@ The dashboard requires OAuth configuration (IDP_URL, CLIENT_ID, CLIENT_SECRET, S
 ```bash
 # Show help
 uv run asset-manager --help
-
-# Import from Google Sheets (legacy; see above)
-ENV=dev uv run asset-manager fetch
 
 # Generate interactive HTML report
 ENV=dev uv run asset-manager report
