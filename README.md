@@ -54,8 +54,8 @@ Run the dashboard (below), open **Accounts**, type current amounts, and click **
 
 Create an interactive HTML report with Plotly charts:
 ```bash
-ENV=dev uv run asset-manager report                    # Opens in browser
-ENV=dev uv run asset-manager report --output report.html --no-open
+ENV=dev uv run asset-manager report --workspace 1       # Opens in browser
+ENV=dev uv run asset-manager report --workspace 1 --output report.html --no-open
 ```
 
 ### Run Web Dashboard
@@ -75,7 +75,7 @@ The dashboard requires OAuth configuration (IDP_URL, CLIENT_ID, CLIENT_SECRET, S
 uv run asset-manager --help
 
 # Generate interactive HTML report
-ENV=dev uv run asset-manager report
+ENV=dev uv run asset-manager report --workspace 1
 
 # Run web dashboard locally
 ENV=dev uv run asset-manager serve
