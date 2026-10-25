@@ -1,5 +1,5 @@
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Iterator
 
 import psycopg
 from psycopg import Connection
@@ -13,7 +13,7 @@ def get_connection() -> Connection:
 
 
 @contextmanager
-def get_connection_context() -> Iterator[Connection]:
+def get_connection_context() -> Generator[Connection]:
     conn = get_connection()
     try:
         yield conn
