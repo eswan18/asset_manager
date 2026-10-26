@@ -219,3 +219,37 @@ def test_an_invite_has_at_most_one_resolution(db_connection):
             """,
             (WS, USER_ID),
         )
+
+
+DROP_TIMEZONE = next(m for m in MIGRATIONS if "drop_workspace_timezone" in m.name)
+
+
+@pytest.mark.db
+def test_drop_workspace_timezone_migration_and_its_reversal(fresh_db_url):
+    """Up drops the column, keeping the rows; down brings it back as Chicago."""
+    with psycopg.connect(fresh_db_url) as conn:
+        _apply(conn, MIGRATIONS[: MIGRATIONS.index(DROP_TIMEZONE)])
+        conn.execute(
+            "INSERT INTO workspaces (name, timezone) VALUES ('A', 'UTC'), ('B', 'Asia/Tokyo')"
+        )
+        conn.commit()
+
+        _apply(conn, [DROP_TIMEZONE])
+        assert "timezone" not in _columns(conn, "workspaces")
+        assert conn.execute(
+            "SELECT id, name FROM workspaces ORDER BY id"
+        ).fetchall() == [
+            (1, "A"),
+            (2, "B"),
+        ]
+
+        _apply(conn, [DROP_TIMEZONE], part=1)
+        assert conn.execute(
+            "SELECT id, timezone FROM workspaces ORDER BY id"
+        ).fetchall() == [(1, "America/Chicago"), (2, "America/Chicago")]
+        with pytest.raises(psycopg.errors.NotNullViolation):
+            conn.execute("INSERT INTO workspaces (name, timezone) VALUES ('C', NULL)")
+        conn.rollback()
+        # No lasting default: the restored column is as it was, required.
+        with pytest.raises(psycopg.errors.NotNullViolation):
+            conn.execute("INSERT INTO workspaces (name) VALUES ('C')")

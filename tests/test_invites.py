@@ -157,7 +157,7 @@ class TestAccept:
 @pytest.mark.db
 class TestRevoke:
     def test_only_through_its_own_workspace(self, db_connection):
-        create_workspace(db_connection, USER_ID, "Other", "UTC")
+        create_workspace(db_connection, USER_ID, "Other")
         invite = create_invite(db_connection, WS, USER_ID, FRIEND, Role.VIEWER)
 
         with pytest.raises(InviteNotFound):

@@ -414,10 +414,7 @@ class TestDashboard:
     def test_only_this_workspaces_snapshots_count(self, client, db_connection, seeded):
         """Another workspace's later snapshot moves nothing here."""
         with db_connection.cursor() as cur:
-            cur.execute(
-                "INSERT INTO workspaces (name, timezone) VALUES ('Other', %s) RETURNING id",
-                (TZ,),
-            )
+            cur.execute("INSERT INTO workspaces (name) VALUES ('Other') RETURNING id")
             row = cur.fetchone()
         assert row is not None
         other = create_account(db_connection, row[0], "Elsewhere", RecordType.ASSET)
@@ -728,30 +725,6 @@ class TestAccountsPage:
         assert 'id="snapshot-saved" data-today="0"' in text
         assert "Last saved Sep 1" in text
         assert "Last saved today" not in text
-
-    def test_snapshot_line_uses_the_workspace_time_zone(
-        self, client, db_connection, monkeypatch
-    ):
-        from asset_manager.web import accounts_routes
-
-        seen = []
-
-        def fake_today(tz):
-            seen.append(tz)
-            return date(2026, 9, 2)
-
-        monkeypatch.setattr(accounts_routes, "today", fake_today)
-        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
-        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("1")})
-        db_connection.commit()
-        login(client)
-        text = client.get(f"{PAGES}/accounts").text
-        assert seen == [TZ]
-        # Jinja escapes the apostrophe; the browser shows "today's".
-        assert (
-            "Saving writes today&#39;s snapshot, Sep 2, 2026. Last saved Sep 1." in text
-        )
-        assert 'data-today="0"' in text
 
     def test_snapshot_line_with_nothing_saved(self, client, db_connection):
         create_account(db_connection, WS, "Cash", RecordType.ASSET)

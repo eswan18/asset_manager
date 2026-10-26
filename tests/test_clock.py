@@ -1,4 +1,4 @@
-"""Tests for local_date/today: snapshot dates use a configured timezone."""
+"""Tests for local_date/today: "today" is the date in a given zone."""
 
 from datetime import date, datetime, timezone
 

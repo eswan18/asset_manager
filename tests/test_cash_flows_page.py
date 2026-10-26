@@ -383,7 +383,7 @@ class TestCashFlowsPage:
         assert "<a " not in main.split("Where income goes")[1]
 
     def test_another_workspaces_flows_never_appear(self, client, db_connection):
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         theirs = create_flow_category(db_connection, other.id, "Their Category")
         create_cash_flow(
             db_connection, other.id, flow("Their Pay", "9999", direction=INCOME)

@@ -23,7 +23,6 @@ from asset_manager.accounts import (
     unretire_account,
     update_account,
 )
-from asset_manager.clock import today
 from asset_manager.db import get_connection_context
 from asset_manager.formulas import quantize_cents
 from asset_manager.models import (
@@ -48,6 +47,7 @@ from .access import (
     shell_context,
 )
 from .rendering import render, set_flash
+from .viewer_zone import Today, today_for
 
 logger = logging.getLogger(__name__)
 # Every page names its workspace, as the API does: /api/workspaces/1/accounts
@@ -134,7 +134,7 @@ def format_short_date(day: date, today: date | None = None) -> str:
 
 def snapshot_line(today: date, last_saved: date | None) -> str:
     """The page head's line: what Save will write, and when it last ran.
-    Both dates are in the workspace's time zone."""
+    Both dates are in the viewer's time zone."""
     head = f"Saving writes today's snapshot, {format_short_date(today)}."
     if last_saved is None:
         return f"{head} Nothing saved yet."
@@ -204,7 +204,7 @@ def accounts_view(
     accounts: list[Account], latest: list[Record], as_of: date
 ) -> dict[str, Any]:
     """What accounts.html needs: the page itself, or the page under the
-    account form's drawer. `as_of` is today in the workspace's time zone."""
+    account form's drawer. `as_of` is today in the viewer's time zone."""
     rows = account_rows(accounts, latest)
     # Active rows first, retired rows last, alphabetical within each group
     rows.sort(key=lambda r: (r["retired"], r["name"].lower()))
@@ -226,7 +226,7 @@ def accounts_view(
 
 
 @router.get("/accounts", response_class=HTMLResponse)
-async def accounts_page(request: Request, access: ViewerAccess):
+async def accounts_page(request: Request, access: ViewerAccess, as_of: Today):
     """Render the editable accounts page."""
     workspace = access.workspace
     shell = shell_context(access, request.url.path)
@@ -249,7 +249,7 @@ async def accounts_page(request: Request, access: ViewerAccess):
     return render(
         request,
         "accounts.html",
-        {**shell, **accounts_view(accounts, latest, today(workspace.timezone))},
+        {**shell, **accounts_view(accounts, latest, as_of)},
     )
 
 
@@ -263,11 +263,11 @@ class SnapshotPayload(BaseModel):
 
 @router.post("/snapshots")
 async def save_snapshot_route(
-    payload: SnapshotPayload, access: EditorAccess
+    payload: SnapshotPayload, access: EditorAccess, as_of: Today
 ) -> JSONResponse:
-    """Write a complete snapshot for today from the page's staged values."""
+    """Write a complete snapshot for today, in the viewer's time zone, from
+    the page's staged values."""
     workspace = access.workspace
-    as_of = today(workspace.timezone)
     try:
         with get_connection_context() as conn:
             count = save_snapshot(
@@ -447,7 +447,7 @@ def _render_form(
         "account_form.html",
         {
             **shell_context(access, request.url.path),
-            **accounts_view(accounts, latest, today(workspace.timezone)),
+            **accounts_view(accounts, latest, today_for(request)),
             "drawer_open": True,
             "account": account,
             "retired_display": format_short_date(account.retired_at)
@@ -593,13 +593,13 @@ async def update_account_route(
 
 
 @router.post("/accounts/{account_id}/retire")
-async def retire_account_route(request: Request, access: EditorAccess, account_id: int):
+async def retire_account_route(
+    request: Request, access: EditorAccess, account_id: int, as_of: Today
+):
     workspace = access.workspace
     with get_connection_context() as conn:
         try:
-            account = retire_account(
-                conn, workspace.id, account_id, today(workspace.timezone)
-            )
+            account = retire_account(conn, workspace.id, account_id, as_of)
         except AccountError as e:
             set_flash(request, "error", str(e))
             return RedirectResponse(_accounts_url(access), status_code=303)

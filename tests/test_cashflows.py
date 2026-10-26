@@ -327,11 +327,11 @@ class TestCashFlowRules:
         create_cash_flow(db_connection, WS, flow("1", 1, MONTH, name="Rent"))
         with pytest.raises(CashFlowError, match="already exists"):
             create_cash_flow(db_connection, WS, flow("2", 1, MONTH, name="Rent"))
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         create_cash_flow(db_connection, other.id, flow("3", 1, MONTH, name="Rent"))
 
     def test_another_workspaces_category_is_unknown(self, db_connection):
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         theirs = create_category(db_connection, other.id, "Fitness")
         with pytest.raises(CashFlowError, match="does not exist"):
             create_cash_flow(
@@ -382,7 +382,7 @@ class TestCashFlowRules:
         )
 
     def test_another_workspaces_flow_cannot_be_changed(self, db_connection):
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         theirs = create_cash_flow(db_connection, other.id, flow("1", 1, MONTH))
         with pytest.raises(CashFlowError, match="does not exist"):
             update_cash_flow(db_connection, WS, theirs.id, {"name": "Mine"})
@@ -448,7 +448,7 @@ class TestCategories:
         assert (loaded.category_id, loaded.workspace_id) == (None, WS)
 
     def test_another_workspaces_category_cannot_be_changed(self, db_connection):
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         theirs = create_category(db_connection, other.id, "Fitness")
         with pytest.raises(CashFlowError, match="does not exist"):
             update_category(db_connection, WS, theirs.id, name="Mine")
@@ -459,7 +459,7 @@ class TestCategories:
 
 @pytest.mark.db
 def test_the_database_refuses_a_category_from_another_workspace(db_connection):
-    other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+    other = create_workspace(db_connection, USER_ID, "Other")
     theirs = create_category(db_connection, other.id, "Fitness")
     with pytest.raises(psycopg.errors.ForeignKeyViolation):
         db_connection.execute(
@@ -477,7 +477,7 @@ class TestWorkspaceScoping:
     refuses another workspace's ids even without the service's checks."""
 
     def _two_workspaces(self, conn):
-        other = create_workspace(conn, USER_ID, "Other", "UTC")
+        other = create_workspace(conn, USER_ID, "Other")
         mine = create_cash_flow(conn, WS, flow("1", 1, MONTH, name="Mine"))
         theirs = create_cash_flow(conn, other.id, flow("2", 1, MONTH, name="Theirs"))
         create_category(conn, WS, "My Category")

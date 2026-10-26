@@ -1,4 +1,4 @@
-"""Workspace rules: names, time zones, soft delete, and the last-owner rule."""
+"""Workspace rules: names, soft delete, and the last-owner rule."""
 
 import threading
 import time
@@ -38,32 +38,30 @@ def _roles(conn, workspace_id: int = WS) -> dict[int, Role]:
 @pytest.mark.db
 class TestCreateAndUpdate:
     def test_creator_is_the_only_member_and_an_owner(self, db_connection):
-        ws = create_workspace(db_connection, USER_ID, "  Joint   Finances ", "UTC")
-        assert (ws.name, ws.timezone) == ("Joint Finances", "UTC")
+        ws = create_workspace(db_connection, USER_ID, "  Joint   Finances ")
+        assert ws.name == "Joint Finances"
         assert _roles(db_connection, ws.id) == {USER_ID: Role.OWNER}
-
-    @pytest.mark.parametrize(
-        "timezone", ["", "Central", "America/Chicag", "../etc/passwd", "utc"]
-    )
-    def test_unknown_time_zones_are_rejected(self, db_connection, timezone):
-        with pytest.raises(WorkspaceError, match="not a known time zone"):
-            create_workspace(db_connection, USER_ID, "W", timezone)
-        ws = repo.get_workspace(db_connection, WS)
-        assert ws is not None
-        with pytest.raises(WorkspaceError, match="not a known time zone"):
-            update_workspace(db_connection, ws, timezone=timezone)
 
     def test_blank_names_are_rejected(self, db_connection):
         with pytest.raises(WorkspaceError, match="Name is required"):
-            create_workspace(db_connection, USER_ID, "   ", "UTC")
-
-    def test_update_changes_only_what_is_given(self, db_connection):
+            create_workspace(db_connection, USER_ID, "   ")
         ws = repo.get_workspace(db_connection, WS)
         assert ws is not None
-        update_workspace(db_connection, ws, timezone="Europe/London")
+        with pytest.raises(WorkspaceError, match="Name is required"):
+            update_workspace(db_connection, ws, name=" ")
+
+    def test_update_renames(self, db_connection):
+        ws = repo.get_workspace(db_connection, WS)
+        assert ws is not None
+        update_workspace(db_connection, ws, name="  Joint  ")
         loaded = repo.get_workspace(db_connection, WS)
-        assert loaded is not None
-        assert (loaded.name, loaded.timezone) == ("Test", "Europe/London")
+        assert loaded is not None and loaded.name == "Joint"
+
+    def test_update_with_nothing_changes_nothing(self, db_connection):
+        ws = repo.get_workspace(db_connection, WS)
+        assert ws is not None
+        update_workspace(db_connection, ws)
+        assert repo.get_workspace(db_connection, WS) == ws
 
 
 @pytest.mark.db

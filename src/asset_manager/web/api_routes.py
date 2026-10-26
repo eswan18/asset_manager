@@ -28,7 +28,6 @@ from asset_manager.cashflows import (
     update_cash_flow,
     update_category,
 )
-from asset_manager.clock import default_timezone, today
 from asset_manager.db import get_connection_context
 from asset_manager.invites import (
     InviteError,
@@ -61,6 +60,7 @@ from asset_manager.workspaces import (
 
 from .access import EditorAccess, OwnerAccess, ViewerAccess
 from .auth import CurrentUser
+from .viewer_zone import Today
 
 router = APIRouter(prefix="/api")
 
@@ -73,7 +73,6 @@ def workspace_json(workspace: Workspace, role: Role) -> dict[str, Any]:
     return {
         "id": workspace.id,
         "name": workspace.name,
-        "timezone": workspace.timezone,
         "role": role.value,
     }
 
@@ -112,12 +111,10 @@ async def me(user: CurrentUser) -> JSONResponse:
 
 class WorkspaceCreate(BaseModel):
     name: str
-    timezone: str | None = None
 
 
 class WorkspaceUpdate(BaseModel):
     name: str | None = None
-    timezone: str | None = None
 
 
 @router.post("/workspaces")
@@ -127,12 +124,7 @@ async def create_workspace_route(
     """A new workspace with you as its owner."""
     try:
         with get_connection_context() as conn:
-            workspace = create_workspace(
-                conn,
-                user["id"],
-                payload.name,
-                payload.timezone or default_timezone(),
-            )
+            workspace = create_workspace(conn, user["id"], payload.name)
     except WorkspaceError as e:
         return error(str(e))
     return JSONResponse(workspace_json(workspace, Role.OWNER), status_code=201)
@@ -147,12 +139,10 @@ async def get_workspace_route(access: ViewerAccess) -> JSONResponse:
 async def update_workspace_route(
     payload: WorkspaceUpdate, access: OwnerAccess
 ) -> JSONResponse:
-    """Rename the workspace or change the time zone new snapshots are dated in."""
+    """Rename the workspace."""
     try:
         with get_connection_context() as conn:
-            workspace = update_workspace(
-                conn, access.workspace, name=payload.name, timezone=payload.timezone
-            )
+            workspace = update_workspace(conn, access.workspace, name=payload.name)
     except WorkspaceError as e:
         return error(str(e))
     return JSONResponse(workspace_json(workspace, access.role))
@@ -353,16 +343,16 @@ class SnapshotUpdate(BaseModel):
 
 @router.post("/workspaces/{workspace_id}/snapshots")
 async def update_snapshot(
-    payload: SnapshotUpdate, access: EditorAccess
+    payload: SnapshotUpdate, access: EditorAccess, as_of: Today
 ) -> JSONResponse:
     """Save today's snapshot from the given values plus the latest snapshot.
 
-    Today is the workspace's today, in its time zone. Plain accounts left out
+    Today is the caller's: in the zone named by the `X-Timezone` header, else
+    the browser's `tz` cookie, else the server default. Plain accounts left out
     keep their latest amount; computed accounts are re-evaluated. Each
     account in the response says which of those happened.
     """
     workspace = access.workspace
-    as_of = today(workspace.timezone)
     try:
         with get_connection_context() as conn:
             count = save_snapshot(

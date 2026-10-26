@@ -14,7 +14,7 @@ STRANGER = {
     "email": "stranger@example.com",
     "name": "Stranger",
 }
-TZ = "America/Chicago"  # the seeded workspace's time zone
+TZ = "America/Chicago"  # the default zone (TIMEZONE): requests here send no tz cookie
 ACCOUNTS = f"/api/workspaces/{WS}/accounts"
 SNAPSHOTS = f"/api/workspaces/{WS}/snapshots"
 # The seeded workspace's pages: the API path without /api.
