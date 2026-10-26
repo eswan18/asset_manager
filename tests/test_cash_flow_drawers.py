@@ -258,7 +258,7 @@ class TestFlowDrawer:
         assert re.findall(r'aria-current="true">(\w+)<', html) == ["Year"]
 
     def test_the_picker_maps_to_cash_flows(self, client, db_connection, seed):
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         login(client)
         html = client.get(f"{PAGE}/{seed.groceries.id}/edit").text
         assert f'value="/workspaces/{other.id}/cash-flows"' in html
@@ -403,7 +403,7 @@ class TestNewFlow:
     def test_another_workspaces_category_is_not_prefilled(
         self, client, db_connection, seed
     ):
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         theirs = create_category(db_connection, other.id, "Theirs")
         login(client)
         response = client.get(f"{PAGE}/new?category_id={theirs.id}")
@@ -529,7 +529,7 @@ class TestCreate:
     def test_another_workspaces_category_cannot_be_used(
         self, client, db_connection, seed
     ):
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         theirs = create_category(db_connection, other.id, "Theirs")
         login(client)
         response = client.post(PAGE, data=valid_form(category_id=str(theirs.id)))
@@ -649,7 +649,7 @@ class TestFlowIsolation:
 
     def test_another_workspaces_flow_is_404_everywhere(self, client, db_connection):
         Seed(db_connection)
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         theirs = create_cash_flow(db_connection, other.id, flow("Theirs", "5"))
         login(client)
         assert client.get(f"{PAGE}/{theirs.id}/edit").status_code == 404
@@ -933,7 +933,7 @@ class TestCategoryIsolation:
 
     def test_404_everywhere_and_nothing_changes(self, client, db_connection):
         Seed(db_connection)
-        other = create_workspace(db_connection, USER_ID, "Other", "UTC")
+        other = create_workspace(db_connection, USER_ID, "Other")
         theirs = create_category(db_connection, other.id, "Theirs")
         create_category(db_connection, other.id, "Second")
         login(client)

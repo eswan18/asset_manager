@@ -290,7 +290,6 @@ CREATE TABLE public.workspace_members (
 CREATE TABLE public.workspaces (
     id integer NOT NULL,
     name text NOT NULL,
-    timezone text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     deleted_at timestamp with time zone,
     CONSTRAINT workspaces_name_check CHECK ((btrim(name) <> ''::text))
@@ -670,4 +669,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20261019120000'),
     ('20261026120000'),
     ('20261027120000'),
-    ('20261028120000');
+    ('20261028120000'),
+    ('20261029120000');

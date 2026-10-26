@@ -442,23 +442,21 @@ def insert_user(conn: Connection, idp_sub: str, email: str, name: str | None) ->
 
 # --- workspaces ------------------------------------------------------------
 
-_WORKSPACE_COLUMNS = "w.id, w.name, w.timezone, w.created_at, w.deleted_at"
+_WORKSPACE_COLUMNS = "w.id, w.name, w.created_at, w.deleted_at"
 
 
 def _workspace_from_row(row: tuple[Any, ...]) -> Workspace:
-    return Workspace(
-        id=row[0], name=row[1], timezone=row[2], created_at=row[3], deleted_at=row[4]
-    )
+    return Workspace(id=row[0], name=row[1], created_at=row[2], deleted_at=row[3])
 
 
-def insert_workspace(conn: Connection, name: str, timezone: str) -> Workspace:
+def insert_workspace(conn: Connection, name: str) -> Workspace:
     with conn.cursor() as cur:
         cur.execute(
             f"""
-            INSERT INTO workspaces AS w (name, timezone) VALUES (%s, %s)
+            INSERT INTO workspaces AS w (name) VALUES (%s)
             RETURNING {_WORKSPACE_COLUMNS}
             """,
-            (name, timezone),
+            (name,),
         )
         row = cur.fetchone()
     if row is None:
@@ -480,8 +478,8 @@ def get_workspace(conn: Connection, workspace_id: int) -> Workspace | None:
 def update_workspace(conn: Connection, workspace: Workspace) -> None:
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE workspaces SET name = %s, timezone = %s WHERE id = %s",
-            (workspace.name, workspace.timezone, workspace.id),
+            "UPDATE workspaces SET name = %s WHERE id = %s",
+            (workspace.name, workspace.id),
         )
 
 
@@ -522,7 +520,7 @@ def get_access(
             (workspace_id, user_id),
         )
         row = cur.fetchone()
-    return (_workspace_from_row(row[:5]), Role(row[5])) if row else None
+    return (_workspace_from_row(row[:4]), Role(row[4])) if row else None
 
 
 def get_memberships(conn: Connection, user_id: int) -> list[tuple[Workspace, Role]]:
@@ -539,7 +537,7 @@ def get_memberships(conn: Connection, user_id: int) -> list[tuple[Workspace, Rol
             (user_id,),
         )
         rows = cur.fetchall()
-    return [(_workspace_from_row(row[:5]), Role(row[5])) for row in rows]
+    return [(_workspace_from_row(row[:4]), Role(row[4])) for row in rows]
 
 
 def get_members(

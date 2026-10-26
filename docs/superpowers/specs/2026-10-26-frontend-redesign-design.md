@@ -192,7 +192,7 @@ is the data behind `/workspaces/1/accounts`).
 ### Accounts: board **Accounts I**
 
 - **Page head:** title, then "Saving writes today's snapshot, <date>. Last
-  saved <date>." (in the workspace's time zone), then the **Show retired (n)**
+  saved <date>." (in the viewer's time zone), then the **Show retired (n)**
   toggle.
 - **Cards:**
   - two half-width cards, Assets and Liabilities, each with **+ Add** and the
@@ -345,7 +345,7 @@ Chosen over a stacked page and a split layout. Built.
 
 These can be designed on the canvas while the pages above are built:
 
-1. **Workspace settings:** name, time zone, members and roles, pending
+1. **Workspace settings:** name, members and roles, pending
    invites, leave and delete. Also **My invites** (accept / decline).
 2. **Login**, **empty states** (a new workspace, no snapshots, no cash
    flows), and error and flash messages.

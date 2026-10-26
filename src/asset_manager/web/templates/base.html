@@ -705,5 +705,15 @@
     {% endif %}
 
     {% block scripts %}{% endblock %}
+
+    <script>
+        // The server dates saves in the viewer's zone (web/viewer_zone.py).
+        // Refreshed on every load so travel updates it.
+        try {
+            document.cookie = "tz=" + encodeURIComponent(
+                Intl.DateTimeFormat().resolvedOptions().timeZone
+            ) + "; path=/; max-age=31536000; SameSite=Lax";
+        } catch (e) {}
+    </script>
 </body>
 </html>
