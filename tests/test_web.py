@@ -164,8 +164,18 @@ class TestTheme:
         db_connection.commit()
         login(client)
         text = client.get(PAGES).text
-        assert "Plotly.relayout" in text
-        assert "prefers-color-scheme: light" in text
+        assert "Plotly.react" in text
+        assert "matchMedia('(prefers-color-scheme: dark)')" in text
+        assert "getComputedStyle" in text
+
+
+def _figure(text: str) -> dict:
+    """The Plotly figure the dashboard embeds."""
+    import json
+
+    start = text.index("const figure = ") + len("const figure = ")
+    end = text.index(";\n", start)
+    return json.loads(text[start:end])
 
 
 @pytest.mark.db
@@ -175,6 +185,14 @@ class TestDashboard:
         response = client.get(PAGES)
         assert response.status_code == 200
         assert "No data yet" in response.text
+        assert f'href="{PAGES}/accounts"' in response.text
+        assert "const figure" not in response.text
+        assert "Net worth" not in response.text
+
+    def test_accounts_but_no_snapshot_is_still_empty(self, client, db_connection):
+        create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        login(client)
+        assert "No data yet" in client.get(PAGES).text
 
     def test_renders_with_data(self, client, db_connection):
         savings = create_account(db_connection, WS, "Savings Account", RecordType.ASSET)
@@ -188,45 +206,229 @@ class TestDashboard:
         assert "Savings Account" in response.text
         assert "$1,000" in response.text
 
+    @pytest.fixture
+    def seeded(self, db_connection):
+        """Two assets, a card and a computed tax, saved on four dates."""
+        from asset_manager.models import AccountCategory, ProportionalFormula
 
-def test_build_chart_html_excludes_retired_from_breakdown():
-    from asset_manager.web.charts import build_chart_html
+        conn = db_connection
+        bank = create_account(
+            conn,
+            WS,
+            "Checking",
+            RecordType.ASSET,
+            category=AccountCategory.BANK_ACCOUNTS,
+        )
+        schwab = create_account(
+            conn,
+            WS,
+            "Schwab",
+            RecordType.ASSET,
+            category=AccountCategory.INVESTMENT_ACCOUNTS,
+        )
+        card = create_account(
+            conn,
+            WS,
+            "Visa",
+            RecordType.LIABILITY,
+            category=AccountCategory.CREDIT_CARDS,
+        )
+        tax = create_account(
+            conn,
+            WS,
+            "Cap gains tax",
+            RecordType.LIABILITY,
+            ProportionalFormula(rate=Decimal("0.15"), cost_basis=Decimal("0")),
+            [schwab.id],
+            category=AccountCategory.TAX_LIABILITY,
+        )
+        rows = {
+            date(2025, 1, 10): ("1000", "50000", "100", "7500"),
+            date(2026, 6, 1): ("2000", "90000", "300", "13500"),
+            date(2026, 9, 20): ("3000", "100000", "400", "15000"),
+            date(2026, 10, 24): ("4000", "110000", "500", "16500"),
+        }
+        for day, amounts in rows.items():
+            values = [Decimal(a) for a in amounts]
+            upsert_amounts(
+                conn, WS, day, dict(zip([bank.id, schwab.id, card.id, tax.id], values))
+            )
+        conn.commit()
+        return {"bank": bank, "schwab": schwab, "card": card, "tax": tax}
 
-    accounts = [
-        Account(id=1, name="Live", type=RecordType.ASSET),
-        Account(id=2, name="Old", type=RecordType.ASSET, retired_at=date(2026, 1, 1)),
-        Account(id=3, name="Card", type=RecordType.LIABILITY),
-    ]
-    records = [
-        Record(
-            date=date(2026, 1, 1),
-            account_id=1,
-            type=RecordType.ASSET,
-            description="Live",
-            amount=Decimal("10"),
-        ),
-        Record(
-            date=date(2026, 1, 1),
-            account_id=2,
-            type=RecordType.ASSET,
-            description="Old",
-            amount=Decimal("0"),
-        ),
-        Record(
-            date=date(2026, 1, 1),
-            account_id=3,
-            type=RecordType.LIABILITY,
-            description="Card",
-            amount=Decimal("4"),
-        ),
-    ]
-    charts, totals, assets_breakdown, liabilities_breakdown = build_chart_html(
-        records, accounts
-    )
-    assert set(charts) == {"assets", "liabilities", "summary"}
-    assert totals == {"net_worth": 6.0, "assets": 10.0, "liabilities": 4.0}
-    assert assets_breakdown == {"Live": 10.0}
-    assert liabilities_breakdown == {"Card": 4.0}
+    def test_headline(self, client, seeded):
+        login(client)
+        text = client.get(PAGES).text
+        # 4,000 + 110,000 - 500 - 16,500
+        assert '<span class="net-worth">$97,000</span>' in text
+        # Closest to Sep 24 is Sep 20: 3,000 + 100,000 - 400 - 15,000 = 87,600
+        assert "<strong>+$9,400 (+10.7%)</strong> since Sep 20</span>" in text
+        assert "Last snapshot Oct 24, 2026" in text
+        assert (
+            f'<a class="btn btn-primary" href="{PAGES}/accounts">Update balances</a>'
+            in text
+        )
+
+    def test_one_snapshot_has_no_change_line(self, client, db_connection):
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("5")})
+        db_connection.commit()
+        login(client)
+        text = client.get(PAGES).text
+        assert "Last snapshot Sep 1, 2026" in text
+        assert " since " not in text
+
+    def test_change_from_zero_has_no_percent(self, client, db_connection):
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2025, 8, 1), {cash.id: Decimal("0")})
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("5")})
+        db_connection.commit()
+        login(client)
+        text = client.get(PAGES).text
+        # A different year from the latest snapshot's, so it is named.
+        assert "<strong>+$5</strong> since Aug 1, 2025</span>" in text
+
+    def test_category_key_and_columns(self, client, seeded):
+        login(client)
+        text = client.get(PAGES).text
+        for label, amount in [
+            ("Investment Accounts", "$110,000"),
+            ("Bank Accounts", "$4,000"),
+            ("Tax Liability", "$16,500"),
+            ("Credit Cards", "$500"),
+        ]:
+            assert f"{label} {amount}" in text
+        assert text.index("Investment Accounts $110,000") < text.index(
+            "Bank Accounts $4,000"
+        )
+        bars = [t for t in _figure(text)["data"] if t["type"] == "bar"]
+        assert [(t["name"], t["y"], t["meta"]["color"]) for t in bars] == [
+            ("Investment Accounts", [110000.0], "var(--asset)"),
+            ("Bank Accounts", [4000.0], "var(--asset-2)"),
+            ("Tax Liability", [16500.0], "var(--liability)"),
+            ("Credit Cards", [500.0], "var(--liability-2)"),
+        ]
+
+    def test_cards_list_accounts_under_categories(self, client, seeded):
+        login(client)
+        text = client.get(PAGES).text
+        assets = text[
+            text.index("<h2>Assets</h2>") : text.index("<h2>Liabilities</h2>")
+        ]
+        liabilities = text[text.index("<h2>Liabilities</h2>") : text.index("</main>")]
+        assert '<span class="total">$114,000</span>' in assets
+        assert assets.index("Bank Accounts") < assets.index("Checking")
+        assert assets.index("Checking") < assets.index("Investment Accounts")
+        assert '<span class="total">$17,000</span>' in liabilities
+        assert "15% of gains, computed" in liabilities
+        assert "$97,000" not in liabilities
+
+    def test_range_defaults_to_one_year(self, client, seeded):
+        login(client)
+        text = client.get(PAGES).text
+        assert f'<a href="{PAGES}?range=1y" aria-current="true">1Y</a>' in text
+        assert f'<a href="{PAGES}?range=6m">6M</a>' in text
+        assert f'<a href="{PAGES}?range=all">All</a>' in text
+        dates = _figure(text)["data"][0]["x"]
+        assert dates == ["2026-06-01", "2026-09-20", "2026-10-24"]
+
+    def test_range_toggle(self, client, seeded):
+        login(client)
+        text = client.get(f"{PAGES}?range=6m").text
+        assert f'<a href="{PAGES}?range=6m" aria-current="true">6M</a>' in text
+        assert f'<a href="{PAGES}?range=1y">1Y</a>' in text
+        assert _figure(text)["data"][0]["x"] == [
+            "2026-06-01",
+            "2026-09-20",
+            "2026-10-24",
+        ]
+
+        text = client.get(f"{PAGES}?range=all").text
+        assert f'<a href="{PAGES}?range=all" aria-current="true">All</a>' in text
+        assert _figure(text)["data"][0]["x"] == [
+            "2025-01-10",
+            "2026-06-01",
+            "2026-09-20",
+            "2026-10-24",
+        ]
+
+    @pytest.mark.parametrize("value", ["bogus", "6M", "", "1y%00"])
+    def test_an_invalid_range_falls_back_to_one_year(self, client, seeded, value):
+        login(client)
+        response = client.get(PAGES, params={"range": value})
+        assert response.status_code == 200
+        assert f'<a href="{PAGES}?range=1y" aria-current="true">1Y</a>' in response.text
+        assert len(_figure(response.text)["data"][0]["x"]) == 3
+
+    def test_the_range_leaves_headline_and_columns_alone(self, client, seeded):
+        login(client)
+        short = client.get(f"{PAGES}?range=6m").text
+        full = client.get(f"{PAGES}?range=all").text
+        for text in (short, full):
+            assert "<strong>+$9,400 (+10.7%)</strong> since Sep 20" in text
+        bars = [[t["y"] for t in _figure(x)["data"][3:]] for x in (short, full)]
+        assert bars[0] == bars[1]
+
+    def test_retired_accounts_are_excluded(self, client, db_connection, seeded):
+        retire_account(db_connection, WS, seeded["bank"].id, date(2026, 10, 25))
+        login(client)
+        text = client.get(PAGES).text
+        cards = text[text.index("<h2>Assets</h2>") : text.index("</main>")]
+        assert "Checking" not in cards
+        assert "Bank Accounts" not in cards
+        assert '<span class="total">$110,000</span>' in cards
+        # Its row is still part of the latest snapshot, so the chart keeps it
+        # until the next save; the columns still meet the lines' ends.
+        bars = {t["name"]: t["y"] for t in _figure(text)["data"] if t["type"] == "bar"}
+        assert bars["Bank Accounts"] == [4000.0]
+
+    def test_retired_before_the_latest_snapshot_leaves_no_trace(
+        self, client, db_connection, seeded
+    ):
+        conn = db_connection
+        retire_account(conn, WS, seeded["bank"].id, date(2026, 10, 24))
+        ids = [seeded[k].id for k in ("schwab", "card", "tax")]
+        upsert_amounts(
+            conn,
+            WS,
+            date(2026, 10, 25),
+            dict(zip(ids, [Decimal("110000"), Decimal("500"), Decimal("16500")])),
+        )
+        conn.commit()
+        login(client)
+        text = client.get(PAGES).text
+        assert "Checking" not in text
+        assert "Bank Accounts" not in text
+        assert '<span class="net-worth">$93,000</span>' in text
+
+    def test_account_names_are_escaped(self, client, db_connection):
+        evil = create_account(db_connection, WS, "<b>bold</b>", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {evil.id: Decimal("5")})
+        db_connection.commit()
+        login(client)
+        text = client.get(PAGES).text
+        assert "<b>bold</b>" not in text
+        assert "&lt;b&gt;bold&lt;/b&gt;" in text
+
+    def test_only_this_workspaces_snapshots_count(self, client, db_connection, seeded):
+        """Another workspace's later snapshot moves nothing here."""
+        with db_connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO workspaces (name, timezone) VALUES ('Other', %s) RETURNING id",
+                (TZ,),
+            )
+            row = cur.fetchone()
+        assert row is not None
+        other = create_account(db_connection, row[0], "Elsewhere", RecordType.ASSET)
+        upsert_amounts(
+            db_connection, row[0], date(2026, 12, 1), {other.id: Decimal("123456")}
+        )
+        db_connection.commit()
+        login(client)
+        text = client.get(PAGES).text
+        assert "Last snapshot Oct 24, 2026" in text
+        assert '<span class="net-worth">$97,000</span>' in text
+        assert "Elsewhere" not in text
 
 
 def test_format_percent():
