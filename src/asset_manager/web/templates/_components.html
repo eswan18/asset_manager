@@ -1,0 +1,52 @@
+{#- Shared pieces of the redesign. Their styles live in base.html.
+    Import with {% import "_components.html" as ui %}. -#}
+
+{#- Up to two initials for the user menu: "Ethan Swan" -> "ES". -#}
+{% macro initials(name) -%}
+{%- set words = (name or "?").split("@")[0].replace(".", " ").split() -%}
+{{ (words[0][0] ~ (words[-1][0] if words | length > 1 else "")) | upper }}
+{%- endmacro %}
+
+{#- A card with a title row: kind is "asset" or "liability" (the color of
+    its rule), or none for a neutral card; add_href shows a "+ Add" button. -#}
+{% macro card(title, total=none, kind=none, add_href=none) -%}
+<section class="card{% if kind %} section-{{ kind }}{% endif %}">
+    <div class="card-head">
+        <h2>{{ title }}</h2>
+        {% if add_href or total is not none %}
+        <div style="display: flex; align-items: center; gap: 12px;">
+            {% if add_href %}<a class="btn btn-secondary" href="{{ add_href }}">+ Add</a>{% endif %}
+            {% if total is not none %}<span class="total">{{ total }}</span>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {{ caller() }}
+</section>
+{%- endmacro %}
+
+{#- A category subheading with its subtotal. -#}
+{% macro group_head(label, total=none) -%}
+<div class="group-head"><span>{{ label }}</span>{% if total is not none %}<span>{{ total }}</span>{% endif %}</div>
+{%- endmacro %}
+
+{#- An amount input. edited switches it to the edited state. -#}
+{% macro money_input(label, value="", edited=false) -%}
+<input class="money-input{% if edited %} edited{% endif %}" aria-label="{{ label }}" value="{{ value }}" inputmode="decimal" {{ kwargs | xmlattr }}>
+{%- endmacro %}
+
+{% macro estimate_tag() -%}
+<span class="tag tag-estimate" title="Estimate">≈</span>
+{%- endmacro %}
+
+{% macro computed_tag(text="computed") -%}
+<span class="tag">{{ text }}</span>
+{%- endmacro %}
+
+{#- A segmented toggle of links: options are (label, href, current) tuples. -#}
+{% macro toggle(label, options) -%}
+<div class="toggle" role="group" aria-label="{{ label }}">
+    {% for text, href, current in options %}
+    <a href="{{ href }}"{% if current %} aria-current="true"{% endif %}>{{ text }}</a>
+    {% endfor %}
+</div>
+{%- endmacro %}

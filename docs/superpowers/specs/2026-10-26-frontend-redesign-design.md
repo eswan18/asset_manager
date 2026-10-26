@@ -113,7 +113,7 @@ is the data behind `/workspaces/1/accounts`).
 
 | Page | Path |
 |---|---|
-| Dashboard | `/workspaces/{workspace_id}/` |
+| Dashboard | `/workspaces/{workspace_id}` (like `GET /api/workspaces/{workspace_id}`) |
 | Accounts | `/workspaces/{workspace_id}/accounts` |
 | Account forms | `/workspaces/{workspace_id}/accounts/new`, `/workspaces/{workspace_id}/accounts/{id}/edit`, and their POSTs (including retire and unretire) |
 | Save snapshot | `POST /workspaces/{workspace_id}/snapshots` |
@@ -276,7 +276,7 @@ These can be designed on the canvas while the three pages above are built:
 
 1. **Shell first** (blocks the rest; small): light and dark tokens as CSS
    custom properties, fonts, the header, nav, the workspace picker and the
-   `/workspaces/{workspace_id}/` routes with their access checks and redirects, the
+   `/workspaces/{workspace_id}` routes with their access checks and redirects, the
    user menu, and the shared components above. Jinja macros for card, group
    and row.
 2. **Then in parallel:**

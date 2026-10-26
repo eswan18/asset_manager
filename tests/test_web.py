@@ -12,6 +12,7 @@ from asset_manager.models import Account, Record, RecordType
 from asset_manager.repository import upsert_amounts
 from tests.support import WS
 from tests.web_support import (
+    PAGES,
     ACCOUNTS,
     SECRET,
     SNAPSHOTS,
@@ -125,23 +126,44 @@ def test_deployed_environments_set_an_allowlist(env):
 
 @pytest.mark.db
 class TestTheme:
-    def test_pages_carry_a_light_theme(self, client, db_connection):
+    def test_pages_carry_both_themes(self, client, db_connection):
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("1")})
         db_connection.commit()
         login(client)
-        for path in ("/", "/accounts", f"/accounts/{cash.id}/edit"):
+        for path in (PAGES, f"{PAGES}/accounts", f"{PAGES}/accounts/{cash.id}/edit"):
             text = client.get(path).text
-            assert "@media (prefers-color-scheme: light)" in text, path
+            assert "color-scheme: light" in text, path
+            assert "@media (prefers-color-scheme: dark)" in text, path
             assert "color-scheme: dark" in text, path
         assert "@media (prefers-color-scheme: light)" in client.get("/login").text
+
+    def test_templates_name_tokens_not_colors(self):
+        """Page templates take their colors from base.html's tokens, so light
+        and dark stay in step. base.html defines them; login.html stands alone
+        until it is redesigned."""
+        import re
+        from importlib import resources
+
+        templates = resources.files("asset_manager.web").joinpath("templates")
+        pages = [
+            t
+            for t in templates.iterdir()
+            if t.name.endswith(".html") and t.name not in ("base.html", "login.html")
+        ]
+        assert len(pages) >= 4
+        for page in pages:
+            colors = re.findall(
+                r"#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b", page.read_text()
+            )
+            assert colors == [], page.name
 
     def test_dashboard_retheme_script_targets_plotly(self, client, db_connection):
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("1")})
         db_connection.commit()
         login(client)
-        text = client.get("/").text
+        text = client.get(PAGES).text
         assert "Plotly.relayout" in text
         assert "prefers-color-scheme: light" in text
 
@@ -150,7 +172,7 @@ class TestTheme:
 class TestDashboard:
     def test_empty_state(self, client):
         login(client)
-        response = client.get("/")
+        response = client.get(PAGES)
         assert response.status_code == 200
         assert "No data yet" in response.text
 
@@ -161,7 +183,7 @@ class TestDashboard:
         )
         db_connection.commit()
         login(client)
-        response = client.get("/")
+        response = client.get(PAGES)
         assert response.status_code == 200
         assert "Savings Account" in response.text
         assert "$1,000" in response.text
@@ -305,7 +327,7 @@ def test_category_groups_orders_categories_and_puts_uncategorized_last():
 class TestAccountsPage:
     def test_empty_state(self, client):
         login(client)
-        response = client.get("/accounts")
+        response = client.get(f"{PAGES}/accounts")
         assert response.status_code == 200
         assert "No accounts yet" in response.text
 
@@ -329,7 +351,7 @@ class TestAccountsPage:
         db_connection.commit()
         login(client)
 
-        response = client.get("/accounts")
+        response = client.get(f"{PAGES}/accounts")
 
         assert response.status_code == 200
         text = response.text
@@ -341,10 +363,10 @@ class TestAccountsPage:
         # The unsaved-changes header and saving-state hooks the script toggles
         assert 'id="snapshot-dirty" class="unsaved" hidden' in text
         assert 'id="save-label"' in text
-        assert f'href="/accounts/{schwab.id}/edit"' in text
+        assert f'href="{PAGES}/accounts/{schwab.id}/edit"' in text
 
     def test_redirects_when_logged_out(self, client):
-        response = client.get("/accounts", follow_redirects=False)
+        response = client.get(f"{PAGES}/accounts", follow_redirects=False)
         assert response.status_code == 302
 
     def test_rows_are_alphabetical_with_retired_last(self, client, db_connection):
@@ -355,9 +377,10 @@ class TestAccountsPage:
         create_account(db_connection, WS, "beta", RecordType.ASSET)
         retire_account(db_connection, WS, old.id, date(2026, 1, 1))
         login(client)
-        text = client.get("/accounts").text
+        text = client.get(f"{PAGES}/accounts").text
         names = re.findall(
-            r'class="account-name" href="/accounts/\d+/edit">([^<]+)</a>', text
+            r'class="account-name" href="/workspaces/1/accounts/\d+/edit">([^<]+)</a>',
+            text,
         )
         assert names == ["beta", "zeta", "Alpha"]
 
@@ -382,10 +405,10 @@ class TestAccountsPage:
             category=AccountCategory.CREDIT_CARDS,
         )
         login(client)
-        text = client.get("/accounts").text
+        text = client.get(f"{PAGES}/accounts").text
         cells = re.findall(
             r'<tr class="category-row">\s*<td>([^<]+)</td>'
-            r'|class="account-name" href="/accounts/\d+/edit">([^<]+)</a>',
+            r'|class="account-name" href="/workspaces/1/accounts/\d+/edit">([^<]+)</a>',
             text,
         )
         assert [heading or name for heading, name in cells] == [
@@ -407,7 +430,7 @@ class TestAccountsPage:
         upsert_amounts(db_connection, WS, today(TZ), {cash.id: Decimal("1")})
         db_connection.commit()
         login(client)
-        text = client.get("/accounts").text
+        text = client.get(f"{PAGES}/accounts").text
         assert 'id="snapshot-saved" data-today="1"' in text
         assert "Snapshot <strong>Today</strong>" in text
         assert today(TZ).strftime("%B %-d, %Y") not in text
@@ -419,7 +442,7 @@ class TestAccountsPage:
         upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("1")})
         db_connection.commit()
         login(client)
-        text = client.get("/accounts").text
+        text = client.get(f"{PAGES}/accounts").text
         assert 'id="snapshot-saved" data-today="0"' in text
         assert "Snapshot <span>September 1, 2026</span>" in text
 
@@ -442,7 +465,7 @@ class TestSaveSnapshot:
         login(client)
 
         response = client.post(
-            "/snapshots",
+            f"{PAGES}/snapshots",
             json={
                 "values": {str(schwab.id): "1000.00"},
                 "cost_bases": {str(tax.id): "400.00"},
@@ -465,7 +488,7 @@ class TestSaveSnapshot:
         login(client)
 
         response = client.post(
-            "/snapshots",
+            f"{PAGES}/snapshots",
             json={"values": {str(schwab.id): "10.005"}, "cost_bases": {}},
             headers={"Accept": "application/json"},
         )
@@ -483,7 +506,7 @@ class TestSaveSnapshot:
         login(client)
 
         response = client.post(
-            "/snapshots",
+            f"{PAGES}/snapshots",
             json={"values": {str(schwab.id): "1e999"}, "cost_bases": {}},
             headers={"Accept": "application/json"},
         )
@@ -498,7 +521,9 @@ class TestSaveSnapshot:
         create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
 
-        response = client.post("/snapshots", json={"values": {}, "cost_bases": {}})
+        response = client.post(
+            f"{PAGES}/snapshots", json={"values": {}, "cost_bases": {}}
+        )
 
         assert response.status_code == 400
         assert "Missing value for" in response.json()["error"]
@@ -506,7 +531,9 @@ class TestSaveSnapshot:
 
     def test_requires_login(self, client):
         response = client.post(
-            "/snapshots", json={"values": {}}, headers={"Accept": "application/json"}
+            f"{PAGES}/snapshots",
+            json={"values": {}},
+            headers={"Accept": "application/json"},
         )
         assert response.status_code == 401
 
@@ -693,11 +720,11 @@ class TestEveryRouteRequiresLogin:
         paths = {path for _, path in protected_routes()}
         assert {
             "/",
-            "/accounts",
-            "/snapshots",
+            f"{PAGES}/accounts",
+            f"{PAGES}/snapshots",
             ACCOUNTS,
             SNAPSHOTS,
-            "/accounts/1/retire",
+            f"{PAGES}/accounts/1/retire",
         } <= paths
 
     def test_logged_out_requests_are_refused_and_write_nothing(
@@ -823,7 +850,7 @@ class TestEveryRouteRequiresAnAllowedEmail:
         monkeypatch.setenv("ENV", "prod")
         monkeypatch.setenv("ALLOWED_EMAILS", USER["email"])
         session_for(client, STRANGER)
-        response = client.get("/accounts", follow_redirects=False)
+        response = client.get(f"{PAGES}/accounts", follow_redirects=False)
         assert response.status_code == 302
         assert response.headers["location"] == "/login"
 
@@ -946,7 +973,7 @@ class TestAccountForm:
     def test_new_page_presets_type_and_lists_inputs(self, client, db_connection):
         create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         login(client)
-        response = client.get("/accounts/new?type=liability")
+        response = client.get(f"{PAGES}/accounts/new?type=liability")
         assert response.status_code == 200
         assert "New liability" in response.text
         assert 'name="input_ids"' in response.text
@@ -957,12 +984,14 @@ class TestAccountForm:
 
         login(client)
         response = client.post(
-            "/accounts", data={"name": "Cash", "type": "asset"}, follow_redirects=False
+            f"{PAGES}/accounts",
+            data={"name": "Cash", "type": "asset"},
+            follow_redirects=False,
         )
         assert response.status_code == 303
-        assert response.headers["location"] == "/accounts"
+        assert response.headers["location"] == f"{PAGES}/accounts"
         assert [a.name for a in get_accounts(db_connection, WS)] == ["Cash"]
-        page = client.get("/accounts")
+        page = client.get(f"{PAGES}/accounts")
         assert "Added Cash" in page.text
 
     def test_create_computed_account(self, client, db_connection):
@@ -971,7 +1000,7 @@ class TestAccountForm:
         schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         login(client)
         response = client.post(
-            "/accounts",
+            f"{PAGES}/accounts",
             data={
                 "name": "Cap Gains Tax",
                 "type": "liability",
@@ -994,7 +1023,9 @@ class TestAccountForm:
     def test_create_duplicate_rerenders_with_error(self, client, db_connection):
         create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
-        response = client.post("/accounts", data={"name": "Cash", "type": "asset"})
+        response = client.post(
+            f"{PAGES}/accounts", data={"name": "Cash", "type": "asset"}
+        )
         assert response.status_code == 400
         assert "already exists" in response.text
         assert 'value="Cash"' in response.text
@@ -1002,7 +1033,7 @@ class TestAccountForm:
     def test_create_bad_rate_rerenders_with_error(self, client):
         login(client)
         response = client.post(
-            "/accounts",
+            f"{PAGES}/accounts",
             data={
                 "name": "Tax",
                 "type": "liability",
@@ -1026,7 +1057,7 @@ class TestAccountForm:
             [schwab.id],
         )
         login(client)
-        response = client.get(f"/accounts/{tax.id}/edit")
+        response = client.get(f"{PAGES}/accounts/{tax.id}/edit")
         assert response.status_code == 200
         assert "Edit liability" in response.text
         assert 'value="32.5"' in response.text
@@ -1045,7 +1076,7 @@ class TestAccountForm:
         upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("900")})
         db_connection.commit()
         login(client)
-        text = client.get(f"/accounts/{cash.id}/edit").text
+        text = client.get(f"{PAGES}/accounts/{cash.id}/edit").text
         assert "History" in text
         first = text.index("September 1, 2026")
         second = text.index("August 1, 2026")
@@ -1064,12 +1095,12 @@ class TestAccountForm:
     def test_edit_page_history_empty_state(self, client, db_connection):
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
-        text = client.get(f"/accounts/{cash.id}/edit").text
+        text = client.get(f"{PAGES}/accounts/{cash.id}/edit").text
         assert "No snapshots yet" in text
 
     def test_edit_page_404_for_unknown(self, client):
         login(client)
-        assert client.get("/accounts/9999/edit").status_code == 404
+        assert client.get(f"{PAGES}/accounts/9999/edit").status_code == 404
 
     def test_update_account(self, client, db_connection):
         from asset_manager.repository import get_account
@@ -1077,7 +1108,9 @@ class TestAccountForm:
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
         response = client.post(
-            f"/accounts/{cash.id}", data={"name": "Cash (SoFi)"}, follow_redirects=False
+            f"{PAGES}/accounts/{cash.id}",
+            data={"name": "Cash (SoFi)"},
+            follow_redirects=False,
         )
         assert response.status_code == 303
         loaded = get_account(db_connection, WS, cash.id)
@@ -1089,7 +1122,7 @@ class TestAccountForm:
 
         login(client)
         response = client.post(
-            "/accounts",
+            f"{PAGES}/accounts",
             data={"name": "Visa", "type": "liability", "category": "credit_cards"},
             follow_redirects=False,
         )
@@ -1097,11 +1130,11 @@ class TestAccountForm:
         visa = get_account_by_name(db_connection, WS, RecordType.LIABILITY, "Visa")
         assert visa is not None and visa.category == AccountCategory.CREDIT_CARDS
 
-        edit = client.get(f"/accounts/{visa.id}/edit").text
+        edit = client.get(f"{PAGES}/accounts/{visa.id}/edit").text
         assert '<option value="credit_cards" selected>Credit Cards</option>' in edit
 
         client.post(
-            f"/accounts/{visa.id}",
+            f"{PAGES}/accounts/{visa.id}",
             data={"name": "Visa", "category": ""},
             follow_redirects=False,
         )
@@ -1112,7 +1145,8 @@ class TestAccountForm:
     def test_unknown_category_rerenders_with_error(self, client):
         login(client)
         response = client.post(
-            "/accounts", data={"name": "X", "type": "asset", "category": "boats"}
+            f"{PAGES}/accounts",
+            data={"name": "X", "type": "asset", "category": "boats"},
         )
         assert response.status_code == 400
         assert "&#39;boats&#39; is not a category" in response.text
@@ -1130,11 +1164,13 @@ class TestAccountForm:
             [schwab.id],
         )
         login(client)
-        response = client.post(f"/accounts/{schwab.id}/retire", follow_redirects=False)
+        response = client.post(
+            f"{PAGES}/accounts/{schwab.id}/retire", follow_redirects=False
+        )
         assert response.status_code == 303
-        page = client.get("/accounts")
+        page = client.get(f"{PAGES}/accounts")
         assert "Schwab is an input to Tax" in page.text
-        edit = client.get(f"/accounts/{schwab.id}/edit")
+        edit = client.get(f"{PAGES}/accounts/{schwab.id}/edit")
         assert "Schwab is an input to Tax" in edit.text
         assert 'class="btn btn-secondary" disabled' in edit.text
 
@@ -1145,26 +1181,28 @@ class TestAccountForm:
         upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("5")})
         db_connection.commit()
         login(client)
-        edit = client.get(f"/accounts/{cash.id}/edit")
+        edit = client.get(f"{PAGES}/accounts/{cash.id}/edit")
         assert "Last saved at $5.00 on September 1, 2026" in edit.text
         assert "Retire anyway" in edit.text
         assert 'class="btn btn-secondary" disabled' not in edit.text
-        response = client.post(f"/accounts/{cash.id}/retire", follow_redirects=False)
+        response = client.post(
+            f"{PAGES}/accounts/{cash.id}/retire", follow_redirects=False
+        )
         assert response.status_code == 303
         loaded = get_account(db_connection, WS, cash.id)
         assert loaded is not None and loaded.retired_at is not None
-        assert "Retired Cash" in client.get("/accounts").text
+        assert "Retired Cash" in client.get(f"{PAGES}/accounts").text
 
     def test_retire_and_unretire(self, client, db_connection):
         from asset_manager.repository import get_account
 
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
-        client.post(f"/accounts/{cash.id}/retire", follow_redirects=False)
+        client.post(f"{PAGES}/accounts/{cash.id}/retire", follow_redirects=False)
         loaded = get_account(db_connection, WS, cash.id)
         assert loaded is not None and loaded.retired_at == today(TZ)
-        assert "Retired Cash" in client.get("/accounts").text
+        assert "Retired Cash" in client.get(f"{PAGES}/accounts").text
 
-        client.post(f"/accounts/{cash.id}/unretire", follow_redirects=False)
+        client.post(f"{PAGES}/accounts/{cash.id}/unretire", follow_redirects=False)
         loaded = get_account(db_connection, WS, cash.id)
         assert loaded is not None and loaded.retired_at is None

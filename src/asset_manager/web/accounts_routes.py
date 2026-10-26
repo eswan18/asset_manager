@@ -38,14 +38,26 @@ from asset_manager.repository import (
     get_latest_snapshot_records,
 )
 
-from .access import PageEditor, PageViewer
+from .access import (
+    EditorAccess,
+    ViewerAccess,
+    WorkspaceAccess,
+    page_prefix,
+    shell_context,
+)
 from .rendering import render, set_flash
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+# Every page names its workspace, as the API does: /api/workspaces/1/accounts
+# is the data behind /workspaces/1/accounts.
+router = APIRouter(prefix="/workspaces/{workspace_id}")
 
 
 # --- view helpers ----------------------------------------------------------
+
+
+def _accounts_url(access: WorkspaceAccess) -> str:
+    return f"{page_prefix(access.workspace.id)}/accounts"
 
 
 def format_percent(rate: Decimal) -> str:
@@ -132,9 +144,10 @@ def category_groups(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 @router.get("/accounts", response_class=HTMLResponse)
-async def accounts_page(request: Request, access: PageViewer):
+async def accounts_page(request: Request, access: ViewerAccess):
     """Render the editable accounts page."""
-    user, workspace = access.user, access.workspace
+    workspace = access.workspace
+    shell = shell_context(access, request.url.path)
     try:
         with get_connection_context() as conn:
             accounts = get_accounts(conn, workspace.id)
@@ -145,7 +158,7 @@ async def accounts_page(request: Request, access: PageViewer):
             request,
             "accounts.html",
             {
-                "user": user,
+                **shell,
                 "active_tab": "accounts",
                 "error": "An error occurred while loading your data. Please try again later.",
                 "rows": [],
@@ -159,7 +172,7 @@ async def accounts_page(request: Request, access: PageViewer):
         request,
         "accounts.html",
         {
-            "user": user,
+            **shell,
             "active_tab": "accounts",
             "rows": rows,
             "assets": category_groups([r for r in rows if r["type"] == "asset"]),
@@ -184,7 +197,7 @@ class SnapshotPayload(BaseModel):
 
 @router.post("/snapshots")
 async def save_snapshot_route(
-    payload: SnapshotPayload, access: PageEditor
+    payload: SnapshotPayload, access: EditorAccess
 ) -> JSONResponse:
     """Write a complete snapshot for today from the page's staged values."""
     workspace = access.workspace
@@ -303,7 +316,7 @@ def _retire_state(
 
 def _render_form(
     request: Request,
-    user: dict[str, Any],
+    access: WorkspaceAccess,
     *,
     account: Account | None,
     form: dict[str, Any],
@@ -322,7 +335,7 @@ def _render_form(
         request,
         "account_form.html",
         {
-            "user": user,
+            **shell_context(access, request.url.path),
             "active_tab": "accounts",
             "account": account,
             "form": form,
@@ -339,14 +352,14 @@ def _render_form(
 
 @router.get("/accounts/new", response_class=HTMLResponse)
 async def new_account_page(
-    request: Request, access: PageEditor, type: Annotated[str, Query()] = "asset"
+    request: Request, access: EditorAccess, type: Annotated[str, Query()] = "asset"
 ):
     type_ = type if type in ("asset", "liability") else "asset"
     with get_connection_context() as conn:
         candidates = _candidates(get_accounts(conn, access.workspace.id), None)
     return _render_form(
         request,
-        access.user,
+        access,
         account=None,
         form=_form_defaults(type_),
         candidates=candidates,
@@ -356,7 +369,7 @@ async def new_account_page(
 @router.post("/accounts")
 async def create_account_route(
     request: Request,
-    access: PageEditor,
+    access: EditorAccess,
     name: Annotated[str, Form()] = "",
     type: Annotated[str, Form()] = "asset",
     category: Annotated[str, Form()] = "",
@@ -374,7 +387,7 @@ async def create_account_route(
         "cost_basis": cost_basis,
         "input_ids": input_ids,
     }
-    user, workspace_id = access.user, access.workspace.id
+    workspace_id = access.workspace.id
     with get_connection_context() as conn:
         try:
             formula = _parse_formula(computed, rate_percent, cost_basis)
@@ -391,7 +404,7 @@ async def create_account_route(
             candidates = _candidates(get_accounts(conn, workspace_id), None)
             return _render_form(
                 request,
-                user,
+                access,
                 account=None,
                 form=form,
                 candidates=candidates,
@@ -399,11 +412,11 @@ async def create_account_route(
                 status_code=400,
             )
     set_flash(request, "success", f"Added {account.name}")
-    return RedirectResponse("/accounts", status_code=303)
+    return RedirectResponse(_accounts_url(access), status_code=303)
 
 
 @router.get("/accounts/{account_id}/edit", response_class=HTMLResponse)
-async def edit_account_page(request: Request, access: PageViewer, account_id: int):
+async def edit_account_page(request: Request, access: ViewerAccess, account_id: int):
     workspace_id = access.workspace.id
     with get_connection_context() as conn:
         account = get_account(conn, workspace_id, account_id)
@@ -414,7 +427,7 @@ async def edit_account_page(request: Request, access: PageViewer, account_id: in
         history = history_rows(get_account_history(conn, workspace_id, account_id))
     return _render_form(
         request,
-        access.user,
+        access,
         account=account,
         form=_form_from_account(account),
         candidates=candidates,
@@ -427,7 +440,7 @@ async def edit_account_page(request: Request, access: PageViewer, account_id: in
 @router.post("/accounts/{account_id}")
 async def update_account_route(
     request: Request,
-    access: PageEditor,
+    access: EditorAccess,
     account_id: int,
     name: Annotated[str, Form()] = "",
     category: Annotated[str, Form()] = "",
@@ -436,7 +449,7 @@ async def update_account_route(
     cost_basis: Annotated[str, Form()] = "",
     input_ids: Annotated[list[int], Form()] = [],
 ):
-    user, workspace_id = access.user, access.workspace.id
+    workspace_id = access.workspace.id
     with get_connection_context() as conn:
         account = get_account(conn, workspace_id, account_id)
         if account is None:
@@ -467,7 +480,7 @@ async def update_account_route(
             history = history_rows(get_account_history(conn, workspace_id, account_id))
             return _render_form(
                 request,
-                user,
+                access,
                 account=account,
                 form=form,
                 candidates=candidates,
@@ -478,11 +491,11 @@ async def update_account_route(
                 status_code=400,
             )
     set_flash(request, "success", f"Saved {updated.name}")
-    return RedirectResponse("/accounts", status_code=303)
+    return RedirectResponse(_accounts_url(access), status_code=303)
 
 
 @router.post("/accounts/{account_id}/retire")
-async def retire_account_route(request: Request, access: PageEditor, account_id: int):
+async def retire_account_route(request: Request, access: EditorAccess, account_id: int):
     workspace = access.workspace
     with get_connection_context() as conn:
         try:
@@ -491,18 +504,20 @@ async def retire_account_route(request: Request, access: PageEditor, account_id:
             )
         except AccountError as e:
             set_flash(request, "error", str(e))
-            return RedirectResponse("/accounts", status_code=303)
+            return RedirectResponse(_accounts_url(access), status_code=303)
     set_flash(request, "success", f"Retired {account.name}")
-    return RedirectResponse("/accounts", status_code=303)
+    return RedirectResponse(_accounts_url(access), status_code=303)
 
 
 @router.post("/accounts/{account_id}/unretire")
-async def unretire_account_route(request: Request, access: PageEditor, account_id: int):
+async def unretire_account_route(
+    request: Request, access: EditorAccess, account_id: int
+):
     with get_connection_context() as conn:
         try:
             account = unretire_account(conn, access.workspace.id, account_id)
         except AccountError as e:
             set_flash(request, "error", str(e))
-            return RedirectResponse("/accounts", status_code=303)
+            return RedirectResponse(_accounts_url(access), status_code=303)
     set_flash(request, "success", f"Unretired {account.name}")
-    return RedirectResponse("/accounts", status_code=303)
+    return RedirectResponse(_accounts_url(access), status_code=303)

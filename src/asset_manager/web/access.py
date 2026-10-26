@@ -1,9 +1,8 @@
 """Which workspace a request acts in, and whether the user's role allows it.
 
-API routes name the workspace in the path. A workspace the user is not a
-live member of is a 404, so its existence is not revealed; a role too low
-for the route is a 403. Pages have no workspace in the path yet and act in
-the user's oldest membership, until the frontend gets a workspace switcher.
+API routes and pages both name the workspace in the path (pages are the API
+path without `/api`). A workspace the user is not a live member of is a 404,
+so its existence is not revealed; a role too low for the route is a 403.
 """
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ def _check_role(role: Role, needed: Role) -> None:
         )
 
 
-def _api_access(needed: Role):
+def _access(needed: Role):
     def dependency(workspace_id: int, user: CurrentUser) -> WorkspaceAccess:
         with get_connection_context() as conn:
             found = repo.get_access(conn, workspace_id, user["id"])
@@ -51,22 +50,44 @@ def _api_access(needed: Role):
     return dependency
 
 
-def _page_access(needed: Role):
-    def dependency(user: CurrentUser) -> WorkspaceAccess:
-        with get_connection_context() as conn:
-            memberships = repo.get_memberships(conn, user["id"])
-        if not memberships:
-            raise NoWorkspace()
-        workspace, role = memberships[0]
-        _check_role(role, needed)
-        return WorkspaceAccess(user=user, workspace=workspace, role=role)
-
-    return dependency
+ViewerAccess = Annotated[WorkspaceAccess, Depends(_access(Role.VIEWER))]
+EditorAccess = Annotated[WorkspaceAccess, Depends(_access(Role.EDITOR))]
+OwnerAccess = Annotated[WorkspaceAccess, Depends(_access(Role.OWNER))]
 
 
-ViewerAccess = Annotated[WorkspaceAccess, Depends(_api_access(Role.VIEWER))]
-EditorAccess = Annotated[WorkspaceAccess, Depends(_api_access(Role.EDITOR))]
-OwnerAccess = Annotated[WorkspaceAccess, Depends(_api_access(Role.OWNER))]
+def page_prefix(workspace_id: int) -> str:
+    """Where a workspace's pages live: `/workspaces/1` + `/accounts`."""
+    return f"/workspaces/{workspace_id}"
 
-PageViewer = Annotated[WorkspaceAccess, Depends(_page_access(Role.VIEWER))]
-PageEditor = Annotated[WorkspaceAccess, Depends(_page_access(Role.EDITOR))]
+
+def oldest_workspace_id(user: dict[str, Any]) -> int:
+    """The workspace that bare paths (`/`, `/accounts`) redirect into."""
+    with get_connection_context() as conn:
+        memberships = repo.get_memberships(conn, user["id"])
+    if not memberships:
+        raise NoWorkspace()
+    return memberships[0][0].id
+
+
+def shell_context(access: WorkspaceAccess, path: str) -> dict[str, Any]:
+    """What base.html needs on every page: the user, this workspace, and the
+    picker's other workspaces, each linking to the same section of the app
+    (an account's edit page maps to the other workspace's Accounts page)."""
+    prefix = page_prefix(access.workspace.id)
+    section = path.removeprefix(prefix).strip("/").split("/")[0]
+    with get_connection_context() as conn:
+        memberships = repo.get_memberships(conn, access.user["id"])
+    return {
+        "user": access.user,
+        "workspace": access.workspace,
+        "role": access.role,
+        "base": prefix,
+        "workspaces": [
+            {
+                "name": workspace.name,
+                "url": page_prefix(workspace.id) + (f"/{section}" if section else ""),
+                "current": workspace.id == access.workspace.id,
+            }
+            for workspace, _ in memberships
+        ],
+    }

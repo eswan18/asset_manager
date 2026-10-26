@@ -236,7 +236,7 @@
 <div class="form-card fade-in">
     <h2 class="{{ form.type }}">{{ 'Edit' if account else 'New' }} {{ form.type }}</h2>
 
-    <form method="post" action="{{ ('/accounts/' ~ account.id) if account else '/accounts' }}">
+    <form method="post" action="{{ base }}/accounts{{ ('/' ~ account.id) if account else '' }}">
         <label class="field">
             <span>Name</span>
             <input type="text" name="name" value="{{ form.name }}" required autofocus>
@@ -299,7 +299,7 @@
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Save</button>
-            <a href="/accounts" class="btn btn-secondary">Cancel</a>
+            <a href="{{ base }}/accounts" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 
@@ -307,7 +307,7 @@
     <div class="danger-zone">
         {% if account.retired_at %}
         <p class="hint">Retired {{ account.retired_at }}. Unretiring brings it back with a blank amount.</p>
-        <form method="post" action="/accounts/{{ account.id }}/unretire">
+        <form method="post" action="{{ base }}/accounts/{{ account.id }}/unretire">
             <button type="submit" class="btn btn-secondary">Unretire</button>
         </form>
         {% else %}
@@ -318,7 +318,7 @@
         {% else %}
         <p class="hint">Retiring hides this account and stops including it in snapshots. History is kept.</p>
         {% endif %}
-        <form method="post" action="/accounts/{{ account.id }}/retire">
+        <form method="post" action="{{ base }}/accounts/{{ account.id }}/retire">
             <button type="submit" class="btn btn-secondary" {% if retire_blocker %}disabled{% endif %}>{{ 'Retire anyway' if retire_warning else 'Retire' }}</button>
         </form>
         {% endif %}
