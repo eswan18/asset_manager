@@ -22,6 +22,18 @@
         gap: 16px;
     }
 
+    .flows-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .flows-actions .btn {
+        min-height: 48px;
+        padding: 0 22px;
+    }
+
     .headline {
         display: flex;
         flex-direction: column;
@@ -172,6 +184,20 @@
         border-bottom: 1px solid var(--rule-strong);
     }
 
+    /* An editor's row is a link to its drawer: the whole row is the target. */
+    a.flow-row {
+        color: var(--ink);
+        text-decoration: none;
+    }
+
+    a.flow-row:hover .name { text-decoration: underline; }
+
+    a.flow-row:focus-visible {
+        outline: 2px solid var(--asset);
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+
     .flow-row .what {
         display: flex;
         flex-direction: column;
@@ -198,6 +224,30 @@
         color: var(--muted);
     }
 
+    .flow-card .card-add {
+        align-self: flex-start;
+        margin-top: 12px;
+    }
+
+    .new-category {
+        min-height: 120px;
+        border: 2px dashed var(--rule-strong);
+        border-radius: var(--radius-card);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .new-category:hover { color: var(--ink); }
+
+    .no-data .flows-actions {
+        justify-content: center;
+        margin-top: 20px;
+    }
+
     @media (max-width: 600px) {
         .flows-top { padding: 24px; }
         .headline-figure { font-size: 48px; }
@@ -210,6 +260,13 @@
     {% if view.empty %}
     <section class="card no-data">
         <p>No cash flows yet. Recurring income and expenses will show here once they are added.</p>
+        {% if can_edit %}
+        <div class="flows-actions">
+            <a class="btn btn-outline" href="{{ base }}/cash-flow-categories?per={{ period }}">Manage categories</a>
+            <a class="btn btn-primary" href="{{ base }}/cash-flows/new?direction=income&amp;per={{ period }}">+ Add income</a>
+            <a class="btn btn-primary" href="{{ base }}/cash-flows/new?direction=expense&amp;per={{ period }}">+ Add expense</a>
+        </div>
+        {% endif %}
     </section>
     {% else %}
     <section class="card flows-top">
@@ -219,7 +276,13 @@
                 <span class="headline-figure">{{ view.net }}</span>
                 <span class="headline-sub">of <strong>{{ view.income }}</strong> income · {{ view.other }}{% if view.estimates %} · ≈ {{ view.estimates }} estimate{{ "s" if view.estimates != 1 }}{% endif %}</span>
             </div>
-            {{ ui.toggle("Show amounts per", periods) }}
+            <div class="flows-actions">
+                {{ ui.toggle("Show amounts per", periods) }}
+                {% if can_edit %}
+                <a class="btn btn-outline" href="{{ base }}/cash-flow-categories?per={{ period }}">Manage categories</a>
+                <a class="btn btn-primary" href="{{ base }}/cash-flows/new?per={{ period }}">+ Add cash flow</a>
+                {% endif %}
+            </div>
         </div>
 
         <div class="where">
@@ -257,18 +320,25 @@
             </div>
             <span class="flow-card-note">{{ card.note }}</span>
             {% for row in card.rows %}
-            <div class="row flow-row">
+            {#- An editor's row opens the flow's drawer; a viewer's is plain. -#}
+            {% if can_edit %}<a class="row flow-row" href="{{ base }}/cash-flows/{{ row.id }}/edit?per={{ period }}">{% else %}<div class="row flow-row">{% endif %}
                 <span class="what">
                     <span class="name">{{ row.name }}{% if row.estimate %} {{ ui.estimate_tag() }}{% endif %}</span>
                     <span class="every">{{ row.amount }} {{ row.every }}</span>
                 </span>
                 <span class="value">{{ row.value }}</span>
-            </div>
+            {% if can_edit %}</a>{% else %}</div>{% endif %}
             {% else %}
             <p class="none">{{ card.empty }}</p>
             {% endfor %}
+            {% if can_edit %}
+            <a class="btn btn-secondary card-add" href="{{ base }}/cash-flows/new?{{ card.add_query }}&amp;per={{ period }}" aria-label="Add to {{ card.name }}">+ Add</a>
+            {% endif %}
         </section>
         {% endfor %}
+        {% if can_edit %}
+        <a class="new-category" href="{{ base }}/cash-flow-categories?per={{ period }}&amp;add=1">+ New category</a>
+        {% endif %}
     </div>
     {% endif %}
 </div>

@@ -325,6 +325,35 @@ def update_category(
     return updated
 
 
+def move_category(
+    conn: Connection, workspace_id: int, category_id: int, step: int
+) -> CashFlowCategory:
+    """Move one place up (step -1) or down (step 1) in display order.
+
+    Swaps with the neighbour and renumbers every category 0, 1, 2, ... so
+    tied or gapped positions (the API can set any) come out tidy. At either
+    end nothing moves.
+    """
+    if step not in (-1, 1):
+        raise CashFlowError("A category moves one place at a time")
+    ordered = repo.get_cash_flow_categories(conn, workspace_id)
+    index = next((i for i, c in enumerate(ordered) if c.id == category_id), None)
+    if index is None:
+        raise CashFlowError(f"Category {category_id} does not exist")
+    target = index + step
+    if 0 <= target < len(ordered):
+        ordered[index], ordered[target] = ordered[target], ordered[index]
+    with conn.transaction():
+        for position, category in enumerate(ordered):
+            if category.position != position:
+                repo.update_cash_flow_category(
+                    conn, category.model_copy(update={"position": position})
+                )
+    conn.commit()
+    moved = next(c for c in ordered if c.id == category_id)
+    return moved.model_copy(update={"position": ordered.index(moved)})
+
+
 def delete_category(conn: Connection, workspace_id: int, category_id: int) -> None:
     """Its cash flows become uncategorized (the foreign key nulls them)."""
     if not repo.delete_cash_flow_category(conn, workspace_id, category_id):

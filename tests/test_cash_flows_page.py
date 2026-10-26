@@ -142,6 +142,7 @@ def test_view_month():
     assert (food["total"], food["note"]) == ("$434.52", "14% of income")
     assert food["rows"] == [
         {
+            "id": None,  # not saved: the page links rows by id
             "name": "Groceries",
             "estimate": True,
             "amount": "$100.00",
@@ -150,12 +151,25 @@ def test_view_month():
         }
     ]
     assert other["rows"][0]["every"] == "every year"
+    # Each card's + Add starts a flow in that card.
+    assert [c["add_query"] for c in view["cards"]] == [
+        "direction=income",
+        "direction=expense&category_id=2",
+        "direction=expense&category_id=1",
+        "direction=expense",
+    ]
     # Largest strongest: Housing, then Food, then Uncategorized.
     assert [food["color"], housing["color"], other["color"]] == [
         "var(--liability-2)",
         "var(--liability)",
         "var(--liability-3)",
     ]
+    # The drawers look the colors up by category id (None: Uncategorized).
+    assert view["colors"] == {
+        2: "var(--liability-2)",
+        1: "var(--liability)",
+        None: "var(--liability-3)",
+    }
     assert [s["color"] for s in view["slices"]] == [
         "var(--liability-2)",
         "var(--liability)",
@@ -374,13 +388,8 @@ class TestCashFlowsPage:
         assert "Left over $" not in text
         assert "Expenses $1,600.00 · 107%" in text
 
-    def test_no_edit_links_yet(self, client, db_connection):
-        _seed(db_connection)
-        login(client)
-        html = client.get(PAGE).text
-        main = html.split("<main", 1)[1]
-        assert "+ Add" not in main and "New category" not in main
-        assert "<a " not in main.split("Where income goes")[1]
+    # The editing controls (row links, + Add, categories) are tested with
+    # their drawers, in test_cash_flow_drawers.py.
 
     def test_another_workspaces_flows_never_appear(self, client, db_connection):
         other = create_workspace(db_connection, USER_ID, "Other", "UTC")

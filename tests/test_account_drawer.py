@@ -119,7 +119,9 @@ class TestDrawerShell:
         text = client.get(ACCOUNTS_PAGE).text
         assert "<aside" not in text
         assert " inert" not in text
-        assert "drawer-open" not in text
+        # The drawer's styles live in base.html; only the class is absent.
+        assert 'class="drawer-open"' not in text
+        assert "<body>" in text
 
     def test_edit_renders_the_accounts_page_underneath(self, client, tax_setup):
         schwab, fidelity, tax = tax_setup
