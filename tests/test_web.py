@@ -284,6 +284,9 @@ def test_account_rows_view_model():
         "retired": False,
         "retired_at": None,
         "formula_text": "",
+        "value_display": "$163,202.77",
+        "was_display": "$163,202.77",
+        "retired_display": None,
     }
     assert rows[1]["computed"] is True
     assert rows[1]["formula"] == {
@@ -293,10 +296,87 @@ def test_account_rows_view_model():
     }
     assert rows[1]["basis_display"] == "70,634.00"
     assert rows[1]["formula_text"] == "15% × (Schwab − basis)"
+    assert rows[1]["value_display"] == "$13,885.32"
+    assert rows[1]["was_display"] == "$13,885.32"
     assert rows[2]["retired"] is True
     assert rows[2]["retired_at"] == "2026-01-01"
+    assert rows[2]["retired_display"] == "Jan 1, 2026"
     assert rows[2]["amount"] is None
     assert rows[2]["amount_display"] == ""
+    # No row on the latest date: nothing to show, and nothing to have been.
+    assert rows[2]["value_display"] == "—"
+    assert rows[2]["was_display"] == "nothing yet"
+
+
+def test_was_and_value_display_show_negative_amounts_as_money():
+    from asset_manager.web.accounts_routes import account_rows
+
+    card = Account(id=1, name="Card", type=RecordType.LIABILITY)
+    latest = [
+        Record(
+            date=date(2026, 9, 1),
+            account_id=1,
+            type=RecordType.LIABILITY,
+            description="Card",
+            amount=Decimal("-63.30"),
+        )
+    ]
+    (row,) = account_rows([card], latest)
+    assert row["was_display"] == "-$63.30"
+    assert row["value_display"] == "-$63.30"
+    assert row["amount_display"] == "-63.30"
+
+
+def test_snapshot_line():
+    from asset_manager.web.accounts_routes import snapshot_line
+
+    today_ = date(2026, 10, 26)
+    head = "Saving writes today's snapshot, Oct 26, 2026."
+    assert snapshot_line(today_, None) == f"{head} Nothing saved yet."
+    assert (
+        snapshot_line(today_, today_)
+        == f"{head} Last saved today; saving again replaces it."
+    )
+    assert snapshot_line(today_, date(2026, 10, 24)) == f"{head} Last saved Oct 24."
+    assert (
+        snapshot_line(today_, date(2025, 12, 31)) == f"{head} Last saved Dec 31, 2025."
+    )
+    assert (
+        snapshot_line(date(2027, 1, 2), date(2026, 9, 1))
+        == "Saving writes today's snapshot, Jan 2, 2027. Last saved Sep 1, 2026."
+    )
+
+
+def test_section_view_totals_skip_retired_and_missing_amounts():
+    from asset_manager.web.accounts_routes import saved_total, section_view
+
+    def row(name, category, amount, retired=False):
+        return {
+            "name": name,
+            "category": category,
+            "amount": amount,
+            "retired": retired,
+        }
+
+    rows = [
+        row("Chase", "bank_accounts", "100.10"),
+        row("Ally", "bank_accounts", "-0.10"),
+        row("Old", "bank_accounts", "999", retired=True),
+        row("New", "investment_accounts", None),
+        row("House", None, "400000"),
+    ]
+    section = section_view("asset", "Assets", rows)
+
+    assert section["kind"] == "asset"
+    assert section["title"] == "Assets"
+    assert section["total"] == "$400,100.00"
+    assert [(g["label"], g["subtotal"]) for g in section["groups"]] == [
+        ("Bank Accounts", "$100.00"),
+        ("Investment Accounts", "$0.00"),
+        ("Uncategorized", "$400,000.00"),
+    ]
+    assert saved_total([]) == Decimal("0")
+    assert saved_total(rows) == Decimal("400100.00")
 
 
 def test_category_groups_orders_categories_and_puts_uncategorized_last():
@@ -359,9 +439,9 @@ class TestAccountsPage:
         assert 'value="1,000.00"' in text
         assert "Cap Gains Tax" in text
         assert "Show retired (1)" in text
-        assert "September 1, 2026" in text
-        # The unsaved-changes header and saving-state hooks the script toggles
-        assert 'id="snapshot-dirty" class="unsaved" hidden' in text
+        assert "Last saved Sep 1" in text
+        # The save bar's hooks the script updates
+        assert 'id="dirty-status"' in text
         assert 'id="save-label"' in text
         assert f'href="{PAGES}/accounts/{schwab.id}/edit"' in text
 
@@ -407,7 +487,7 @@ class TestAccountsPage:
         login(client)
         text = client.get(f"{PAGES}/accounts").text
         cells = re.findall(
-            r'<tr class="category-row">\s*<td>([^<]+)</td>'
+            r'<div class="group-head"><span>([^<]+)</span>'
             r'|class="account-name" href="/workspaces/1/accounts/\d+/edit">([^<]+)</a>',
             text,
         )
@@ -419,7 +499,7 @@ class TestAccountsPage:
             "Credit Cards",
             "Visa",
         ]
-        assert 'data-key="asset:bank_accounts"' in text
+        assert 'data-group="asset:bank_accounts"' in text
 
     def test_header_says_today_when_latest_snapshot_is_today(
         self, client, db_connection
@@ -432,8 +512,7 @@ class TestAccountsPage:
         login(client)
         text = client.get(f"{PAGES}/accounts").text
         assert 'id="snapshot-saved" data-today="1"' in text
-        assert "Snapshot <strong>Today</strong>" in text
-        assert today(TZ).strftime("%B %-d, %Y") not in text
+        assert "Last saved today; saving again replaces it." in text
 
     def test_header_carries_date_when_latest_snapshot_is_older(
         self, client, db_connection
@@ -444,7 +523,254 @@ class TestAccountsPage:
         login(client)
         text = client.get(f"{PAGES}/accounts").text
         assert 'id="snapshot-saved" data-today="0"' in text
-        assert "Snapshot <span>September 1, 2026</span>" in text
+        assert "Last saved Sep 1" in text
+        assert "Last saved today" not in text
+
+    def test_snapshot_line_uses_the_workspace_time_zone(
+        self, client, db_connection, monkeypatch
+    ):
+        from asset_manager.web import accounts_routes
+
+        seen = []
+
+        def fake_today(tz):
+            seen.append(tz)
+            return date(2026, 9, 2)
+
+        monkeypatch.setattr(accounts_routes, "today", fake_today)
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("1")})
+        db_connection.commit()
+        login(client)
+        text = client.get(f"{PAGES}/accounts").text
+        assert seen == [TZ]
+        # Jinja escapes the apostrophe; the browser shows "today's".
+        assert (
+            "Saving writes today&#39;s snapshot, Sep 2, 2026. Last saved Sep 1." in text
+        )
+        assert 'data-today="0"' in text
+
+    def test_snapshot_line_with_nothing_saved(self, client, db_connection):
+        create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        login(client)
+        text = client.get(f"{PAGES}/accounts").text
+        assert "Nothing saved yet." in text
+        assert 'data-today="0"' in text
+
+    def test_edited_rows_carry_their_saved_value_as_was(self, client, db_connection):
+        import re
+
+        from asset_manager.models import ProportionalFormula
+
+        schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
+        tax = create_account(
+            db_connection,
+            WS,
+            "Tax",
+            RecordType.LIABILITY,
+            ProportionalFormula(rate=Decimal("0.15"), cost_basis=Decimal("100")),
+            [schwab.id],
+        )
+        new = create_account(db_connection, WS, "Brand New", RecordType.ASSET)
+        upsert_amounts(
+            db_connection,
+            WS,
+            date(2026, 9, 1),
+            {schwab.id: Decimal("2140"), tax.id: Decimal("306")},
+        )
+        db_connection.commit()
+        login(client)
+        text = client.get(f"{PAGES}/accounts").text
+
+        def was(account_id):
+            found = re.findall(
+                rf'<span class="was" data-account-id="{account_id}" hidden>([^<]*)</span>',
+                text,
+            )
+            assert len(found) == 1, account_id
+            return found[0]
+
+        # Hidden until the script sees an edit; one per row, plain or computed.
+        assert was(schwab.id) == "was $2,140.00"
+        assert was(tax.id) == "was $306.00"
+        assert was(new.id) == "was nothing yet"
+        # The computed row shows its saved value, labelled, until recomputed.
+        assert re.search(
+            rf'<span class="computed-amount" data-account-id="{tax.id}">\$306.00</span>\s*'
+            r'<span class="computed-label">computed</span>',
+            text,
+        )
+        assert "15% × (Schwab − basis)" in text
+        assert re.search(
+            rf'<input class="basis-input" data-field="basis" data-account-id="{tax.id}"\s+'
+            r'value="100.00"',
+            text,
+        )
+
+    def test_plain_rows_get_one_money_input(self, client, db_connection):
+        import re
+
+        cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("12.5")})
+        db_connection.commit()
+        login(client)
+        text = client.get(f"{PAGES}/accounts").text
+        inputs = re.findall(r'<input class="money-input[^"]*"[^>]*>', text)
+        assert len(inputs) == 1
+        (tag,) = inputs
+        assert 'aria-label="Amount for Cash"' in tag
+        assert 'value="12.50"' in tag
+        assert 'data-field="amount"' in tag
+        assert f'data-account-id="{cash.id}"' in tag
+        assert 'inputmode="decimal"' in tag
+        # Nothing is edited when the page loads.
+        assert "edited" not in tag
+
+    def test_save_bar_starts_clean_with_the_saved_net_worth(
+        self, client, db_connection
+    ):
+        from asset_manager.models import AccountCategory
+
+        cash = create_account(
+            db_connection,
+            WS,
+            "Cash",
+            RecordType.ASSET,
+            category=AccountCategory.BANK_ACCOUNTS,
+        )
+        house = create_account(db_connection, WS, "House", RecordType.ASSET)
+        card = create_account(db_connection, WS, "Card", RecordType.LIABILITY)
+        old = create_account(db_connection, WS, "Old", RecordType.ASSET)
+        upsert_amounts(
+            db_connection,
+            WS,
+            date(2026, 9, 1),
+            {
+                cash.id: Decimal("1000.25"),
+                house.id: Decimal("400000"),
+                card.id: Decimal("250.25"),
+                old.id: Decimal("5000"),
+            },
+        )
+        retire_account(db_connection, WS, old.id, date(2026, 9, 2))
+        db_connection.commit()
+        login(client)
+        text = client.get(f"{PAGES}/accounts").text
+
+        assert (
+            '<strong id="dirty-status" class="clean">No unsaved changes</strong>'
+            in text
+        )
+        # Retired accounts count for nothing, as in a save.
+        assert 'Net worth <span id="net-worth">$400,750.00</span>' in text
+        assert '<span id="net-change" hidden></span>' in text
+        assert '<span class="total">$401,000.25</span>' in text
+        assert '<span class="total">$250.25</span>' in text
+        assert (
+            '<div class="group-head"><span>Bank Accounts</span><span>$1,000.25</span></div>'
+            in text
+        )
+        assert 'id="discard-button"' in text
+        assert ">Save snapshot</span>" in text
+
+    def test_cards_link_to_add_each_type(self, client, db_connection):
+        create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        login(client)
+        text = client.get(f"{PAGES}/accounts").text
+        assert 'class="card section-asset"' in text
+        assert 'class="card section-liability"' in text
+        assert f'href="{PAGES}/accounts/new?type=asset">+ Add</a>' in text
+        assert f'href="{PAGES}/accounts/new?type=liability">+ Add</a>' in text
+
+    def test_retired_rows_hide_behind_the_toggle(self, client, db_connection):
+        import re
+
+        from asset_manager.models import AccountCategory
+
+        create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        gone = create_account(
+            db_connection,
+            WS,
+            "Gone Card",
+            RecordType.LIABILITY,
+            category=AccountCategory.CREDIT_CARDS,
+        )
+        retire_account(db_connection, WS, gone.id, date(2026, 3, 4))
+        db_connection.commit()
+        login(client)
+        text = client.get(f"{PAGES}/accounts").text
+
+        assert '<input type="checkbox" id="show-retired"> Show retired (1)' in text
+        row = re.search(
+            rf'<div class="row account-row retired-row" data-account-id="{gone.id}">'
+            r"(.*?)\n                </div>",
+            text,
+            re.S,
+        )
+        assert row is not None
+        assert "Retired Mar 4, 2026" in row.group(1)
+        # A retired row has nothing to edit and no "was" line.
+        assert "<input" not in row.group(1)
+        assert 'class="was"' not in row.group(1)
+        # A group with only retired rows hides with them.
+        assert 'class="group retired-row" data-group="liability:credit_cards"' in text
+        assert 'class="group" data-group="asset:uncategorized"' in text
+        # The stylesheet hides them until the toggle adds the body class.
+        assert re.search(r"\.retired-row \{\s*display: none;", text)
+        assert "body.show-retired .row.retired-row" in text
+        assert "classList.toggle('show-retired', toggle.checked)" in text
+
+    def test_no_retired_toggle_without_retired_accounts(self, client, db_connection):
+        create_account(db_connection, WS, "Cash", RecordType.ASSET)
+        login(client)
+        text = client.get(f"{PAGES}/accounts").text
+        assert "Show retired" not in text
+        assert 'id="show-retired"' not in text
+
+    def test_script_hooks_exist_in_the_markup(self, client, db_connection):
+        """Every element the script looks up by id or data-field is on the
+        page, so a markup change cannot silently disconnect the script."""
+        import re
+
+        from asset_manager.models import ProportionalFormula
+
+        schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
+        create_account(
+            db_connection,
+            WS,
+            "Tax",
+            RecordType.LIABILITY,
+            ProportionalFormula(rate=Decimal("0.15"), cost_basis=Decimal("1")),
+            [schwab.id],
+        )
+        old = create_account(db_connection, WS, "Old", RecordType.ASSET)
+        retire_account(db_connection, WS, old.id, date(2026, 1, 1))
+        db_connection.commit()
+        login(client)
+        text = client.get(f"{PAGES}/accounts").text
+        markup = text.split("<script")[0]
+
+        ids = set(re.findall(r"getElementById\('([^']+)'\)", text))
+        assert {"dirty-status", "net-worth", "net-change", "save-button"} <= ids
+        for element_id in ids:
+            assert f'id="{element_id}"' in text, element_id
+        assert "querySelectorAll('input[data-field=\"amount\"]')" in text
+        assert "querySelectorAll('input[data-field=\"basis\"]')" in text
+        assert 'data-field="amount"' in markup
+        assert 'data-field="basis"' in markup
+        for hook in (
+            'class="was"',
+            'class="computed-amount"',
+            'class="group-head"',
+            'class="total"',
+            "data-group=",
+        ):
+            assert hook in markup, hook
+        # The edited state is the shared component's class.
+        assert "classList.toggle('edited', dirty)" in text
+        assert "sessionStorage.setItem(STORAGE_KEY" in text
+        assert f"fetch('{PAGES}/snapshots'" in text
+        assert "res.status === 401" in text and "'/login'" in text
 
 
 @pytest.mark.db

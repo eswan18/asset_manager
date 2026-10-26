@@ -1,49 +1,251 @@
 {% extends "base.html" %}
 
 {% block styles %}
-    .page-top {
+    /* --- page head --- */
+
+    .page-head {
         display: flex;
         justify-content: space-between;
-        align-items: baseline;
-        margin-bottom: 1.25rem;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 8px 4px;
+        margin-bottom: 16px;
     }
 
-    .snapshot-date {
-        color: var(--text-muted);
-        font-size: 0.8rem;
-        font-weight: 500;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
+    .page-head h1 {
+        font-family: var(--font-display);
+        font-size: 32px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
     }
 
-    .snapshot-date span {
-        color: var(--text-secondary);
+    .snapshot-line {
+        display: block;
+        margin-top: 4px;
+        font-size: 14px;
+        color: var(--muted);
     }
 
-    .snapshot-date strong {
-        color: var(--text-primary);
+    .toggle-retired {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        font-size: 14px;
+        color: var(--muted);
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .toggle-retired input {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--primary);
+    }
+
+    /* --- cards --- */
+
+    .card-head {
+        flex-wrap: wrap;
+    }
+
+    .card-head .btn {
+        white-space: nowrap;
+    }
+
+    /* --- rows --- */
+
+    .account-row .row-main {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .account-name {
+        color: var(--ink);
+        text-decoration: none;
+        overflow-wrap: anywhere;
+    }
+
+    .account-name:hover {
+        text-decoration: underline;
+        text-decoration-color: var(--rule-strong);
+        text-underline-offset: 3px;
+    }
+
+    .was,
+    .formula-line,
+    .computed-label,
+    .retired-note {
+        font-size: 12px;
+        color: var(--muted);
+    }
+
+    .was[hidden] {
+        display: none;
+    }
+
+    .formula-line {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .formula-line label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .basis-input {
+        width: 92px;
+        min-height: 28px;
+        padding: 0 8px;
+        border: 1px solid var(--rule-strong);
+        border-radius: 8px;
+        background: var(--input);
+        color: var(--ink);
+        font: inherit;
+        font-size: 12px;
+        text-align: right;
+    }
+
+    .account-row .money-input {
+        flex: 0 0 140px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .basis-input.edited {
+        border: 1.5px solid var(--asset);
+        background: var(--asset-tint);
+    }
+
+    .money-input:focus-visible,
+    .basis-input:focus-visible {
+        outline: 2px solid var(--asset);
+        outline-offset: 1px;
+    }
+
+    /* Declared after .edited: a value that isn't a number reads as an error. */
+    .money-input.invalid,
+    .basis-input.invalid {
+        border: 1.5px solid var(--danger);
+        color: var(--danger);
+    }
+
+    .computed-value {
+        flex: 0 0 140px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        padding-right: 13px;
+    }
+
+    .computed-amount.edited {
+        color: var(--asset);
         font-weight: 600;
     }
 
-    .snapshot-date .unsaved {
-        color: var(--accent-gold);
+    /* Retired rows hide until the toggle shows them. */
+    .retired-row {
+        display: none;
     }
 
-    /* Saving state: lock the page until the reload replaces it */
-    body.saving .accounts-grid,
-    body.saving .net-worth-summary {
-        animation: none;   /* the fade-in's fill mode would otherwise pin opacity at 1 */
+    body.show-retired .row.retired-row {
+        display: flex;
+    }
+
+    body.show-retired .group.retired-row {
+        display: block;
+    }
+
+    .retired-row .account-name {
+        color: var(--muted);
+        text-decoration: line-through;
+    }
+
+    .retired-note {
+        flex: 0 0 auto;
+        padding-right: 13px;
+    }
+
+    /* --- sticky save bar --- */
+
+    .save-bar-wrap {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        margin-top: 16px;
+        padding-bottom: 20px;
+    }
+
+    .save-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 12px 12px 24px;
+        background: var(--bar-bg);
+        color: var(--bar-fg);
+        border: 1px solid var(--bar-border);
+        border-radius: 16px;
+        box-shadow: 0 8px 24px var(--shadow);
+    }
+
+    .save-status {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 8px 20px;
+    }
+
+    #dirty-status {
+        font-weight: 600;
+    }
+
+    #dirty-status.clean {
+        font-weight: 400;
+        color: var(--bar-muted);
+    }
+
+    .save-net {
+        color: var(--bar-muted);
+    }
+
+    #net-worth {
+        color: var(--bar-fg);
+    }
+
+    .save-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .save-actions .btn {
+        min-height: 44px;
+    }
+
+    .btn-bar {
+        background: transparent;
+        color: var(--bar-fg);
+        border-color: var(--bar-border);
+    }
+
+    /* Saving: nothing is editable between the click and the reload. */
+    body.saving .card-grid {
         opacity: 0.55;
         pointer-events: none;
     }
 
     .spinner {
         display: inline-block;
-        width: 0.75rem;
-        height: 0.75rem;
-        margin-right: 0.45rem;
-        vertical-align: -0.1rem;
-        border: 2px solid var(--btn-primary-text);
+        width: 12px;
+        height: 12px;
+        border: 2px solid var(--on-primary);
         border-right-color: transparent;
         border-bottom-color: transparent;
         border-radius: 50%;
@@ -58,341 +260,20 @@
         to { transform: rotate(360deg); }
     }
 
-    .toggle-retired {
-        color: var(--text-muted);
-        font-size: 0.8rem;
-        cursor: pointer;
-        user-select: none;
-    }
-
-    .toggle-retired input {
-        margin-right: 0.4rem;
-        accent-color: var(--accent-gold);
-    }
-
-    .accounts-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1.5rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .account-table-wrapper {
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius);
-        overflow: hidden;
-    }
-
-    .table-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.85rem 1.25rem;
-        border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .table-header h2 {
-        font-family: var(--font-display);
-        font-size: 1.05rem;
-        font-weight: 400;
-        letter-spacing: 0.01em;
-    }
-
-    .table-header.asset h2 {
-        color: var(--color-asset);
-    }
-
-    .table-header.liability h2 {
-        color: var(--color-liability);
-    }
-
-    .table-actions .btn {
-        padding: 0.25rem 0.6rem;
-        font-size: 0.7rem;
-    }
-
-    .accounts-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .accounts-table th {
-        text-align: left;
-        padding: 0.55rem 1.25rem;
-        font-size: 0.7rem;
-        font-weight: 600;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .accounts-table th.amount-col {
-        text-align: right;
-    }
-
-    .accounts-table td {
-        padding: 0.55rem 1.25rem;
-        font-size: 0.9rem;
-        border-bottom: 1px solid var(--border-row);
-        vertical-align: top;
-    }
-
-    .accounts-table tbody tr {
-        transition: background-color 0.15s ease;
-    }
-
-    .accounts-table tbody tr:hover:not(.totals-row):not(.category-row) {
-        background-color: var(--bg-surface-hover);
-    }
-
-    .accounts-table .category-row td {
-        padding-top: 0.9rem;
-        padding-bottom: 0.35rem;
-        font-size: 0.7rem;
-        font-weight: 600;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .accounts-table .category-row td.amount-cell {
-        font-size: 0.75rem;
-        font-weight: 500;
-        letter-spacing: 0;
-        text-transform: none;
-    }
-
-    .account-name {
-        color: var(--text-secondary);
-        text-decoration: none;
-        border-bottom: 1px dotted transparent;
-        transition: color 0.15s, border-color 0.15s;
-    }
-
-    .account-name:hover {
-        color: var(--text-primary);
-        border-bottom-color: var(--text-muted);
-    }
-
-    .formula-badge {
-        display: inline-block;
-        margin-left: 0.5rem;
-        padding: 0 0.4rem;
-        border-radius: 3px;
-        background: var(--accent-gold-dim);
-        color: var(--accent-gold);
-        font-family: var(--font-mono);
-        font-size: 0.7rem;
-        cursor: help;
-    }
-
-    .basis-field {
-        display: block;
-        margin-top: 0.2rem;
-        color: var(--text-muted);
-        font-size: 0.75rem;
-        font-family: var(--font-mono);
-    }
-
-    .amount-cell {
-        text-align: right;
-        font-family: var(--font-mono);
-        font-size: 0.85rem;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .amount-cell input,
-    .basis-field input {
-        background: transparent;
-        border: none;
-        border-bottom: 1px solid var(--border-medium);
-        color: var(--text-primary);
-        font-family: var(--font-mono);
-        font-size: 0.85rem;
-        text-align: right;
-        padding: 0.1rem 0.2rem;
-        width: 9rem;
-        font-variant-numeric: tabular-nums;
-        outline: none;
-        transition: border-color 0.15s, color 0.15s;
-    }
-
-    .basis-field input {
-        width: 7.5rem;
-        font-size: 0.75rem;
-    }
-
-    .amount-cell input:focus,
-    .basis-field input:focus,
-    .amount-cell input.dirty,
-    .basis-field input.dirty {
-        border-bottom-color: var(--accent-gold);
-    }
-
-    /* Unsaved values wear the same gold as the "Unsaved changes" label and the
-       save bar. Focus only moves the underline, so a changed value stays
-       legible once the cursor leaves it. */
-    .amount-cell input.dirty,
-    .basis-field input.dirty,
-    .computed-amount.dirty {
-        color: var(--accent-gold);
-        font-weight: 500;
-    }
-
-    /* Marks the whole row, so a changed basis is visible from the left edge
-       even though only the small basis field under the name moved. */
-    .accounts-table tbody tr.dirty-row td:first-child {
-        box-shadow: inset 3px 0 0 var(--accent-gold);
-    }
-
-    /* Declared after .dirty, at equal specificity: a bad number reads red. */
-    .amount-cell input.invalid,
-    .basis-field input.invalid {
-        border-bottom-color: var(--color-liability);
-        color: var(--color-error-text);
-    }
-
-    .computed-amount {
-        color: var(--text-primary);
-    }
-
-    .retired-note {
-        color: var(--text-muted);
-        font-size: 0.75rem;
-    }
-
-    .retired-row {
-        display: none;
-    }
-
-    body.show-retired .retired-row {
-        display: table-row;
-    }
-
-    .retired-row .account-name {
-        color: var(--text-muted);
-        text-decoration: line-through;
-    }
-
-    .accounts-table .totals-row td {
-        font-weight: 600;
-        border-top: 1px solid var(--border-medium);
-        border-bottom: none;
-        padding-top: 0.7rem;
-        padding-bottom: 0.7rem;
-        color: var(--text-primary);
-        font-size: 0.9rem;
-    }
-
-    .net-worth-summary {
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius);
-        padding: 1rem 1.25rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .net-worth-summary::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 3px;
-        background: var(--accent-gold);
-    }
-
-    .net-worth-summary .label {
-        font-family: var(--font-display);
-        font-size: 1.05rem;
-        font-weight: 400;
-        color: var(--text-secondary);
-    }
-
-    .net-worth-summary .value {
-        font-family: var(--font-mono);
-        font-size: 1.35rem;
-        font-weight: 600;
-        color: var(--accent-gold);
-        letter-spacing: -0.02em;
-    }
-
-    .save-bar {
-        position: sticky;
-        bottom: 0;
-        margin-top: 1.5rem;
-        padding: 0.85rem 1.25rem;
-        background: var(--bg-primary);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 1rem;
-        box-shadow: var(--shadow);
-    }
-
-    .save-bar .status {
-        color: var(--text-muted);
-        font-size: 0.85rem;
-    }
-
-    .save-bar .status.dirty {
-        color: var(--accent-gold);
-    }
-
-    .save-bar .status.warning {
-        color: var(--color-warning-text);
-    }
-
-    .save-bar .actions {
-        display: flex;
-        gap: 0.75rem;
-    }
-
-    .btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .accounts-table tbody tr {
-        animation: fadeUp 0.3s ease-out both;
-    }
-
-    {% for i in range(20) %}
-    .accounts-table tbody tr:nth-child({{ i + 1 }}) {
-        animation-delay: {{ 0.03 * i }}s;
-    }
-    {% endfor %}
-
-    @media (max-width: 768px) {
-        .accounts-grid {
-            grid-template-columns: 1fr;
-        }
+    @media (max-width: 600px) {
+        .card { padding: 20px; }
+        .account-row .money-input,
+        .computed-value { flex-basis: 124px; width: 124px; }
+        .save-bar { padding: 12px 12px 12px 16px; }
     }
 {% endblock %}
 
 {% block content %}
     {% if rows %}
-    <div class="page-top fade-in">
-        <div class="snapshot-date">
-            <span id="snapshot-saved" data-today="{{ '1' if snapshot_is_today else '0' }}">
-                {% if snapshot_is_today %}
-                Snapshot <strong>Today</strong>
-                {% elif snapshot_date %}
-                Snapshot <span>{{ snapshot_date.strftime('%B %-d, %Y') }}</span>
-                {% else %}
-                No snapshot saved yet
-                {% endif %}
-            </span>
-            <span id="snapshot-dirty" class="unsaved" hidden>Unsaved changes</span>
+    <div class="page-head fade-in">
+        <div>
+            <h1>Accounts</h1>
+            <span class="snapshot-line" id="snapshot-saved" data-today="{{ '1' if snapshot_is_today else '0' }}">{{ snapshot_line }}</span>
         </div>
         {% if retired_count %}
         <label class="toggle-retired">
@@ -403,77 +284,55 @@
 
     <div id="save-error" class="error" hidden></div>
 
-    <div class="accounts-grid fade-in" style="animation-delay: 0.05s">
-        {% for kind, title, groups in [('asset', 'Assets', assets), ('liability', 'Liabilities', liabilities)] %}
-        <div class="account-table-wrapper">
-            <div class="table-header {{ kind }}">
-                <h2>{{ title }}</h2>
-                <div class="table-actions">
-                    <a class="btn btn-secondary" href="{{ base }}/accounts/new?type={{ kind }}">+ Add</a>
+    <div class="card-grid fade-in" style="animation-delay: 0.05s">
+        {% for section in sections %}
+        {% call ui.card(section.title, total=section.total, kind=section.kind, add_href=base ~ "/accounts/new?type=" ~ section.kind) %}
+            {% for group in section.groups %}
+            <div class="group{% if group.retired %} retired-row{% endif %}" data-group="{{ section.kind }}:{{ group.key }}">
+                {{ ui.group_head(group.label, group.subtotal) }}
+                {% for row in group.rows %}
+                <div class="row account-row{% if row.retired %} retired-row{% endif %}" data-account-id="{{ row.id }}">
+                    <span class="row-main">
+                        <a class="account-name" href="{{ base }}/accounts/{{ row.id }}/edit">{{ row.name }}</a>
+                        {% if not row.retired %}
+                        <span class="was" data-account-id="{{ row.id }}" hidden>was {{ row.was_display }}</span>
+                        {% endif %}
+                        {% if row.computed and not row.retired %}
+                        <span class="formula-line">{{ row.formula_text }}
+                            <label>basis $<input class="basis-input" data-field="basis" data-account-id="{{ row.id }}"
+                                   value="{{ row.basis_display }}" inputmode="decimal"
+                                   aria-label="Cost basis for {{ row.name }}"></label>
+                        </span>
+                        {% endif %}
+                    </span>
+                    {% if row.retired %}
+                    <span class="retired-note">Retired {{ row.retired_display }}</span>
+                    {% elif row.computed %}
+                    <span class="computed-value">
+                        <span class="computed-amount" data-account-id="{{ row.id }}">{{ row.value_display }}</span>
+                        <span class="computed-label">computed</span>
+                    </span>
+                    {% else %}
+                    {{ ui.money_input("Amount for " ~ row.name, row.amount_display, **{"data-field": "amount", "data-account-id": row.id, "placeholder": "0.00"}) }}
+                    {% endif %}
                 </div>
+                {% endfor %}
             </div>
-            <table class="accounts-table">
-                <thead>
-                    <tr>
-                        <th>Description</th>
-                        <th class="amount-col">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for group in groups %}
-                    <tr class="category-row{% if group.retired %} retired-row{% endif %}">
-                        <td>{{ group.label }}</td>
-                        <td class="amount-cell category-subtotal" data-key="{{ kind }}:{{ group.key }}">—</td>
-                    </tr>
-                    {% for row in group.rows %}
-                    <tr data-account-id="{{ row.id }}" class="{% if row.retired %}retired-row{% endif %}">
-                        <td>
-                            <a class="account-name" href="{{ base }}/accounts/{{ row.id }}/edit">{{ row.name }}</a>
-                            {% if row.computed %}
-                            <span class="formula-badge" title="{{ row.formula_text }}">ƒ</span>
-                            {% if not row.retired %}
-                            <span class="basis-field">basis $
-                                <input class="basis-input" data-field="basis" data-account-id="{{ row.id }}"
-                                       value="{{ row.basis_display }}" inputmode="decimal"
-                                       aria-label="Cost basis for {{ row.name }}">
-                            </span>
-                            {% endif %}
-                            {% endif %}
-                        </td>
-                        <td class="amount-cell">
-                            {% if row.retired %}
-                            <span class="retired-note">retired {{ row.retired_at }}</span>
-                            {% elif row.computed %}
-                            <span class="computed-amount" data-account-id="{{ row.id }}">—</span>
-                            {% else %}
-                            <input class="amount-input" data-field="amount" data-account-id="{{ row.id }}"
-                                   value="{{ row.amount_display }}" inputmode="decimal" placeholder="0.00"
-                                   aria-label="Amount for {{ row.name }}">
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    {% endfor %}
-                    <tr class="totals-row">
-                        <td>Total</td>
-                        <td class="amount-cell" id="total-{{ kind }}">—</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+            {% endfor %}
+        {% endcall %}
         {% endfor %}
     </div>
 
-    <div class="net-worth-summary fade-in" style="animation-delay: 0.15s">
-        <span class="label">Net Worth</span>
-        <span class="value" id="net-worth">—</span>
-    </div>
-
-    <div class="save-bar fade-in" style="animation-delay: 0.2s">
-        <span class="status" id="dirty-status">No unsaved changes</span>
-        <div class="actions">
-            <button type="button" class="btn btn-secondary" id="discard-button">Discard</button>
-            <button type="button" class="btn btn-primary" id="save-button"><span class="spinner" hidden></span><span id="save-label">Save snapshot</span></button>
+    <div class="save-bar-wrap">
+        <div class="save-bar" role="region" aria-label="Save snapshot">
+            <span class="save-status" aria-live="polite">
+                <strong id="dirty-status" class="clean">No unsaved changes</strong>
+                <span class="save-net">Net worth <span id="net-worth">{{ net_worth }}</span><span id="net-change" hidden></span></span>
+            </span>
+            <span class="save-actions">
+                <button type="button" class="btn btn-bar" id="discard-button">Discard</button>
+                <button type="button" class="btn btn-primary" id="save-button"><span class="spinner" hidden></span><span id="save-label">Save snapshot</span></button>
+            </span>
         </div>
     </div>
     {% elif not error %}
@@ -492,12 +351,11 @@
     const active = rows.filter(r => !r.retired);
     const STORAGE_KEY = 'asset-manager:staged-edits';
 
-    const amountInputs = Array.from(document.querySelectorAll('.amount-input'));
-    const basisInputs = Array.from(document.querySelectorAll('.basis-input'));
+    const amountInputs = Array.from(document.querySelectorAll('input[data-field="amount"]'));
+    const basisInputs = Array.from(document.querySelectorAll('input[data-field="basis"]'));
     const allInputs = amountInputs.concat(basisInputs);
     const initial = new Map(allInputs.map(el => [el, el.value]));
 
-    // --- parsing and formatting -------------------------------------------
     let saveAttempted = false;
     // A snapshot already exists for today: the first Save click warns, the second overwrites.
     const snapshotIsToday = document.getElementById('snapshot-saved').dataset.today === '1';
@@ -507,9 +365,9 @@
     function setOverwriteArmed(on) {
         overwriteArmed = on;
         document.getElementById('save-label').textContent = on ? "Overwrite today's snapshot" : 'Save snapshot';
-        document.getElementById('dirty-status').classList.toggle('warning', on);
     }
 
+    // --- parsing and formatting -------------------------------------------
     // Cleans and validates the raw text, returning both the numeric value
     // (for display/recompute) and the cleaned decimal string (for the save
     // payload -- see collect()). Accepts a leading "+" or "-", or
@@ -533,6 +391,7 @@
         return Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     function fmtMoney(n) { return (n < 0 ? '-$' : '$') + fmt(n); }
+    function fmtChange(n) { return (n > 0 ? '+' : '') + fmtMoney(n); }
     function normalized(text) {
         const n = parseAmount(text);
         return usable(n) ? roundCents(n).toFixed(2) : String(text).trim();
@@ -540,73 +399,99 @@
     function isDirty(el) { return normalized(el.value) !== normalized(initial.get(el)); }
     function key(el) { return el.dataset.field + ':' + el.dataset.accountId; }
 
-    // --- recompute ---------------------------------------------------------
-    // Account ids with a dirty amount or basis input, as strings. Rebuilt on
-    // every recompute() and read back to mark computed rows, which have no
-    // amount input of their own to compare against.
-    const dirtyIds = new Set();
-
-    function readInputs(list) {
-        const out = {};
-        list.forEach(el => {
-            const n = parseAmount(el.value);
-            const dirty = isDirty(el);
-            el.classList.toggle('invalid', Number.isNaN(n) || (saveAttempted && n === null && el.dataset.field !== 'basis'));
-            el.classList.toggle('dirty', dirty);
-            if (dirty) dirtyIds.add(el.dataset.accountId);
-            out[el.dataset.accountId] = n;
-        });
-        return out;
-    }
-
-    function recompute() {
-        dirtyIds.clear();
-        const values = readInputs(amountInputs);
-        const bases = readInputs(basisInputs);
+    // --- evaluation ----------------------------------------------------------
+    // Pure: amounts and totals for the active rows, given parsed values and
+    // bases keyed by account id. Run on the live inputs and, once, on the
+    // page's initial values, so the save bar can show the change between them.
+    function evaluate(values, bases) {
+        const amounts = {};
         const totals = { asset: 0, liability: 0 };
         const subtotals = {};
         active.forEach(row => {
             let amount = null;
-            // Own input for a plain row; own basis field for a computed one.
-            let dirty = dirtyIds.has(String(row.id));
             if (row.computed) {
                 const inputs = row.input_ids.map(id => values[id]);
                 const rawBasis = bases[row.id];
-                const basis = rawBasis === null ? 0 : rawBasis;
+                const basis = rawBasis === null || rawBasis === undefined ? 0 : rawBasis;
                 if (inputs.every(usable) && usable(basis)) {
                     const sum = inputs.reduce((s, v) => s + v, 0);
                     amount = roundCents(Number(row.formula.rate) * (sum - basis));
                 }
-                // A computed row moves when one of its inputs moves. Deriving
-                // this from the inputs rather than comparing against the saved
-                // amount keeps it in step with the save bar's count, and leaves
-                // a clean page load free of gold even when the stored snapshot
-                // disagrees with what the formula produces today.
-                dirty = dirty || row.input_ids.some(id => dirtyIds.has(String(id)));
-                const el = document.querySelector('.computed-amount[data-account-id="' + row.id + '"]');
-                if (el) {
-                    el.textContent = amount === null ? '—' : fmtMoney(amount);
-                    el.classList.toggle('dirty', dirty);
-                }
             } else if (usable(values[row.id])) {
                 amount = values[row.id];
             }
-            const tr = document.querySelector('tr[data-account-id="' + row.id + '"]');
-            if (tr) tr.classList.toggle('dirty-row', dirty);
+            amounts[row.id] = amount;
             if (amount !== null) {
                 totals[row.type] += amount;
                 const group = row.type + ':' + (row.category || 'uncategorized');
                 subtotals[group] = (subtotals[group] || 0) + amount;
             }
         });
-        document.querySelectorAll('.category-subtotal').forEach(el => {
-            el.textContent = fmtMoney(subtotals[el.dataset.key] || 0);
+        return { amounts, totals, subtotals, net: totals.asset - totals.liability };
+    }
+
+    function parsedById(list, read) {
+        const out = {};
+        list.forEach(el => { out[el.dataset.accountId] = parseAmount(read(el)); });
+        return out;
+    }
+
+    const baseline = evaluate(
+        parsedById(amountInputs, el => initial.get(el)),
+        parsedById(basisInputs, el => initial.get(el)),
+    );
+
+    // --- recompute -----------------------------------------------------------
+    function recompute() {
+        // Account ids with an edited amount or basis input, as strings.
+        const editedIds = new Set();
+        allInputs.forEach(el => {
+            const n = parseAmount(el.value);
+            const dirty = isDirty(el);
+            el.classList.toggle('invalid', Number.isNaN(n) || (saveAttempted && n === null && el.dataset.field !== 'basis'));
+            el.classList.toggle('edited', dirty);
+            if (dirty) editedIds.add(el.dataset.accountId);
         });
-        document.getElementById('total-asset').textContent = fmtMoney(totals.asset);
-        document.getElementById('total-liability').textContent = fmtMoney(totals.liability);
-        document.getElementById('net-worth').textContent = fmtMoney(totals.asset - totals.liability);
+        const result = evaluate(
+            parsedById(amountInputs, el => el.value),
+            parsedById(basisInputs, el => el.value),
+        );
+
+        active.forEach(row => {
+            // A computed row moves when its basis or one of its inputs moves.
+            // Deriving this from the inputs rather than comparing against the
+            // saved amount keeps it in step with the save bar's count, and
+            // leaves a clean page load unmarked even when the stored snapshot
+            // disagrees with what the formula produces today.
+            const edited = editedIds.has(String(row.id))
+                || (row.computed && row.input_ids.some(id => editedIds.has(String(id))));
+            const was = document.querySelector('.was[data-account-id="' + row.id + '"]');
+            if (was) was.hidden = !edited;
+            if (row.computed) {
+                const el = document.querySelector('.computed-amount[data-account-id="' + row.id + '"]');
+                if (el) {
+                    const amount = result.amounts[row.id];
+                    el.textContent = amount === null ? '—' : fmtMoney(amount);
+                    el.classList.toggle('edited', edited);
+                }
+            }
+        });
+        document.querySelectorAll('.group[data-group]').forEach(el => {
+            const total = el.querySelector('.group-head span:last-child');
+            if (total) total.textContent = fmtMoney(result.subtotals[el.dataset.group] || 0);
+        });
+        ['asset', 'liability'].forEach(kind => {
+            const el = document.querySelector('.section-' + kind + ' .card-head .total');
+            if (el) el.textContent = fmtMoney(result.totals[kind]);
+        });
 
         const dirtyCount = allInputs.filter(isDirty).length;
+        const change = roundCents(result.net - baseline.net);
+        document.getElementById('net-worth').textContent = fmtMoney(result.net);
+        const changeEl = document.getElementById('net-change');
+        changeEl.textContent = ' (' + fmtChange(change) + ')';
+        changeEl.hidden = dirtyCount === 0;
+
         const status = document.getElementById('dirty-status');
         if (overwriteArmed) {
             status.textContent = OVERWRITE_WARNING;
@@ -615,9 +500,7 @@
                 ? 'No unsaved changes'
                 : dirtyCount + ' unsaved change' + (dirtyCount === 1 ? '' : 's');
         }
-        status.classList.toggle('dirty', dirtyCount > 0 && !overwriteArmed);
-        document.getElementById('snapshot-saved').hidden = dirtyCount > 0;
-        document.getElementById('snapshot-dirty').hidden = dirtyCount === 0;
+        status.classList.toggle('clean', dirtyCount === 0 && !overwriteArmed);
     }
 
     // --- saving state: nothing is editable between click and reload -------
@@ -657,6 +540,7 @@
         const box = document.getElementById('save-error');
         box.textContent = text;
         box.hidden = !text;
+        if (text && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
     }
 
     function collect(list, target, payload) {
