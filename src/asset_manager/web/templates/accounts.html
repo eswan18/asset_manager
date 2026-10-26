@@ -409,7 +409,7 @@
             <div class="table-header {{ kind }}">
                 <h2>{{ title }}</h2>
                 <div class="table-actions">
-                    <a class="btn btn-secondary" href="/accounts/new?type={{ kind }}">+ Add</a>
+                    <a class="btn btn-secondary" href="{{ base }}/accounts/new?type={{ kind }}">+ Add</a>
                 </div>
             </div>
             <table class="accounts-table">
@@ -428,7 +428,7 @@
                     {% for row in group.rows %}
                     <tr data-account-id="{{ row.id }}" class="{% if row.retired %}retired-row{% endif %}">
                         <td>
-                            <a class="account-name" href="/accounts/{{ row.id }}/edit">{{ row.name }}</a>
+                            <a class="account-name" href="{{ base }}/accounts/{{ row.id }}/edit">{{ row.name }}</a>
                             {% if row.computed %}
                             <span class="formula-badge" title="{{ row.formula_text }}">ƒ</span>
                             {% if not row.retired %}
@@ -478,7 +478,7 @@
     </div>
     {% elif not error %}
     <div class="no-data">
-        <p>No accounts yet. <a href="/accounts/new?type=asset">Add an asset</a> to get started.</p>
+        <p>No accounts yet. <a href="{{ base }}/accounts/new?type=asset">Add an asset</a> to get started.</p>
     </div>
     {% endif %}
 {% endblock %}
@@ -709,7 +709,7 @@
         setSaving(true);
         let leaving = false;
         try {
-            const res = await fetch('/snapshots', {
+            const res = await fetch('{{ base }}/snapshots', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(payload),

@@ -17,6 +17,8 @@ STRANGER = {
 TZ = "America/Chicago"  # the seeded workspace's time zone
 ACCOUNTS = f"/api/workspaces/{WS}/accounts"
 SNAPSHOTS = f"/api/workspaces/{WS}/snapshots"
+# The seeded workspace's pages: the API path without /api.
+PAGES = f"/workspaces/{WS}"
 
 
 def claims(user: dict, **extra) -> dict:

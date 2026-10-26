@@ -118,6 +118,7 @@ asset_manager/
 │           └── templates/
 │               ├── account_form.html
 │               ├── accounts.html
+│               ├── _components.html  # Jinja macros for the shared pieces
 │               ├── base.html
 │               ├── dashboard.html
 │               └── login.html
@@ -142,10 +143,10 @@ asset_manager/
 - **`db.py`**: Database connection management using psycopg3
 - **`report.py`**: Interactive HTML report generation using Plotly
 - **`cli.py`**: Typer CLI with `report`, `serve`, and `version` commands
-- **`web/app.py`**: App wiring, dashboard, auth routes. `/docs`, `/redoc` and `/openapi.json` are public
-- **`web/accounts_routes.py`**: Accounts page, account form, `POST /snapshots`. Pages act in the user's **oldest membership** (`PageViewer`/`PageEditor`) until the frontend gets a workspace switcher
+- **`web/app.py`**: App wiring, dashboard (`/workspaces/{id}`), auth routes, and the bare-path redirects: `GET /` and `GET /accounts` go to the same page in your oldest live workspace (403 if you have none). `/docs`, `/redoc` and `/openapi.json` are public
+- **`web/accounts_routes.py`**: Accounts page, account form, `POST .../snapshots`, all under `/workspaces/{workspace_id}`. **A page's path is its API path without `/api`** (`/api/workspaces/1/accounts` is the data behind `/workspaces/1/accounts`)
 - **`web/api_routes.py`**: JSON API. `GET /api/me` (you + workspaces with roles); `GET /api/invites` (your pending invites), `POST /api/invites/{id}/accept|decline`; `POST /api/workspaces`; `GET/PATCH/DELETE /api/workspaces/{id}`; `/members` (list, `PATCH /{user_id}` role, `DELETE /{user_id}` remove or leave); `/invites` (owner: create, list pending, `DELETE /{invite_id}` revoke); `/cash-flows` (list with per-day/month/year and totals, create, `PATCH`, delete) and `/cash-flow-categories` (list, create, `PATCH` name/position, delete); `GET /accounts` (active accounts + latest amounts); `POST /snapshots` saves today's snapshot with `carry_forward=True`, so omitted plain accounts keep their latest amount, and reports each account's `source` (`updated`/`carried_forward`/`computed`). Session auth for now; logged-out `/api/` requests always get 401. All errors are `{"error": ...}`
-- **`web/access.py`**: `ViewerAccess`/`EditorAccess`/`OwnerAccess` for API routes with `{workspace_id}` in the path: **404** if you are not a live member (existence not revealed), **403** if your role is too low
+- **`web/access.py`**: `ViewerAccess`/`EditorAccess`/`OwnerAccess` for API routes and pages with `{workspace_id}` in the path: **404** if you are not a live member (existence not revealed), **403** if your role is too low. `shell_context(access, path)` is what `base.html` needs on every page (user, workspace, picker links)
 - **`web/auth.py`**: OAuth/OIDC with PKCE, `ALLOWED_EMAILS` gate. The callback requires `email_verified: true` (identity lets unverified accounts log in) and calls `record_login`; the session holds the user `id` and `sub`. `require_user` reloads the user from the database on every request and refuses a missing row, a mismatched `sub`, or an email no longer allowed
 
 ### Data Flow
@@ -290,7 +291,7 @@ Tests are organized by module with pytest:
 - `test_web.py`: FastAPI TestClient with a signed session cookie against the container, including the every-route login and allowlist sweeps
 - `test_workspace_api.py`: Isolation sweep (a member of workspace 2 gets 404 on every workspace-1 route and changes nothing), role sweeps (exact 403 sets for viewer and editor), members, login
 
-`conftest.py` seeds workspace `WS = 1` owned by user `USER_ID = 1` (`tests/support.py`) before every DB test; web helpers (sessions, `FakeIdp`, `sweep`, `add_user`) live in `tests/web_support.py`. **New routes are swept automatically** (they come from the OpenAPI schema); the role sweeps compare exact 403 sets, so a new write route makes them fail until you decide its role.
+`conftest.py` seeds workspace `WS = 1` owned by user `USER_ID = 1` (`tests/support.py`) before every DB test; web helpers (sessions, `FakeIdp`, `sweep`, `add_user`, and `PAGES`, the seeded workspace's page prefix) live in `tests/web_support.py`. **New routes are swept automatically** (they come from the OpenAPI schema); the role sweeps compare exact 403 sets, so a new write route makes them fail until you decide its role.
 
 The project uses:
 - **testcontainers**: Spins up real PostgreSQL containers for database tests
@@ -305,7 +306,8 @@ To run tests: `uv run pytest`
 - **Partial saves** (`carry_forward`) fill only from the latest snapshot *date*; an active plain account with no row there must be sent explicitly.
 - **Same-day Save replaces** that day's rows. Retired accounts get no row.
 - **Repository never commits**; the service layer does. `save_snapshot` uses `conn.transaction()`.
-- **Workspace scoping**: a new table holding workspace data gets a `workspace_id` with a composite foreign key to its parent's `(workspace_id, id)`, and every repository function for it takes `workspace_id`. A new API route takes `ViewerAccess`/`EditorAccess`/`OwnerAccess`.
+- **Workspace scoping**: a new table holding workspace data gets a `workspace_id` with a composite foreign key to its parent's `(workspace_id, id)`, and every repository function for it takes `workspace_id`. A new API route or page takes `ViewerAccess`/`EditorAccess`/`OwnerAccess`; a page renders with `**shell_context(access, request.url.path)` and links within its workspace through `{{ base }}`.
+- **Frontend tokens**: `base.html` defines every color as a CSS custom property for light and for dark (`prefers-color-scheme`); templates name tokens, never hex values (a test enforces it). The old token names are aliased there until the pages using them are redesigned. Design: `docs/superpowers/specs/2026-10-26-frontend-redesign-design.md`.
 - **Roles**: viewer reads; editor also changes data; owner also manages the workspace and members. A workspace always keeps at least one owner. Anyone may leave (`DELETE .../members/{self}`) except the last owner.
 - **Latest snapshot date is per workspace.** Never compute `MAX(date)` over all snapshots.
 - **Admin**: `users.is_admin`, set only by the migration on the pre-provisioned `ethanpswan@gmail.com` row. Grants nothing yet; it does not bypass workspace membership.

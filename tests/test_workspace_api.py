@@ -12,6 +12,7 @@ from asset_manager.models import RecordType, Role
 from asset_manager.workspaces import create_workspace
 from tests.support import USER_ID, WS
 from tests.web_support import (
+    PAGES,
     ACCOUNTS,
     SNAPSHOTS,
     STRANGER,
@@ -50,7 +51,14 @@ def ws1(db_connection):
 
 
 def in_workspace(path: str, workspace_id: int = WS) -> bool:
-    return path.startswith(f"/api/workspaces/{workspace_id}")
+    """An API route or a page that acts in this workspace."""
+    return path.startswith(
+        (f"/api/workspaces/{workspace_id}", f"/workspaces/{workspace_id}")
+    )
+
+
+# Bare paths redirect into your oldest workspace rather than acting in one.
+BARE_PAGES = {("GET", "/"), ("GET", "/accounts")}
 
 
 @pytest.mark.db
@@ -78,11 +86,52 @@ class TestIsolation:
         create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
         create_account(db_connection, OTHER_WS, "Other", RecordType.ASSET)
         session_for(client, STRANGER)
+        theirs = f"/workspaces/{OTHER_WS}"
 
-        assert "Other" in client.get("/accounts").text
-        assert "Cash" not in client.get("/accounts").text
-        assert "Cash" not in client.get("/").text
-        assert client.get(f"/accounts/{ws1.id}/edit").status_code == 404
+        assert "Other" in client.get(f"{theirs}/accounts").text
+        assert "Cash" not in client.get(f"{theirs}/accounts").text
+        assert "Cash" not in client.get(theirs).text
+        assert client.get(f"{theirs}/accounts/{ws1.id}/edit").status_code == 404
+        for path in (PAGES, f"{PAGES}/accounts", f"{PAGES}/accounts/{ws1.id}/edit"):
+            assert client.get(path).status_code == 404, path
+
+    def test_bare_paths_go_to_your_own_oldest_workspace(
+        self, client, db_connection, ws1
+    ):
+        add_user(db_connection, STRANGER)
+        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        repo.add_member(db_connection, WS, STRANGER["id"], Role.VIEWER)
+        db_connection.commit()
+        session_for(client, STRANGER)
+
+        home = client.get("/", follow_redirects=False)
+        accounts = client.get("/accounts", follow_redirects=False)
+
+        assert (home.status_code, home.headers["location"]) == (
+            302,
+            f"/workspaces/{OTHER_WS}",
+        )
+        assert accounts.headers["location"] == f"/workspaces/{OTHER_WS}/accounts"
+        # A trailing slash reaches the dashboard too.
+        assert client.get(f"/workspaces/{OTHER_WS}/").status_code == 200
+
+    def test_the_picker_lists_your_workspaces_on_the_same_page(
+        self, client, db_connection, ws1
+    ):
+        add_user(db_connection, STRANGER)
+        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        theirs = create_account(db_connection, OTHER_WS, "Other", RecordType.ASSET)
+        repo.add_member(db_connection, WS, STRANGER["id"], Role.VIEWER)
+        db_connection.commit()
+        session_for(client, STRANGER)
+
+        text = client.get(f"/workspaces/{OTHER_WS}/accounts/{theirs.id}/edit").text
+
+        assert f'<option value="{PAGES}/accounts">Test</option>' in text
+        assert (
+            f'<option value="/workspaces/{OTHER_WS}/accounts" selected>Theirs</option>'
+            in text
+        )
 
     def test_another_workspaces_account_ids_are_unknown_to_saves(
         self, client, db_connection, ws1
@@ -110,7 +159,7 @@ class TestIsolation:
         session_for(client, STRANGER)
 
         response = client.post(
-            "/accounts",
+            f"/workspaces/{OTHER_WS}/accounts",
             data={
                 "name": "Tax",
                 "type": "liability",
@@ -155,7 +204,7 @@ class TestRoles:
             if method != "GET"
             and path != "/api/workspaces"
             and not path.startswith("/api/invites/")
-        } | {("GET", "/accounts/new"), ("GET", f"/api/workspaces/{WS}/invites")}
+        } | {("GET", f"{PAGES}/accounts/new"), ("GET", f"/api/workspaces/{WS}/invites")}
 
     def test_a_viewer_can_read_but_not_write_anywhere(self, client, db_connection, ws1):
         add_user(db_connection, STRANGER, "viewer")
@@ -167,9 +216,12 @@ class TestRoles:
         refused = {k for k, v in statuses.items() if v == 403}
         assert refused == self._expected_403_for_viewer()
         reads = {
-            k: v for k, v in statuses.items() if k[0] == "GET" and k not in refused
+            k: v
+            for k, v in statuses.items()
+            if k[0] == "GET" and k not in refused | BARE_PAGES
         }
         assert set(reads.values()) == {200}
+        assert {statuses[k] for k in BARE_PAGES} == {302}
         assert ws1_state(db_connection) == before
 
     def test_an_editor_can_change_data_but_not_the_workspace_or_members(
@@ -201,10 +253,10 @@ class TestRoles:
         add_user(db_connection, STRANGER, "viewer")
         session_for(client, STRANGER)
         response = client.post(
-            "/snapshots", json={"values": {str(ws1.id): "1"}, "cost_bases": {}}
+            f"{PAGES}/snapshots", json={"values": {str(ws1.id): "1"}, "cost_bases": {}}
         )
         assert response.status_code == 403
-        assert client.get("/accounts/new").status_code == 403
+        assert client.get(f"{PAGES}/accounts/new").status_code == 403
 
 
 @pytest.mark.db
@@ -268,6 +320,7 @@ class TestWorkspaceEndpoints:
 
         assert client.get(ACCOUNTS).status_code == 404
         assert client.get("/api/me").json()["workspaces"] == []
+        assert client.get(f"{PAGES}/accounts").status_code == 404
         assert client.get("/accounts").status_code == 403  # no workspace left
         session_for(client, STRANGER)
         assert client.get(ACCOUNTS).status_code == 404
@@ -367,6 +420,7 @@ class TestLogin:
             [],
         )
         assert client.get("/accounts").status_code == 403
+        assert client.get(f"{PAGES}/accounts").status_code == 404
 
     def test_a_preprovisioned_admin_is_claimed_on_first_login(
         self, client, db_connection, monkeypatch

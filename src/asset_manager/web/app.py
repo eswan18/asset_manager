@@ -11,10 +11,17 @@ from starlette.middleware.sessions import SessionMiddleware
 from asset_manager.db import get_connection_context
 from asset_manager.repository import get_accounts, get_all_records
 
-from .access import NoWorkspace, PageViewer
+from .access import (
+    NoWorkspace,
+    ViewerAccess,
+    oldest_workspace_id,
+    page_prefix,
+    shell_context,
+)
 from .accounts_routes import router as accounts_router
 from .api_routes import router as api_router
 from .auth import (
+    CurrentUser,
     EmailNotAllowed,
     LoginRequired,
     get_oauth,
@@ -85,10 +92,25 @@ async def no_workspace_handler(request: Request, exc: NoWorkspace):
     return HTMLResponse(message, status_code=403)
 
 
-@app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, access: PageViewer):
+# Bare paths predate workspaces in the URL. They redirect into your oldest
+# workspace so bookmarks keep working; only GETs, since a form or a save
+# should never land in a workspace it did not name.
+@app.get("/")
+async def home(user: CurrentUser) -> RedirectResponse:
+    return RedirectResponse(page_prefix(oldest_workspace_id(user)), status_code=302)
+
+
+@app.get("/accounts")
+async def bare_accounts(user: CurrentUser) -> RedirectResponse:
+    url = f"{page_prefix(oldest_workspace_id(user))}/accounts"
+    return RedirectResponse(url, status_code=302)
+
+
+@app.get("/workspaces/{workspace_id}", response_class=HTMLResponse)
+async def dashboard(request: Request, access: ViewerAccess):
     """Render the main dashboard."""
-    user, workspace_id = access.user, access.workspace.id
+    workspace_id = access.workspace.id
+    shell = shell_context(access, request.url.path)
     try:
         with get_connection_context() as conn:
             records = get_all_records(conn, workspace_id)
@@ -99,7 +121,7 @@ async def dashboard(request: Request, access: PageViewer):
             request,
             "dashboard.html",
             {
-                "user": user,
+                **shell,
                 "active_tab": "dashboard",
                 "error": "An error occurred while loading your data. Please try again later.",
                 "charts": {},
@@ -118,7 +140,7 @@ async def dashboard(request: Request, access: PageViewer):
         request,
         "dashboard.html",
         {
-            "user": user,
+            **shell,
             "active_tab": "dashboard",
             "charts": charts,
             "totals": totals,
