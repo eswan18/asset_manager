@@ -7,7 +7,6 @@ import pytest
 
 from asset_manager import repository as repo
 from asset_manager.accounts import create_account
-from asset_manager.clock import today
 from asset_manager.models import RecordType, Role
 from asset_manager.workspaces import create_workspace
 from tests.support import USER_ID, WS
@@ -16,7 +15,6 @@ from tests.web_support import (
     ACCOUNTS,
     SNAPSHOTS,
     STRANGER,
-    TZ,
     USER,
     FakeIdp,
     add_user,
@@ -69,7 +67,7 @@ class TestIsolation:
         self, client, db_connection, ws1
     ):
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         theirs = create_account(db_connection, OTHER_WS, "Other", RecordType.ASSET)
         assert theirs.id == 2
         before = ws1_state(db_connection)
@@ -83,7 +81,7 @@ class TestIsolation:
 
     def test_pages_show_only_your_own_workspace(self, client, db_connection, ws1):
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         create_account(db_connection, OTHER_WS, "Other", RecordType.ASSET)
         session_for(client, STRANGER)
         theirs = f"/workspaces/{OTHER_WS}"
@@ -106,7 +104,7 @@ class TestIsolation:
         self, client, db_connection, ws1
     ):
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         repo.add_member(db_connection, WS, STRANGER["id"], Role.VIEWER)
         db_connection.commit()
         session_for(client, STRANGER)
@@ -126,7 +124,7 @@ class TestIsolation:
         self, client, db_connection, ws1
     ):
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         theirs = create_account(db_connection, OTHER_WS, "Other", RecordType.ASSET)
         repo.add_member(db_connection, WS, STRANGER["id"], Role.VIEWER)
         db_connection.commit()
@@ -144,7 +142,7 @@ class TestIsolation:
         self, client, db_connection, ws1
     ):
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         theirs = create_account(db_connection, OTHER_WS, "Other", RecordType.ASSET)
         before = ws1_state(db_connection)
         session_for(client, STRANGER)
@@ -162,7 +160,7 @@ class TestIsolation:
         self, client, db_connection, ws1
     ):
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         session_for(client, STRANGER)
 
         response = client.post(
@@ -182,7 +180,7 @@ class TestIsolation:
     def test_latest_snapshot_date_is_per_workspace(self, client, db_connection, ws1):
         """A save in one workspace must not move another's latest date."""
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", TZ)
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         theirs = create_account(db_connection, OTHER_WS, "Other", RecordType.ASSET)
         session_for(client, STRANGER)
         saved = client.post(
@@ -270,7 +268,7 @@ class TestRoles:
 class TestMe:
     def test_lists_your_workspaces_with_roles(self, client, db_connection):
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         repo.add_member(db_connection, OTHER_WS, USER_ID, Role.VIEWER)
         db_connection.commit()
         login(client)
@@ -279,43 +277,45 @@ class TestMe:
 
         assert body["id"] == USER_ID and body["is_admin"] is False
         assert body["workspaces"] == [
-            {"id": WS, "name": "Test", "timezone": TZ, "role": "owner"},
-            {"id": OTHER_WS, "name": "Theirs", "timezone": "UTC", "role": "viewer"},
+            {"id": WS, "name": "Test", "role": "owner"},
+            {"id": OTHER_WS, "name": "Theirs", "role": "viewer"},
         ]
 
 
 @pytest.mark.db
 class TestWorkspaceEndpoints:
-    def test_create_makes_you_owner_with_the_default_time_zone(self, client):
+    def test_create_makes_you_owner(self, client):
         login(client)
         response = client.post("/api/workspaces", json={"name": "Joint"})
         assert response.status_code == 201
         assert response.json() == {
             "id": OTHER_WS,
             "name": "Joint",
-            "timezone": "America/Chicago",
             "role": "owner",
         }
         names = [w["name"] for w in client.get("/api/me").json()["workspaces"]]
         assert names == ["Test", "Joint"]
 
-    @pytest.mark.parametrize(
-        "body", [{"name": " "}, {"name": "W", "timezone": "Mars/Olympus"}]
-    )
-    def test_create_rejects_bad_input(self, client, db_connection, body):
+    def test_create_rejects_a_blank_name(self, client, db_connection):
         login(client)
-        response = client.post("/api/workspaces", json=body)
+        response = client.post("/api/workspaces", json={"name": " "})
         assert response.status_code == 400
         assert repo.get_workspace(db_connection, OTHER_WS) is None
 
-    def test_time_zone_change_dates_the_next_snapshot(self, client, db_connection, ws1):
+    def test_a_time_zone_field_is_ignored_like_any_unknown_field(
+        self, client, db_connection
+    ):
+        """Workspaces no longer have a zone; the viewer's zone dates saves."""
         login(client)
-        for zone in ("Pacific/Kiritimati", "Pacific/Pago_Pago"):
-            patched = client.patch(f"/api/workspaces/{WS}", json={"timezone": zone})
-            assert patched.status_code == 200
-            assert patched.json()["timezone"] == zone
-            saved = client.post(SNAPSHOTS, json={})
-            assert saved.json()["date"] == today(zone).isoformat()
+        created = client.post(
+            "/api/workspaces", json={"name": "W", "timezone": "Mars/Olympus"}
+        )
+        assert created.status_code == 201
+        assert "timezone" not in created.json()
+        patched = client.patch(
+            f"/api/workspaces/{WS}", json={"name": "Renamed", "timezone": "UTC"}
+        )
+        assert patched.json() == {"id": WS, "name": "Renamed", "role": "owner"}
 
     def test_delete_hides_it_from_every_member_and_keeps_data(
         self, client, db_connection, ws1
@@ -517,7 +517,7 @@ class TestInviteEndpoints:
         self, client, db_connection, ws1
     ):
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         invite = self._invite(client, "friend@example.com")
 
         session_for(client, STRANGER)
@@ -717,7 +717,7 @@ class TestCashFlowEndpoints:
 
     def test_another_workspaces_category_cannot_be_used(self, client, db_connection):
         add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs", "UTC")
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
         login(client)
         mine = self._category(client, "Fitness")
 

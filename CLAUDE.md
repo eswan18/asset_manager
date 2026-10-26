@@ -99,10 +99,11 @@ asset_manager/
 │       ├── models.py           # Pydantic models
 │       ├── repository.py       # Database operations
 │       ├── accounts.py         # Account rules, retire checks, snapshot save transaction
-│       ├── workspaces.py       # Workspace and membership rules (last owner, time zones)
+│       ├── workspaces.py       # Workspace and membership rules (names, last owner)
 │       ├── users.py            # record_login: match/claim/create users at login
 │       ├── invites.py          # Workspace invites: create, revoke, accept, decline
 │       ├── cashflows.py        # Cash flows: per-day/month/year math (pure) and rules
+│       ├── clock.py            # today(tz), zone validation, the TIMEZONE fallback
 │       ├── formulas.py         # Pure formula evaluation (compute_snapshot)
 │       ├── report.py           # Interactive HTML report generation
 │       ├── py.typed            # PEP 561 marker
@@ -111,6 +112,7 @@ asset_manager/
 │           ├── app.py          # FastAPI application
 │           ├── auth.py         # OAuth/OIDC authentication
 │           ├── access.py       # Which workspace a request acts in; role checks
+│           ├── viewer_zone.py  # Today: the viewer's date (tz cookie / X-Timezone)
 │           ├── accounts_routes.py  # Accounts page, account form, POST /snapshots
 │           ├── api_routes.py   # JSON API: /api/me, /api/workspaces/...
 │           ├── cash_flows_routes.py  # Cash flows page (read-only) and its view model
@@ -139,9 +141,10 @@ asset_manager/
 - **`formulas.py`**: `compute_snapshot(accounts, values, as_of)`: pure evaluation, raises `MissingValueError`
 - **`accounts.py`**: Service layer; every function takes the `workspace_id` it acts in. `create_account`/`update_account` enforce input rules; `retire_account` refuses only inputs of active computed accounts; `save_snapshot` is all-or-nothing. Raises `AccountError` with user-facing messages. Commits.
 - **`repository.py`**: Thin SQL. Never commits. Every account/snapshot function takes `workspace_id` and filters on it, so another workspace's ids behave as nonexistent.
-- **`workspaces.py`**: `create_workspace` (creator becomes owner), `update_workspace` (name, time zone), `delete_workspace` (soft), `change_role`/`remove_member` (refuse to drop the last owner; lock the member rows `FOR UPDATE`). Raises `WorkspaceError`.
+- **`workspaces.py`**: `create_workspace` (creator becomes owner), `update_workspace` (name), `delete_workspace` (soft), `change_role`/`remove_member` (refuse to drop the last owner; lock the member rows `FOR UPDATE`). Raises `WorkspaceError`.
 - **`invites.py`**: Owners invite an email with a role; expires after `INVITE_TTL` (14 days). Only the invited (verified) email can accept or decline; anything else is `InviteNotFound` (404), so ids reveal nothing. An invite lapses once its sender is no longer an owner. Invites never bypass `ALLOWED_EMAILS`. **No email is sent** yet; the invitee is told out of band and uses `GET /api/invites`.
 - **`cashflows.py`**: Recurring income/expenses. `per_year(flow)` is signed (expenses negative) and divides once, at the end, so equivalent frequencies (2 weeks / 14 days, 12 months / 1 year) agree exactly; `rates()` rounds to cents; `totals()` sums unrounded and rounds once. `category_totals(flows, categories)` groups expenses by category (every category in `position` order, empty ones too, then Uncategorized if any; an unknown `category_id` counts as Uncategorized) and sums each unrounded, so they add up to `totals()`'s expenses exactly. Page helpers: `Period` (day/month/year) with `parse_period` (unknown values fall back to month), `in_period` (divide, round once), `share` (None when income is not positive, never a divide by zero), `percent_text`, `every_text` ("every month", "every 2 weeks"). Service: create/update/delete flows and per-workspace categories; raises `CashFlowError`.
+- **`clock.py`**: `now()` (tests monkeypatch it to freeze time), `today(tz)`, `is_known_zone`, `zone_for(explicit, cookie)` (explicit, else a known cookie zone, else `TIMEZONE`). Pure; no web imports
 - **`users.py`**: `record_login(sub, email, name)`: match on `idp_sub`, else claim the unclaimed (pre-provisioned) row with this email, else insert. Callers must have checked the email is verified.
 - **`db.py`**: Database connection management using psycopg3
 - **`report.py`**: Interactive HTML report generation using Plotly
@@ -151,7 +154,8 @@ asset_manager/
 - **`web/charts.py`**: One Plotly figure, two x domains sharing one y-axis. Every trace names its color as a token in `meta`; the page's script resolves the tokens and calls `Plotly.react`, again on a `prefers-color-scheme` change. The hex values in `charts.py` are only light-theme fallbacks (page templates may not contain hex colors)
 - **`web/accounts_routes.py`**: Accounts page, account form, `POST .../snapshots`, all under `/workspaces/{workspace_id}`. **A page's path is its API path without `/api`** (`/api/workspaces/1/accounts` is the data behind `/workspaces/1/accounts`). The account form (`.../accounts/new`, `.../accounts/{id}/edit`, and a POST's 400 re-render) is a **drawer over the Accounts page**: `account_form.html` extends `accounts.html`, both built from `accounts_view()`, and sets `drawer_open`, which makes `base.html` render the page behind `inert` and fill its `drawer` block. No JS needed to open or close it: Close, Cancel and Escape are links back to `.../accounts`. Its validation error is `form_error`, not `error` (`base.html` would show that behind the scrim)
 - **`web/cash_flows_routes.py`**: `GET /workspaces/{id}/cash-flows?per=day|month|year` (default month). Read-only: no add/edit links until the cash flow form is designed; writes go through the JSON API. `cash_flows_view` builds every figure: the net "left over", the "Where income goes" bar (100% = income; all expenses, scaled to their total, when they exceed income; empty when there is no income), and the cards (Income, then expense categories that have flows, Uncategorized last). Expense colors follow the liability ramp by size, largest strongest; past four, the rest share `--liability-4`
-- **`web/api_routes.py`**: JSON API. `GET /api/me` (you + workspaces with roles); `GET /api/invites` (your pending invites), `POST /api/invites/{id}/accept|decline`; `POST /api/workspaces`; `GET/PATCH/DELETE /api/workspaces/{id}`; `/members` (list, `PATCH /{user_id}` role, `DELETE /{user_id}` remove or leave); `/invites` (owner: create, list pending, `DELETE /{invite_id}` revoke); `/cash-flows` (list with per-day/month/year and totals, create, `PATCH`, delete) and `/cash-flow-categories` (list, create, `PATCH` name/position, delete); `GET /accounts` (active accounts + latest amounts); `POST /snapshots` saves today's snapshot with `carry_forward=True`, so omitted plain accounts keep their latest amount, and reports each account's `source` (`updated`/`carried_forward`/`computed`). Session auth for now; logged-out `/api/` requests always get 401. All errors are `{"error": ...}`
+- **`web/api_routes.py`**: JSON API. `GET /api/me` (you + workspaces with roles); `GET /api/invites` (your pending invites), `POST /api/invites/{id}/accept|decline`; `POST /api/workspaces`; `GET/PATCH/DELETE /api/workspaces/{id}`; `/members` (list, `PATCH /{user_id}` role, `DELETE /{user_id}` remove or leave); `/invites` (owner: create, list pending, `DELETE /{invite_id}` revoke); `/cash-flows` (list with per-day/month/year and totals, create, `PATCH`, delete) and `/cash-flow-categories` (list, create, `PATCH` name/position, delete); `GET /accounts` (active accounts + latest amounts); `POST /snapshots` saves today's snapshot (today in the optional `X-Timezone` header's zone, else the `tz` cookie's, else `TIMEZONE`) with `carry_forward=True`, so omitted plain accounts keep their latest amount, and reports each account's `source` (`updated`/`carried_forward`/`computed`). Session auth for now; logged-out `/api/` requests always get 401. All errors are `{"error": ...}`
+- **`web/viewer_zone.py`**: `Today`, a dependency giving today's date for the request; `today_for(request)` for shared helpers. Explicit `X-Timezone` header wins (unknown one: 400), else the `tz` cookie that `base.html` sets from `Intl.DateTimeFormat().resolvedOptions().timeZone` on every page load (unknown or missing: silently `TIMEZONE`)
 - **`web/access.py`**: `ViewerAccess`/`EditorAccess`/`OwnerAccess` for API routes and pages with `{workspace_id}` in the path: **404** if you are not a live member (existence not revealed), **403** if your role is too low. `shell_context(access, path)` is what `base.html` needs on every page (user, workspace, picker links)
 - **`web/auth.py`**: OAuth/OIDC with PKCE, `ALLOWED_EMAILS` gate. The callback requires `email_verified: true` (identity lets unverified accounts log in) and calls `record_login`; the session holds the user `id` and `sub`. `require_user` reloads the user from the database on every request and refuses a missing row, a mismatched `sub`, or an email no longer allowed
 
@@ -159,7 +163,7 @@ asset_manager/
 
 1. The user edits amounts on `/accounts`. Edits are staged in the page (and `sessionStorage`) until **Save snapshot**.
 2. `POST /snapshots` sends `{values: {account_id: amount}, cost_bases: {account_id: basis}}`.
-3. `accounts.save_snapshot` validates, updates cost bases, evaluates formulas via `formulas.compute_snapshot`, and upserts one `snapshots` row per active account for today, in the workspace's time zone. All in one transaction.
+3. `accounts.save_snapshot` validates, updates cost bases, evaluates formulas via `formulas.compute_snapshot`, and upserts one `snapshots` row per active account for today, in the viewer's time zone. All in one transaction.
 4. Retired accounts get no row, so their series end. Charts read `snapshots` joined to `accounts`; formulas are never re-evaluated for history.
 
 ### Database Schema
@@ -180,7 +184,6 @@ CREATE TABLE users (
 CREATE TABLE workspaces (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
-    timezone TEXT NOT NULL,     -- IANA; dates this workspace's snapshots and retirements
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMPTZ      -- soft delete; restore by setting it back to NULL
 );
@@ -282,7 +285,7 @@ CREATE UNIQUE INDEX idx_snapshots_unique ON snapshots(date, account_id);
 | `SECRET_KEY` | Random secret for signing session cookies |
 | `ALLOWED_EMAILS` | Comma-separated allowlist, checked at login (403) and on every request (401). **Fails closed**: unset or blank lets nobody in, except under `ENV=dev`. Set in both k8s env configmaps; identity has open registration, so it is the only thing keeping other identity users out |
 | `ENV` | Set to `dev` for local development (disables secure cookies)
-| `TIMEZONE` | Default IANA zone for **new** workspaces (default America/Chicago). Each workspace dates its own snapshots in `workspaces.timezone` |
+| `TIMEZONE` | Fallback IANA zone for "today" (default America/Chicago), used when the request names no valid zone of its own (see *Today is the viewer's day*) |
 
 ### Testing
 
@@ -318,6 +321,7 @@ To run tests: `uv run pytest`
 - **Workspace scoping**: a new table holding workspace data gets a `workspace_id` with a composite foreign key to its parent's `(workspace_id, id)`, and every repository function for it takes `workspace_id`. A new API route or page takes `ViewerAccess`/`EditorAccess`/`OwnerAccess`; a page renders with `**shell_context(access, request.url.path)` and links within its workspace through `{{ base }}`.
 - **Frontend tokens**: `base.html` defines every color as a CSS custom property for light and for dark (`prefers-color-scheme`); templates name tokens, never hex values (a test enforces it). The old token names are aliased there until the pages using them are redesigned. Design: `docs/superpowers/specs/2026-10-26-frontend-redesign-design.md`.
 - **Roles**: viewer reads; editor also changes data; owner also manages the workspace and members. A workspace always keeps at least one owner. Anyone may leave (`DELETE .../members/{self}`) except the last owner.
+- **Today is the viewer's day.** Snapshot dates and `retired_at` use the zone of the person acting (`Today` in `web/viewer_zone.py`), never `date.today()` (pods run in UTC) and never a per-workspace setting. They stay calendar dates, not timestamps. The very first page load has no cookie yet and uses `TIMEZONE`.
 - **Latest snapshot date is per workspace.** Never compute `MAX(date)` over all snapshots.
 - **Admin**: `users.is_admin`, set only by the migration on the pre-provisioned `ethanpswan@gmail.com` row. Grants nothing yet; it does not bypass workspace membership.
 - **Categories** group rows under subheadings on `/accounts` (enum order, Uncategorized last, empty groups hidden). Any category may be used on either type. Adding one means a value in `AccountCategory` *and* a migration widening the CHECK constraint.

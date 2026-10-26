@@ -6,9 +6,6 @@ the user. Functions commit on success.
 
 from __future__ import annotations
 
-from functools import cache
-from zoneinfo import available_timezones
-
 from psycopg import Connection
 
 from . import repository as repo
@@ -19,11 +16,6 @@ class WorkspaceError(ValueError):
     """A rule violation with a user-facing message."""
 
 
-@cache
-def _timezones() -> frozenset[str]:
-    return frozenset(available_timezones())
-
-
 def _clean_name(name: str) -> str:
     cleaned = " ".join(name.split())
     if not cleaned:
@@ -31,19 +23,9 @@ def _clean_name(name: str) -> str:
     return cleaned
 
 
-def _check_timezone(timezone: str) -> str:
-    if timezone not in _timezones():
-        raise WorkspaceError(f"{timezone!r} is not a known time zone")
-    return timezone
-
-
-def create_workspace(
-    conn: Connection, owner_id: int, name: str, timezone: str
-) -> Workspace:
+def create_workspace(conn: Connection, owner_id: int, name: str) -> Workspace:
     """A new workspace with `owner_id` as its only member, an owner."""
-    workspace = repo.insert_workspace(
-        conn, _clean_name(name), _check_timezone(timezone)
-    )
+    workspace = repo.insert_workspace(conn, _clean_name(name))
     repo.add_member(conn, workspace.id, owner_id, Role.OWNER)
     conn.commit()
     return workspace
@@ -54,16 +36,10 @@ def update_workspace(
     workspace: Workspace,
     *,
     name: str | None = None,
-    timezone: str | None = None,
 ) -> Workspace:
-    """Rename it or change its time zone. Dates already saved are kept."""
+    """Rename it."""
     updated = workspace.model_copy(
-        update={
-            "name": workspace.name if name is None else _clean_name(name),
-            "timezone": (
-                workspace.timezone if timezone is None else _check_timezone(timezone)
-            ),
-        }
+        update={"name": workspace.name if name is None else _clean_name(name)}
     )
     repo.update_workspace(conn, updated)
     conn.commit()

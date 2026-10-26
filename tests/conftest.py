@@ -59,9 +59,7 @@ def db_connection(db_url, _run_migrations):
             "INSERT INTO users (idp_sub, email, name) VALUES (%s, %s, %s)",
             (SEED_USER["sub"], SEED_USER["email"], SEED_USER["name"]),
         )
-        cur.execute(
-            "INSERT INTO workspaces (name, timezone) VALUES ('Test', 'America/Chicago')"
-        )
+        cur.execute("INSERT INTO workspaces (name) VALUES ('Test')")
         cur.execute(
             "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (%s, %s, 'owner')",
             (WS, USER_ID),

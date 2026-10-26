@@ -102,7 +102,6 @@ class User(BaseModel):
 class Workspace(BaseModel):
     id: int
     name: str
-    timezone: str
     created_at: datetime | None = None
     deleted_at: datetime | None = None
 
