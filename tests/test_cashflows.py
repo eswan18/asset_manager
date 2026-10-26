@@ -459,12 +459,13 @@ class TestCategories:
         listed = repo.get_cash_flow_categories(db_connection, WS)
         assert [x.name for x in listed] == ["C", "A", "B"]
 
-    def test_move_past_an_end_changes_nothing(self, db_connection):
-        a, b = (create_category(db_connection, WS, n) for n in "AB")
-        move_category(db_connection, WS, a.id, -1)
-        move_category(db_connection, WS, b.id, 1)
+    @pytest.mark.parametrize(("name", "step"), [("A", -1), ("C", 1)])
+    def test_move_past_an_end_changes_nothing(self, db_connection, name, step):
+        made = {n: create_category(db_connection, WS, n) for n in "ABC"}
+        moved = move_category(db_connection, WS, made[name].id, step)
+        assert moved.position == (0 if name == "A" else 2)
         listed = repo.get_cash_flow_categories(db_connection, WS)
-        assert [(x.name, x.position) for x in listed] == [("A", 0), ("B", 1)]
+        assert [(x.name, x.position) for x in listed] == [("A", 0), ("B", 1), ("C", 2)]
 
     def test_move_untangles_tied_positions(self, db_connection):
         # Positions set through the API can tie; display order breaks ties

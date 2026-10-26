@@ -768,9 +768,12 @@ class TestCategoryCreate:
         assert response.headers["location"] == f"{CATEGORIES}?per=year&add=1"
         names = [c.name for c in repo.get_cash_flow_categories(db_connection, WS)]
         assert names[-1] == "Pets"
-        d = drawer(client.get(response.headers["location"]).text)
+        text = client.get(response.headers["location"]).text
+        d = drawer(text)
         assert '<span class="drawer-status" role="status">Added Pets</span>' in d
         assert rows(d)[-1] == "Pets"
+        # Only in the drawer: the page behind is under the scrim.
+        assert "Added Pets" not in behind(text)
 
     @pytest.mark.parametrize(
         ("name", "message"),

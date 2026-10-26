@@ -4,12 +4,14 @@
 **Status:** The three main pages (Dashboard, Accounts, Cash flows) are
 approved as mockups in light and dark. The workspace-in-URL and dark mode
 decisions are made, so building can start. The three pages and the account
-form are built. The other smaller screens are still to be designed.
+form are built, and so are the cash flow form and category management. The
+other smaller screens are still to be designed.
 
 **Mockups:** [Design canvas](https://claude.ai/artifact/BMRjmDM7b239Ro2SbBtvsR)
 (private; share it from its Share menu). The chosen boards are **H**
-(dashboard), **Accounts I**, **Cash flows N** and **Account form Q** (drawer
-over Accounts). The other boards are the
+(dashboard), **Accounts I**, **Cash flows N**, **Account form Q** (drawer
+over Accounts), **Cash flow form R** (drawer over Cash flows) and
+**Categories T** (drawer over Cash flows). The other boards are the
 alternatives we rejected, kept for reference. Every number in the mockups is
 sample data.
 
@@ -120,6 +122,8 @@ is the data behind `/workspaces/1/accounts`).
 | Account forms | `/workspaces/{workspace_id}/accounts/new`, `/workspaces/{workspace_id}/accounts/{id}/edit`, and their POSTs (including retire and unretire) |
 | Save snapshot | `POST /workspaces/{workspace_id}/snapshots` |
 | Cash flows | `/workspaces/{workspace_id}/cash-flows` |
+| Cash flow form | `/workspaces/{workspace_id}/cash-flows/new` (`?direction=`, `?category_id=`), `/workspaces/{workspace_id}/cash-flows/{id}/edit`, and POSTs `.../cash-flows`, `.../cash-flows/{id}`, `.../cash-flows/{id}/delete` |
+| Categories | `/workspaces/{workspace_id}/cash-flow-categories` (`?confirm={id}`, `?add=1`), and POSTs to it (create), `.../{id}` (rename), `.../{id}/move` (`direction=up\|down`), `.../{id}/delete` |
 
 - **Access:** page routes get the same access checks as the API: **404** if
   you are not a live member of that workspace (its existence is not
@@ -246,11 +250,58 @@ backend task, not part of this design.
 - Expenses above income: the bar is 100% expenses, with an overflow note
   ("Expenses exceed income by $X"). This still needs a mockup.
 
-**Editing:**
-- Not designed yet (see "Still to design").
-- Cash flows **M**'s inline form is the reference: name, amount, every N +
-  unit, category, income/expense, estimate checkbox, note, a live
-  "= $X a month", and Delete / Cancel / Save.
+**Editing** (built): each row links to its drawer (board R, below); each
+card has a **+ Add** that starts a flow in that card (the Income card's is
+income); the head has **Manage categories** and **+ Add cash flow**; the
+dashed **+ New category** card opens the categories drawer (board T) with
+focus in its add field. Viewers see the page with none of these.
+
+### Cash flow form: board **Cash flow form R** (drawer over Cash flows)
+
+Chosen over Cash flows M's inline form. Built the way the account form is:
+the drawer's own routes render the real Cash flows page underneath, in its
+period (`?per=`), inert behind the scrim; Close, Cancel and Escape go back to
+it, and a save or delete redirects to it with a flash.
+
+- **Header:** eyebrow "Edit expense · Food" (direction · category; "New …"
+  for a new flow), the flow's name ("New cash flow" for a new one) as the
+  title, and a 2px rule in the category's color on the page (income is
+  always `--asset`; a category with no expenses yet takes `--liability`).
+  The eyebrow and rule follow the direction and category as they change.
+- **Body:** an Income / Expense segmented control (two radios); Name;
+  "Amount ($) every [N] [unit]" on one row; a live rates strip (a day /
+  **a month** / a year, the month larger), rendered by the server with
+  `rates()` so it matches the page, and recomputed by the drawer's script
+  exactly (integer cents, rounded half up once); Category; the estimate
+  checkbox in the estimate colors ("≈ This is an estimate" and one line on
+  what that means); an optional Note.
+- **Footer:** Delete (danger text, no confirm, edit only) on the left;
+  Cancel and Save on the right.
+- **Prefill:** `?direction=income|expense` and `?category_id=` (a category
+  of this workspace; anything else is ignored), so each card's + Add starts
+  in that card.
+- **Errors:** every rule is the service's (`cashflows.py`); the form only
+  turns its text into numbers and choices. An error re-renders the drawer
+  (400) with the user's input and the message at its top.
+
+### Categories: board **Categories T** (drawer over Cash flows)
+
+- A "Categories" drawer (eyebrow "Cash flows", a plain rule) listing every
+  category in order. Each row: up / down buttons (disabled at the ends),
+  the category's color swatch (blue for a category holding only income, a
+  neutral swatch for an empty one), its name in an input, a meta line ("4
+  flows · $3,376.67/mo", "1 flow · income $11,080.36/mo", "No flows yet", in
+  the page's period), and a delete button.
+- **Saves right away:** a rename saves on Enter or when its field loses
+  focus; a move saves on click. Each comes back to the drawer, with a short
+  status ("Moved Food up") in the footer beside **Done**, where it does not
+  shift the list.
+- **Delete** confirms in the row (`?confirm={id}`, so no JS is needed):
+  "Delete Transport? 2 flows. They move to Uncategorized; nothing else is
+  deleted." with Keep and **Delete category**.
+- **Add:** a "New category name" field and **+ Add** at the bottom; the new
+  category goes last and focus returns to the field for the next one.
+- A new category has no card on the page until it has an expense.
 
 ### Account form: board **Account form Q** (drawer over Accounts)
 
@@ -294,14 +345,11 @@ Chosen over a stacked page and a split layout. Built.
 
 These can be designed on the canvas while the pages above are built:
 
-1. **Cash flow form:** inline (M) or a separate page or modal (the account
-   form's drawer is the obvious candidate), plus category management (rename,
-   reorder, delete).
-2. **Workspace settings:** name, time zone, members and roles, pending
+1. **Workspace settings:** name, time zone, members and roles, pending
    invites, leave and delete. Also **My invites** (accept / decline).
-3. **Login**, **empty states** (a new workspace, no snapshots, no cash
+2. **Login**, **empty states** (a new workspace, no snapshots, no cash
    flows), and error and flash messages.
-4. **Expenses above income** on Cash flows.
+3. **Expenses above income** on Cash flows.
 
 ## Decisions made
 
@@ -311,6 +359,9 @@ These can be designed on the canvas while the pages above are built:
    dark".
 3. **The account form is a drawer over Accounts** (board Q), rendered by the
    form's own routes, not opened by JS. See "Account form".
+4. **Cash flows are edited in drawers over Cash flows** (boards R and T),
+   built the same way. The drawers are editor-only, since they exist only to
+   write; viewers get the page without the controls.
 
 ## Build plan
 
