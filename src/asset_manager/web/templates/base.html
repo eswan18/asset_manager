@@ -171,6 +171,7 @@
             border-radius: 999px;
             color: var(--muted);
             text-decoration: none;
+            white-space: nowrap;
         }
 
         .main-nav a:hover { color: var(--ink); }
@@ -463,6 +464,7 @@
         <nav class="main-nav" aria-label="Main">
             <a href="{{ base }}"{% if active_tab == 'dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
             <a href="{{ base }}/accounts"{% if active_tab == 'accounts' %} aria-current="page"{% endif %}>Accounts</a>
+            <a href="{{ base }}/cash-flows"{% if active_tab == 'cash_flows' %} aria-current="page"{% endif %}>Cash flows</a>
         </nav>
         <div class="shell-tools">
             <label class="workspace-picker">Workspace

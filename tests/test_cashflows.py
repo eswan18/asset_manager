@@ -9,18 +9,31 @@ from hypothesis import strategies as st
 
 from asset_manager import repository as repo
 from asset_manager.cashflows import (
+    DEFAULT_PERIOD,
     CashFlowError,
+    Period,
+    category_totals,
     create_cash_flow,
     create_category,
     delete_cash_flow,
     delete_category,
+    every_text,
+    in_period,
+    parse_period,
     per_year,
+    percent_text,
     rates,
+    share,
     totals,
     update_cash_flow,
     update_category,
 )
-from asset_manager.models import CashFlow, CashFlowDirection, FrequencyUnit
+from asset_manager.models import (
+    CashFlow,
+    CashFlowCategory,
+    CashFlowDirection,
+    FrequencyUnit,
+)
 from asset_manager.workspaces import create_workspace
 from tests.support import USER_ID, WS
 
@@ -107,6 +120,173 @@ def test_totals_round_once_after_summing():
         k: {"per_day": "0.00", "per_month": "0.00", "per_year": "0.00"}
         for k in ("income", "expenses", "net")
     }
+
+
+# --- per category and per period --------------------------------------------
+
+
+def category(id_, name, position=0) -> CashFlowCategory:
+    return CashFlowCategory(id=id_, workspace_id=WS, name=name, position=position)
+
+
+flows_strategy = st.lists(
+    st.builds(
+        flow,
+        amount=amounts,
+        every=st.integers(min_value=1, max_value=1000),
+        unit=st.sampled_from(list(FrequencyUnit)),
+        direction=st.sampled_from(list(CashFlowDirection)),
+        # 1-3 exist below; 4 names a category that is not in the list.
+        category_id=st.sampled_from([None, 1, 2, 3, 4]),
+    ),
+    max_size=30,
+)
+CATEGORIES = [category(1, "Housing", 2), category(2, "Food", 0), category(3, "Fun", 1)]
+
+
+@given(flows=flows_strategy)
+def test_category_totals_add_up_to_totals_exactly(flows):
+    groups = category_totals(flows, CATEGORIES)
+    # Unrounded, so the sum is exact and rounds to totals()'s figures.
+    assert (
+        rates(sum((g.yearly for g in groups), Decimal(0)))
+        == (totals(flows)["expenses"])
+    )
+    # Every expense lands in exactly one group; no income does.
+    grouped = [f for g in groups for f in g.flows]
+    assert sorted(map(id, grouped)) == sorted(
+        id(f) for f in flows if f.direction == EXPENSE
+    )
+    for g in groups:
+        assert g.yearly == sum((per_year(f) for f in g.flows), Decimal(0))
+
+
+def test_category_totals_round_once_per_category():
+    # Three expenses of 0.004/day each: rounded one by one they'd vanish.
+    tiny = [flow("1.46", 1, YEAR, name=str(i), category_id=1) for i in range(3)]
+    [group] = category_totals(tiny, [category(1, "Tiny")])
+    assert in_period(group.yearly, Period.DAY) == Decimal("-0.01")
+
+
+def test_category_totals_follow_position_then_uncategorized():
+    flows = [
+        flow("1", 1, MONTH, name="a", category_id=1),
+        flow("1", 1, MONTH, name="b", category_id=2),
+        flow("1", 1, MONTH, name="c"),
+    ]
+    groups = category_totals(flows, CATEGORIES)
+    # Food (0), Fun (1, no flows yet), Housing (2), then Uncategorized.
+    assert [g.name for g in groups] == ["Food", "Fun", "Housing", "Uncategorized"]
+    assert [g.category for g in groups][-1] is None
+    assert [len(g.flows) for g in groups] == [1, 0, 1, 1]
+
+
+def test_category_totals_break_position_ties_by_id():
+    tied = [category(5, "Later", 0), category(2, "Earlier", 0)]
+    assert [g.name for g in category_totals([], tied)] == ["Earlier", "Later"]
+
+
+def test_uncategorized_collects_missing_and_unknown_categories_only():
+    flows = [
+        flow("10", 1, MONTH, name="none"),
+        flow("20", 1, MONTH, name="unknown", category_id=99),
+        flow("40", 1, MONTH, name="known", category_id=1),
+        flow("80", 1, MONTH, INCOME, name="pay"),
+        flow("160", 1, MONTH, INCOME, name="pay in a category", category_id=1),
+    ]
+    groups = category_totals(flows, [category(1, "Housing")])
+    assert [(g.name, [f.name for f in g.flows]) for g in groups] == [
+        ("Housing", ["known"]),
+        ("Uncategorized", ["none", "unknown"]),
+    ]
+    assert [g.yearly for g in groups] == [Decimal(-480), Decimal(-360)]
+
+
+def test_no_uncategorized_group_without_uncategorized_expenses():
+    flows = [flow("1", 1, MONTH, INCOME, name="pay")]
+    assert [g.name for g in category_totals(flows, CATEGORIES)] == [
+        "Food",
+        "Fun",
+        "Housing",
+    ]
+    assert category_totals([], []) == []
+
+
+@pytest.mark.parametrize(
+    ("raw", "period"),
+    [
+        ("day", Period.DAY),
+        ("month", Period.MONTH),
+        ("year", Period.YEAR),
+        (None, Period.MONTH),
+        ("", Period.MONTH),
+        ("week", Period.MONTH),
+        ("Day", Period.MONTH),
+        ("year ", Period.MONTH),
+    ],
+)
+def test_parse_period_falls_back_to_month(raw, period):
+    assert DEFAULT_PERIOD == Period.MONTH
+    assert parse_period(raw) == period
+
+
+def test_in_period_divides_then_rounds_once():
+    yearly = Decimal("1000")
+    assert in_period(yearly, Period.YEAR) == Decimal("1000.00")
+    assert in_period(yearly, Period.MONTH) == Decimal("83.33")
+    assert in_period(yearly, Period.DAY) == Decimal("2.74")
+    assert in_period(Decimal("-1000"), Period.DAY) == Decimal("-2.74")
+
+
+@given(flows=flows_strategy)
+def test_in_period_agrees_with_rates(flows):
+    yearly = sum((per_year(f) for f in flows), Decimal(0))
+    expected = rates(yearly)
+    for period in Period:
+        assert str(in_period(yearly, period)) == expected[f"per_{period.value}"]
+
+
+def test_share_never_divides_by_zero():
+    assert share(Decimal(-25), Decimal(100)) == Decimal("0.25")
+    assert share(Decimal(25), Decimal(100)) == Decimal("0.25")
+    assert share(Decimal(150), Decimal(100)) == Decimal("1.5")
+    assert share(Decimal(10), Decimal(0)) is None
+    assert share(Decimal(0), Decimal(0)) is None
+    assert share(Decimal(10), Decimal(-5)) is None
+
+
+@pytest.mark.parametrize(
+    ("fraction", "text"),
+    [
+        ("0.2845", "28%"),
+        ("0.285", "29%"),  # half up
+        ("0.995", "100%"),
+        ("1.19", "119%"),
+        ("0", "0%"),
+        ("0.0049", "<1%"),
+        ("0.005", "1%"),
+        ("1", "100%"),
+    ],
+)
+def test_percent_text(fraction, text):
+    assert percent_text(Decimal(fraction)) == text
+
+
+@pytest.mark.parametrize(
+    ("every", "unit", "text"),
+    [
+        (1, WEEK, "every week"),
+        (2, WEEK, "every 2 weeks"),
+        (1, MONTH, "every month"),
+        (6, MONTH, "every 6 months"),
+        (1, DAY, "every day"),
+        (14, DAY, "every 14 days"),
+        (1, YEAR, "every year"),
+        (3, YEAR, "every 3 years"),
+    ],
+)
+def test_every_text(every, unit, text):
+    assert every_text(every, unit) == text
 
 
 # --- rules -----------------------------------------------------------------

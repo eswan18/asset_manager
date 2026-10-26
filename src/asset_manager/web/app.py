@@ -31,6 +31,7 @@ from .auth import (
     handle_login,
     handle_logout,
 )
+from .cash_flows_routes import router as cash_flows_router
 from .charts import COLUMN_LABELS, build_figure
 from .dashboard import (
     RANGES,
@@ -63,6 +64,7 @@ app.add_middleware(
 )
 
 app.include_router(accounts_router)
+app.include_router(cash_flows_router)
 app.include_router(api_router)
 
 # OAuth client (lazy initialization)

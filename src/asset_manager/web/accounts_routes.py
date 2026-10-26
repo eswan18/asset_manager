@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any
 
@@ -108,9 +109,64 @@ def account_rows(accounts: list[Account], latest: list[Record]) -> list[dict[str
                 if account.retired_at
                 else None,
                 "formula_text": formula_text(account, by_id),
+                # The saved value as money: a computed row's read-only figure
+                # before the script recomputes it.
+                "value_display": "—" if amount is None else format_money(amount),
+                # "was $X" under an edited row: the value a Discard returns to.
+                "was_display": "nothing yet"
+                if amount is None
+                else format_money(amount),
+                "retired_display": format_short_date(account.retired_at)
+                if account.retired_at
+                else None,
             }
         )
     return rows
+
+
+def format_short_date(day: date, today: date | None = None) -> str:
+    """Oct 24, 2026; or Oct 24 when `today` is given and in the same year."""
+    if today is not None and day.year == today.year:
+        return f"{day:%b} {day.day}"
+    return f"{day:%b} {day.day}, {day.year}"
+
+
+def snapshot_line(today: date, last_saved: date | None) -> str:
+    """The page head's line: what Save will write, and when it last ran.
+    Both dates are in the workspace's time zone."""
+    head = f"Saving writes today's snapshot, {format_short_date(today)}."
+    if last_saved is None:
+        return f"{head} Nothing saved yet."
+    if last_saved == today:
+        return f"{head} Last saved today; saving again replaces it."
+    return f"{head} Last saved {format_short_date(last_saved, today)}."
+
+
+def saved_total(rows: list[dict[str, Any]]) -> Decimal:
+    """Sum of the active rows' amounts on the latest snapshot date. The page's
+    script recomputes every total live; these are what it starts from."""
+    return sum(
+        (
+            Decimal(r["amount"])
+            for r in rows
+            if not r["retired"] and r["amount"] is not None
+        ),
+        Decimal("0"),
+    )
+
+
+def section_view(kind: str, title: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """One card of the accounts page: its category groups with subtotals and
+    its total, from the rows of one type."""
+    groups = category_groups(rows)
+    for group in groups:
+        group["subtotal"] = format_money(saved_total(group["rows"]))
+    return {
+        "kind": kind,
+        "title": title,
+        "groups": groups,
+        "total": format_money(saved_total(rows)),
+    }
 
 
 UNCATEGORIZED = "uncategorized"
@@ -168,6 +224,10 @@ async def accounts_page(request: Request, access: ViewerAccess):
     rows = account_rows(accounts, latest)
     # Active rows first, retired rows last, alphabetical within each group
     rows.sort(key=lambda r: (r["retired"], r["name"].lower()))
+    assets = [r for r in rows if r["type"] == "asset"]
+    liabilities = [r for r in rows if r["type"] == "liability"]
+    as_of = today(workspace.timezone)
+    last_saved = latest[0].date if latest else None
     return render(
         request,
         "accounts.html",
@@ -175,14 +235,14 @@ async def accounts_page(request: Request, access: ViewerAccess):
             **shell,
             "active_tab": "accounts",
             "rows": rows,
-            "assets": category_groups([r for r in rows if r["type"] == "asset"]),
-            "liabilities": category_groups(
-                [r for r in rows if r["type"] == "liability"]
-            ),
+            "sections": [
+                section_view("asset", "Assets", assets),
+                section_view("liability", "Liabilities", liabilities),
+            ],
+            "net_worth": format_money(saved_total(assets) - saved_total(liabilities)),
             "retired_count": sum(1 for r in rows if r["retired"]),
-            "snapshot_date": latest[0].date if latest else None,
-            "snapshot_is_today": bool(latest)
-            and latest[0].date == today(workspace.timezone),
+            "snapshot_line": snapshot_line(as_of, last_saved),
+            "snapshot_is_today": last_saved == as_of,
         },
     )
 
