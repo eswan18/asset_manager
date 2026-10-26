@@ -58,6 +58,85 @@ ALTER SEQUENCE public.accounts_id_seq OWNED BY public.accounts.id;
 
 
 --
+-- Name: cash_flow_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cash_flow_categories (
+    id integer NOT NULL,
+    workspace_id integer NOT NULL,
+    name text NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT cash_flow_categories_name_check CHECK ((btrim(name) <> ''::text))
+);
+
+
+--
+-- Name: cash_flow_categories_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.cash_flow_categories_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cash_flow_categories_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.cash_flow_categories_id_seq OWNED BY public.cash_flow_categories.id;
+
+
+--
+-- Name: cash_flows; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cash_flows (
+    id integer NOT NULL,
+    workspace_id integer NOT NULL,
+    name text NOT NULL,
+    direction text NOT NULL,
+    amount numeric(15,2) NOT NULL,
+    every integer NOT NULL,
+    unit text NOT NULL,
+    category_id integer,
+    description text,
+    is_estimate boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT cash_flows_amount_check CHECK ((amount >= (0)::numeric)),
+    CONSTRAINT cash_flows_direction_check CHECK ((direction = ANY (ARRAY['income'::text, 'expense'::text]))),
+    CONSTRAINT cash_flows_every_check CHECK (((every >= 1) AND (every <= 1000))),
+    CONSTRAINT cash_flows_name_check CHECK ((btrim(name) <> ''::text)),
+    CONSTRAINT cash_flows_unit_check CHECK ((unit = ANY (ARRAY['day'::text, 'week'::text, 'month'::text, 'year'::text])))
+);
+
+
+--
+-- Name: cash_flows_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.cash_flows_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cash_flows_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.cash_flows_id_seq OWNED BY public.cash_flows.id;
+
+
+--
 -- Name: formula_inputs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -246,6 +325,20 @@ ALTER TABLE ONLY public.accounts ALTER COLUMN id SET DEFAULT nextval('public.acc
 
 
 --
+-- Name: cash_flow_categories id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flow_categories ALTER COLUMN id SET DEFAULT nextval('public.cash_flow_categories_id_seq'::regclass);
+
+
+--
+-- Name: cash_flows id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flows ALTER COLUMN id SET DEFAULT nextval('public.cash_flows_id_seq'::regclass);
+
+
+--
 -- Name: snapshots id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -295,6 +388,46 @@ ALTER TABLE ONLY public.accounts
 
 ALTER TABLE ONLY public.accounts
     ADD CONSTRAINT accounts_workspace_type_name_key UNIQUE (workspace_id, type, name);
+
+
+--
+-- Name: cash_flow_categories cash_flow_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flow_categories
+    ADD CONSTRAINT cash_flow_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cash_flow_categories cash_flow_categories_workspace_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flow_categories
+    ADD CONSTRAINT cash_flow_categories_workspace_id_id_key UNIQUE (workspace_id, id);
+
+
+--
+-- Name: cash_flow_categories cash_flow_categories_workspace_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flow_categories
+    ADD CONSTRAINT cash_flow_categories_workspace_id_name_key UNIQUE (workspace_id, name);
+
+
+--
+-- Name: cash_flows cash_flows_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flows
+    ADD CONSTRAINT cash_flows_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cash_flows cash_flows_workspace_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flows
+    ADD CONSTRAINT cash_flows_workspace_id_name_key UNIQUE (workspace_id, name);
 
 
 --
@@ -433,6 +566,30 @@ ALTER TABLE ONLY public.accounts
 
 
 --
+-- Name: cash_flow_categories cash_flow_categories_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flow_categories
+    ADD CONSTRAINT cash_flow_categories_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id);
+
+
+--
+-- Name: cash_flows cash_flows_workspace_id_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flows
+    ADD CONSTRAINT cash_flows_workspace_id_category_id_fkey FOREIGN KEY (workspace_id, category_id) REFERENCES public.cash_flow_categories(workspace_id, id) ON DELETE SET NULL (category_id);
+
+
+--
+-- Name: cash_flows cash_flows_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cash_flows
+    ADD CONSTRAINT cash_flows_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id);
+
+
+--
 -- Name: formula_inputs formula_inputs_account_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -512,4 +669,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260906120000'),
     ('20261019120000'),
     ('20261026120000'),
-    ('20261027120000');
+    ('20261027120000'),
+    ('20261028120000');
