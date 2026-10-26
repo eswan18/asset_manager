@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
@@ -25,6 +25,7 @@ from asset_manager.accounts import (
 )
 from asset_manager.clock import today
 from asset_manager.db import get_connection_context
+from asset_manager.formulas import quantize_cents
 from asset_manager.models import (
     Account,
     AccountCategory,
@@ -199,6 +200,31 @@ def category_groups(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # --- page ------------------------------------------------------------------
 
 
+def accounts_view(
+    accounts: list[Account], latest: list[Record], as_of: date
+) -> dict[str, Any]:
+    """What accounts.html needs: the page itself, or the page under the
+    account form's drawer. `as_of` is today in the workspace's time zone."""
+    rows = account_rows(accounts, latest)
+    # Active rows first, retired rows last, alphabetical within each group
+    rows.sort(key=lambda r: (r["retired"], r["name"].lower()))
+    assets = [r for r in rows if r["type"] == "asset"]
+    liabilities = [r for r in rows if r["type"] == "liability"]
+    last_saved = latest[0].date if latest else None
+    return {
+        "active_tab": "accounts",
+        "rows": rows,
+        "sections": [
+            section_view("asset", "Assets", assets),
+            section_view("liability", "Liabilities", liabilities),
+        ],
+        "net_worth": format_money(saved_total(assets) - saved_total(liabilities)),
+        "retired_count": sum(1 for r in rows if r["retired"]),
+        "snapshot_line": snapshot_line(as_of, last_saved),
+        "snapshot_is_today": last_saved == as_of,
+    }
+
+
 @router.get("/accounts", response_class=HTMLResponse)
 async def accounts_page(request: Request, access: ViewerAccess):
     """Render the editable accounts page."""
@@ -220,30 +246,10 @@ async def accounts_page(request: Request, access: ViewerAccess):
                 "rows": [],
             },
         )
-
-    rows = account_rows(accounts, latest)
-    # Active rows first, retired rows last, alphabetical within each group
-    rows.sort(key=lambda r: (r["retired"], r["name"].lower()))
-    assets = [r for r in rows if r["type"] == "asset"]
-    liabilities = [r for r in rows if r["type"] == "liability"]
-    as_of = today(workspace.timezone)
-    last_saved = latest[0].date if latest else None
     return render(
         request,
         "accounts.html",
-        {
-            **shell,
-            "active_tab": "accounts",
-            "rows": rows,
-            "sections": [
-                section_view("asset", "Assets", assets),
-                section_view("liability", "Liabilities", liabilities),
-            ],
-            "net_worth": format_money(saved_total(assets) - saved_total(liabilities)),
-            "retired_count": sum(1 for r in rows if r["retired"]),
-            "snapshot_line": snapshot_line(as_of, last_saved),
-            "snapshot_is_today": last_saved == as_of,
-        },
+        {**shell, **accounts_view(accounts, latest, today(workspace.timezone))},
     )
 
 
@@ -331,42 +337,59 @@ def _parse_formula(
     return ProportionalFormula(rate=rate, cost_basis=basis)
 
 
-def history_rows(records: list[Record]) -> list[dict[str, Any]]:
-    """View model for the edit page's history table: newest first, with the
-    change since the previous snapshot. `records` arrive newest first."""
-    rows: list[dict[str, Any]] = []
-    for index, record in enumerate(records):
-        previous = records[index + 1].amount if index + 1 < len(records) else None
-        change = None if previous is None else record.amount - previous
-        rows.append(
-            {
-                "date": record.date.strftime("%B %-d, %Y"),
-                "amount": format_money(record.amount),
-                "change": None if change is None else format_change(change),
-                "direction": (
-                    "flat"
-                    if change is None or change == 0
-                    else ("up" if change > 0 else "down")
-                ),
-            }
-        )
-    return rows
+def history_rows(records: list[Record]) -> list[dict[str, str]]:
+    """The drawer's History list: date and amount, newest first (as
+    `records` arrive)."""
+    return [
+        {"date": format_short_date(r.date), "amount": format_money(r.amount)}
+        for r in records
+    ]
 
 
 def format_money(amount: Decimal) -> str:
     return f"-${-amount:,.2f}" if amount < 0 else f"${amount:,.2f}"
 
 
-def format_change(change: Decimal) -> str:
-    if change == 0:
-        return "$0.00"
-    return f"+{format_money(change)}" if change > 0 else format_money(change)
+def format_dollars(amount: Decimal) -> str:
+    """Whole dollars, rounded half up: 82386.74 -> "$82,387"."""
+    whole = amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return f"-${-whole:,}" if whole < 0 else f"${whole:,}"
+
+
+def formula_preview(
+    rate_percent: str,
+    cost_basis: str,
+    input_ids: list[int],
+    amounts: dict[int, Decimal],
+) -> dict[str, str] | None:
+    """The drawer's computed-value line, from the form's fields and the
+    inputs' amounts on the latest snapshot: "15% × ($179,265 − $82,387)" and
+    "$14,531.74", rounded as a save would round it. None when there is
+    nothing to show yet: no inputs, or a rate or basis that does not parse.
+    The drawer's script recomputes it as the fields change."""
+    if not input_ids:
+        return None
+    try:
+        formula = _parse_formula(True, rate_percent, cost_basis)
+    except ValueError:
+        return None
+    if formula is None:  # pragma: no cover - computed=True always gives one
+        return None
+    if any(i not in amounts for i in input_ids):
+        return {"text": "Needs a saved amount for every input", "value": "—"}
+    total = sum((amounts[i] for i in input_ids), Decimal("0"))
+    value = quantize_cents(formula.rate * (total - formula.cost_basis))
+    return {
+        "text": f"{format_percent(formula.rate)}% × "
+        f"({format_dollars(total)} − {format_dollars(formula.cost_basis)})",
+        "value": format_money(value),
+    }
 
 
 def _retire_state(
     conn: Connection, workspace_id: int, account: Account
 ) -> tuple[str | None, str | None]:
-    """(blocker, warning) for the edit page's Retire button; both None when retired."""
+    """(blocker, warning) for the drawer's Retire button; both None when retired."""
     if not account.is_active:
         return None, None
     blocker = retire_blocker(conn, workspace_id, account)
@@ -374,34 +397,72 @@ def _retire_state(
     return blocker, warning
 
 
+def _candidate_groups(
+    accounts: list[Account], exclude_id: int | None, amounts: dict[int, Decimal]
+) -> list[tuple[str, list[dict[str, Any]]]]:
+    """The Inputs pills, under Assets and Liabilities (empty groups dropped).
+    Each carries its latest saved amount for the live computed-value line."""
+    candidates = _candidates(accounts, exclude_id)
+    groups = []
+    for label, kind in (
+        ("Assets", RecordType.ASSET),
+        ("Liabilities", RecordType.LIABILITY),
+    ):
+        members = [
+            {
+                "id": c.id,
+                "name": c.name,
+                "amount": str(amounts[c.id]) if c.id in amounts else "",
+            }
+            for c in candidates
+            if c.type == kind
+        ]
+        if members:
+            groups.append((label, members))
+    return groups
+
+
 def _render_form(
     request: Request,
     access: WorkspaceAccess,
+    conn: Connection,
     *,
     account: Account | None,
     form: dict[str, Any],
-    candidates: list[Account],
     error: str | None = None,
-    blocker: str | None = None,
-    warning: str | None = None,
-    history: list[dict[str, Any]] | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
-    groups = [
-        ("Assets", [c for c in candidates if c.type == RecordType.ASSET]),
-        ("Liabilities", [c for c in candidates if c.type == RecordType.LIABILITY]),
-    ]
+    """The account form: a drawer over the Accounts page, which renders
+    underneath just as it does on its own."""
+    workspace = access.workspace
+    accounts = get_accounts(conn, workspace.id)
+    latest = get_latest_snapshot_records(conn, workspace.id)
+    amounts = {r.account_id: r.amount for r in latest if r.account_id is not None}
+    blocker, warning, history = None, None, None
+    if account is not None and account.id is not None:
+        blocker, warning = _retire_state(conn, workspace.id, account)
+        history = history_rows(get_account_history(conn, workspace.id, account.id))
     return render(
         request,
         "account_form.html",
         {
             **shell_context(access, request.url.path),
-            "active_tab": "accounts",
+            **accounts_view(accounts, latest, today(workspace.timezone)),
+            "drawer_open": True,
             "account": account,
+            "retired_display": format_short_date(account.retired_at)
+            if account is not None and account.retired_at
+            else None,
             "form": form,
             "categories": list(AccountCategory),
-            "candidate_groups": [g for g in groups if g[1]],
-            "error": error,
+            "candidate_groups": _candidate_groups(
+                accounts, account.id if account else None, amounts
+            ),
+            "preview": formula_preview(
+                form["rate_percent"], form["cost_basis"], form["input_ids"], amounts
+            ),
+            # Not `error`: base.html shows that in the page behind the scrim.
+            "form_error": error,
             "retire_blocker": blocker,
             "retire_warning": warning,
             "history": history,
@@ -416,14 +477,9 @@ async def new_account_page(
 ):
     type_ = type if type in ("asset", "liability") else "asset"
     with get_connection_context() as conn:
-        candidates = _candidates(get_accounts(conn, access.workspace.id), None)
-    return _render_form(
-        request,
-        access,
-        account=None,
-        form=_form_defaults(type_),
-        candidates=candidates,
-    )
+        return _render_form(
+            request, access, conn, account=None, form=_form_defaults(type_)
+        )
 
 
 @router.post("/accounts")
@@ -461,13 +517,12 @@ async def create_account_route(
                 category=_parse_category(category),
             )
         except ValueError as e:
-            candidates = _candidates(get_accounts(conn, workspace_id), None)
             return _render_form(
                 request,
                 access,
+                conn,
                 account=None,
                 form=form,
-                candidates=candidates,
                 error=str(e),
                 status_code=400,
             )
@@ -477,24 +532,13 @@ async def create_account_route(
 
 @router.get("/accounts/{account_id}/edit", response_class=HTMLResponse)
 async def edit_account_page(request: Request, access: ViewerAccess, account_id: int):
-    workspace_id = access.workspace.id
     with get_connection_context() as conn:
-        account = get_account(conn, workspace_id, account_id)
+        account = get_account(conn, access.workspace.id, account_id)
         if account is None:
             raise HTTPException(status_code=404, detail="Account not found")
-        candidates = _candidates(get_accounts(conn, workspace_id), account_id)
-        blocker, warning = _retire_state(conn, workspace_id, account)
-        history = history_rows(get_account_history(conn, workspace_id, account_id))
-    return _render_form(
-        request,
-        access,
-        account=account,
-        form=_form_from_account(account),
-        candidates=candidates,
-        blocker=blocker,
-        warning=warning,
-        history=history,
-    )
+        return _render_form(
+            request, access, conn, account=account, form=_form_from_account(account)
+        )
 
 
 @router.post("/accounts/{account_id}")
@@ -535,19 +579,13 @@ async def update_account_route(
                 category=_parse_category(category),
             )
         except ValueError as e:
-            candidates = _candidates(get_accounts(conn, workspace_id), account_id)
-            blocker, warning = _retire_state(conn, workspace_id, account)
-            history = history_rows(get_account_history(conn, workspace_id, account_id))
             return _render_form(
                 request,
                 access,
+                conn,
                 account=account,
                 form=form,
-                candidates=candidates,
                 error=str(e),
-                blocker=blocker,
-                warning=warning,
-                history=history,
                 status_code=400,
             )
     set_flash(request, "success", f"Saved {updated.name}")

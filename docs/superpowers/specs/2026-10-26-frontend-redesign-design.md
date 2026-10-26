@@ -3,12 +3,13 @@
 **Date:** 2026-10-26
 **Status:** The three main pages (Dashboard, Accounts, Cash flows) are
 approved as mockups in light and dark. The workspace-in-URL and dark mode
-decisions are made, so building can start. The smaller screens are still to
-be designed.
+decisions are made, so building can start. The three pages and the account
+form are built. The other smaller screens are still to be designed.
 
 **Mockups:** [Design canvas](https://claude.ai/artifact/BMRjmDM7b239Ro2SbBtvsR)
 (private; share it from its Share menu). The chosen boards are **H**
-(dashboard), **Accounts I** and **Cash flows N**. The other boards are the
+(dashboard), **Accounts I**, **Cash flows N** and **Account form Q** (drawer
+over Accounts). The other boards are the
 alternatives we rejected, kept for reference. Every number in the mockups is
 sample data.
 
@@ -59,6 +60,7 @@ design system.
 | `--bar-bg` / `--bar-fg` | `#15171A` / `#FFFFFF` | `#2A2F37` / `#ECEEF1` | Sticky save bar |
 | `--bar-muted` / `--bar-border` | `#B9BEC6` / `#15171A` | `#A9B0BA` / `#454B55` | Save bar secondary text, its border and the Discard outline |
 | `--shadow` | `rgba(0,0,0,.06)` | `rgba(0,0,0,.4)` | Nav, picker and toggle shadows |
+| `--scrim` | `rgba(21,23,26,.35)` | `rgba(0,0,0,.55)` | Over the page behind a drawer |
 
 Each category takes a color from its ramp, strongest first in order of
 size, so the largest segment of a bar is the strongest color. Assets and
@@ -250,20 +252,56 @@ backend task, not part of this design.
   unit, category, income/expense, estimate checkbox, note, a live
   "= $X a month", and Delete / Cancel / Save.
 
+### Account form: board **Account form Q** (drawer over Accounts)
+
+Chosen over a stacked page and a split layout. Built.
+
+- **How it opens:** the form's own routes (`.../accounts/new`,
+  `.../accounts/{id}/edit`, and a save's 400 re-render) render the Accounts
+  page with the drawer open. The links on Accounts stay ordinary links, so
+  no JS opens it. The page behind is `inert` (focus and screen readers stay
+  in the drawer), sits under a `--scrim`, and stops scrolling. Close, Cancel
+  and Escape go back to `.../accounts`. Clicking the scrim does nothing, so a
+  stray click can't throw away typing.
+- **Staged balances survive:** the page underneath is the real Accounts page,
+  script included, so balance edits staged in `sessionStorage` show (dimmed)
+  under the drawer and are still there after it closes.
+- **Drawer:** right side, at most 500px, full width on phones. Header: a
+  small "Edit liability" / "New account" eyebrow, the account's name (or
+  "New asset"), a 2px bottom rule in the type's color, and a round 44px close
+  button. The body scrolls; the footer (Cancel, Save) stays pinned.
+- **Body:** Name; Type as two pills (new accounts only; it recolors the
+  header live); Category; "Computed from other accounts", which shows Rate (%)
+  and Cost basis ($) side by side, the Inputs as checkable pills (checked =
+  `--asset-tint` fill and `--asset` border; under Assets / Liabilities
+  subheadings when both kinds exist), and the computed-value line
+  ("15% × ($179,265 − $82,387)" → "$14,531.74"). The line uses the inputs'
+  amounts on the latest snapshot and rounds as a save would; the server renders
+  it and the drawer's script recomputes it as the fields change.
+- **History:** a collapsed `<details>`, "History (12 snapshots)", with date and
+  amount, newest first. The old change column is gone.
+- **Retire:** the warning (a non-zero last value) with an outline danger
+  **Retire anyway**; plain **Retire** when there is nothing to warn about; a
+  blocker (an input to an active computed account) shows only the reason,
+  with no button; a retired account shows when it was retired and
+  **Unretire**.
+- **Errors:** a validation error re-renders the drawer (400) with the user's
+  input and the message at the top of the drawer, not behind the scrim.
+- **Viewers** see the same drawer as editors, as they saw the old form; its
+  writes are refused (403). The new-account drawer is editor-only, as before.
+
 ## Still to design
 
-These can be designed on the canvas while the three pages above are built:
+These can be designed on the canvas while the pages above are built:
 
-1. **Account form:** new / edit, type, category, the computed toggle with
-   rate, basis and inputs, retire and unretire with warnings and blockers,
-   and history.
-2. **Cash flow form:** inline (M) or a separate page or modal, plus
-   category management (rename, reorder, delete).
-3. **Workspace settings:** name, time zone, members and roles, pending
+1. **Cash flow form:** inline (M) or a separate page or modal (the account
+   form's drawer is the obvious candidate), plus category management (rename,
+   reorder, delete).
+2. **Workspace settings:** name, time zone, members and roles, pending
    invites, leave and delete. Also **My invites** (accept / decline).
-4. **Login**, **empty states** (a new workspace, no snapshots, no cash
+3. **Login**, **empty states** (a new workspace, no snapshots, no cash
    flows), and error and flash messages.
-5. **Expenses above income** on Cash flows.
+4. **Expenses above income** on Cash flows.
 
 ## Decisions made
 
@@ -271,6 +309,8 @@ These can be designed on the canvas while the three pages above are built:
    See "Workspace in the URL".
 2. **Dark mode ships at launch**, designed alongside light. See "Light and
    dark".
+3. **The account form is a drawer over Accounts** (board Q), rendered by the
+   form's own routes, not opened by JS. See "Account form".
 
 ## Build plan
 

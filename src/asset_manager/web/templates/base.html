@@ -41,6 +41,7 @@
             --bar-muted: #B9BEC6;
             --bar-border: #15171A;
             --shadow: rgba(0, 0, 0, 0.06);
+            --scrim: rgba(21, 23, 26, 0.35);
 
             --font-display: 'Space Grotesk', system-ui, sans-serif;
             --font-body: 'Inter', system-ui, -apple-system, sans-serif;
@@ -78,6 +79,7 @@
                 --bar-muted: #A9B0BA;
                 --bar-border: #454B55;
                 --shadow: rgba(0, 0, 0, 0.4);
+                --scrim: rgba(0, 0, 0, 0.55);
                 color-scheme: dark;
             }
         }
@@ -417,6 +419,12 @@
             color: var(--danger);
         }
 
+        .btn-danger-outline {
+            background: transparent;
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
         .error, .flash {
             padding: 14px 18px;
             border-radius: 14px;
@@ -458,8 +466,11 @@
         {% block styles %}{% endblock %}
     </style>
 </head>
-<body>
-    <header class="shell-header">
+{#- drawer_open: a page (the account form) shows a drawer over the page in
+    `content`. The page stays rendered but inert, so focus and the screen
+    reader stay in the drawer, and the body stops scrolling. -#}
+<body{% if drawer_open %} class="drawer-open"{% endif %}>
+    <header class="shell-header"{% if drawer_open %} inert{% endif %}>
         <a class="wordmark" href="{{ base }}">{{ app_name }}</a>
         <nav class="main-nav" aria-label="Main">
             <a href="{{ base }}"{% if active_tab == 'dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
@@ -487,7 +498,7 @@
         </div>
     </header>
 
-    <main class="container">
+    <main class="container"{% if drawer_open %} inert{% endif %}>
         {% if error %}
         <div class="error">{{ error }}</div>
         {% endif %}
@@ -498,6 +509,8 @@
 
         {% block content %}{% endblock %}
     </main>
+
+    {% block drawer %}{% endblock %}
 
     {% block scripts %}{% endblock %}
 </body>
