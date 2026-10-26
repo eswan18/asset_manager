@@ -8,7 +8,9 @@ commits on success.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from decimal import Decimal, InvalidOperation
+from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from enum import Enum
 from typing import Any
 
 from psycopg import Connection, errors
@@ -75,6 +77,108 @@ def totals(flows: Iterable[CashFlow]) -> dict[str, dict[str, str]]:
         "expenses": rates(expenses),
         "net": rates(income + expenses),
     }
+
+
+# --- per category and per period (pure) ------------------------------------
+
+
+@dataclass(frozen=True)
+class CategoryTotal:
+    """One expense category's flows and their unrounded, signed yearly sum.
+
+    `category` is None for Uncategorized.
+    """
+
+    category: CashFlowCategory | None
+    flows: tuple[CashFlow, ...]
+    yearly: Decimal
+
+    @property
+    def name(self) -> str:
+        return self.category.name if self.category else "Uncategorized"
+
+
+def category_totals(
+    flows: Iterable[CashFlow], categories: Iterable[CashFlowCategory]
+) -> list[CategoryTotal]:
+    """Expense flows grouped by category, summed unrounded like totals().
+
+    Every category comes in `position` order (empty ones too), then
+    Uncategorized if any expense has no category. An expense naming a
+    category not in `categories` counts as Uncategorized, so the groups
+    always add up to totals()'s expenses. Income flows are left out.
+    """
+    ordered = sorted(categories, key=lambda c: (c.position, c.id))
+    grouped: dict[int | None, list[CashFlow]] = {c.id: [] for c in ordered}
+    grouped[None] = []
+    for flow in flows:
+        if flow.direction != CashFlowDirection.EXPENSE:
+            continue
+        key = flow.category_id if flow.category_id in grouped else None
+        grouped[key].append(flow)
+
+    def total(members: list[CashFlow]) -> Decimal:
+        return sum((per_year(f) for f in members), Decimal(0))
+
+    result = [
+        CategoryTotal(c, tuple(grouped[c.id]), total(grouped[c.id])) for c in ordered
+    ]
+    if grouped[None]:
+        result.append(CategoryTotal(None, tuple(grouped[None]), total(grouped[None])))
+    return result
+
+
+class Period(str, Enum):
+    """What the Cash flows page shows amounts per."""
+
+    DAY = "day"
+    MONTH = "month"
+    YEAR = "year"
+
+
+DEFAULT_PERIOD = Period.MONTH
+_PERIODS_PER_YEAR = {
+    Period.DAY: DAYS_PER_YEAR,
+    Period.MONTH: MONTHS_PER_YEAR,
+    Period.YEAR: Decimal(1),
+}
+
+
+def parse_period(value: str | None) -> Period:
+    """The `?per=` value as a Period; anything unknown is the default."""
+    try:
+        return Period(value)
+    except ValueError:
+        return DEFAULT_PERIOD
+
+
+def in_period(yearly: Decimal, period: Period) -> Decimal:
+    """An unrounded yearly amount per `period`, rounded once to cents."""
+    return quantize_cents(yearly / _PERIODS_PER_YEAR[period])
+
+
+def share(part: Decimal, whole: Decimal) -> Decimal | None:
+    """|part| as an unrounded fraction of `whole`; None when whole is not
+    positive, so there is never a division by zero."""
+    if whole <= 0:
+        return None
+    return abs(part) / whole
+
+
+def percent_text(fraction: Decimal) -> str:
+    """0.2845 -> "28%". A share too small to round to 1% but not zero is
+    "<1%", so a real expense never reads as nothing."""
+    percent = (fraction * 100).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+    if percent == 0 and fraction > 0:
+        return "<1%"
+    return f"{percent}%"
+
+
+def every_text(every: int, unit: FrequencyUnit) -> str:
+    """ "every month", "every 2 weeks": the plural only when every > 1."""
+    if every == 1:
+        return f"every {unit.value}"
+    return f"every {every} {unit.value}s"
 
 
 # --- service ---------------------------------------------------------------

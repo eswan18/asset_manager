@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Cash flows · {{ workspace.name }}{% endblock %}
+
+{% block styles %}
+    .flows {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .flows-top {
+        padding: 32px;
+        gap: 28px;
+    }
+
+    .flows-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .headline {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .headline-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--muted);
+    }
+
+    .headline-figure {
+        font-family: var(--font-display);
+        font-size: 64px;
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        overflow-wrap: anywhere;
+    }
+
+    .headline-sub {
+        color: var(--muted);
+    }
+
+    .headline-sub strong {
+        color: var(--ink);
+        font-weight: 600;
+    }
+
+    .where {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .where-head {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        font-size: 14px;
+    }
+
+    .where-head .title { font-weight: 600; }
+    .where-head .aside { color: var(--muted); }
+
+    .bar {
+        display: flex;
+        gap: 2px;
+        height: 40px;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .bar-empty { background: var(--chip); }
+
+    .bar span {
+        flex-basis: 0;
+        flex-shrink: 0;
+        min-width: 2px;
+    }
+
+    .bar-key {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .bar-key li {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        list-style: none;
+    }
+
+    .bar-key strong {
+        color: var(--ink);
+        font-weight: 400;
+    }
+
+    .swatch {
+        flex: none;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        box-shadow: inset 0 0 0 1px var(--rule-strong);
+    }
+
+    .bar-note {
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .bar-note.over {
+        color: var(--danger);
+        font-weight: 500;
+    }
+
+    .flow-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+        gap: 16px;
+        align-items: start;
+    }
+
+    .flow-card { padding: 24px; }
+
+    .flow-card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 10px;
+    }
+
+    .flow-card-head h2 {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        font-family: var(--font-display);
+        font-size: 18px;
+        font-weight: 600;
+    }
+
+    .flow-card-head .total {
+        font-family: var(--font-display);
+        font-size: 18px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .chip-color {
+        flex: none;
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+    }
+
+    .flow-card-note {
+        font-size: 13px;
+        color: var(--muted);
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--rule-strong);
+    }
+
+    .flow-row .what {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .flow-row .name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .flow-row .every {
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .flow-row .value { white-space: nowrap; }
+
+    .flow-card .none {
+        padding: 16px 0 4px;
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    @media (max-width: 600px) {
+        .flows-top { padding: 24px; }
+        .headline-figure { font-size: 48px; }
+    }
+{% endblock %}
+
+{% block content %}
+{% if view %}
+<div class="flows fade-in">
+    {% if view.empty %}
+    <section class="card no-data">
+        <p>No cash flows yet. Recurring income and expenses will show here once they are added.</p>
+    </section>
+    {% else %}
+    <section class="card flows-top">
+        <div class="flows-head">
+            <div class="headline">
+                <span class="headline-label">Left over each {{ view.period }}</span>
+                <span class="headline-figure">{{ view.net }}</span>
+                <span class="headline-sub">of <strong>{{ view.income }}</strong> income · {{ view.other }}{% if view.estimates %} · ≈ {{ view.estimates }} estimate{{ "s" if view.estimates != 1 }}{% endif %}</span>
+            </div>
+            {{ ui.toggle("Show amounts per", periods) }}
+        </div>
+
+        <div class="where">
+            <div class="where-head">
+                <span class="title">Where income goes</span>
+                <span class="aside">Expenses {{ view.expenses }}{% if view.expenses_share %} · {{ view.expenses_share }}{% endif %}</span>
+            </div>
+            {% if view.bar_state == "no_income" %}
+            <div class="bar bar-empty"></div>
+            <p class="bar-note">No income yet. Add an income cash flow to see where it goes.</p>
+            {% else %}
+            <div class="bar" role="img" aria-label="Of {{ view.income }} income each {{ view.period }}: {% for s in view.slices %}{{ s.label }} {{ s.share }}{{ ", " if not loop.last }}{% endfor %}">
+                {% for s in view.slices %}
+                <span style="flex-grow: {{ s.weight }}; background: {{ s.color }};"></span>
+                {% endfor %}
+            </div>
+            {% if view.over_by %}
+            <p class="bar-note over">Expenses exceed income by {{ view.over_by }}</p>
+            {% endif %}
+            <ul class="bar-key">
+                {% for s in view.slices %}
+                <li><span class="swatch" style="background: {{ s.color }};"></span>{{ s.label }} <strong>{{ s.amount }}</strong> {{ s.share }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+    </section>
+
+    <div class="flow-grid">
+        {% for card in view.cards %}
+        <section class="card flow-card">
+            <div class="flow-card-head">
+                <h2><span class="chip-color" style="background: {{ card.color }};"></span>{{ card.name }}</h2>
+                <span class="total">{{ card.total }}</span>
+            </div>
+            <span class="flow-card-note">{{ card.note }}</span>
+            {% for row in card.rows %}
+            <div class="row flow-row">
+                <span class="what">
+                    <span class="name">{{ row.name }}{% if row.estimate %} {{ ui.estimate_tag() }}{% endif %}</span>
+                    <span class="every">{{ row.amount }} {{ row.every }}</span>
+                </span>
+                <span class="value">{{ row.value }}</span>
+            </div>
+            {% else %}
+            <p class="none">{{ card.empty }}</p>
+            {% endfor %}
+        </section>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

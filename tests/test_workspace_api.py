@@ -43,7 +43,7 @@ def ws1_state(conn) -> tuple:
 @pytest.fixture
 def ws1(db_connection):
     """The seeded workspace with an account (id 1) and one snapshot."""
-    cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
+    cash = create_account(db_connection, WS, "Checking", RecordType.ASSET)
     assert cash.id == 1  # the sweeps substitute 1 for {account_id}
     repo.upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("50")})
     db_connection.commit()
@@ -89,10 +89,17 @@ class TestIsolation:
         theirs = f"/workspaces/{OTHER_WS}"
 
         assert "Other" in client.get(f"{theirs}/accounts").text
-        assert "Cash" not in client.get(f"{theirs}/accounts").text
-        assert "Cash" not in client.get(theirs).text
+        # Not "Cash": the nav's "Cash flows" would match it on every page.
+        assert "Checking" not in client.get(f"{theirs}/accounts").text
+        assert "Checking" not in client.get(theirs).text
+        assert "Checking" not in client.get(f"{theirs}/cash-flows").text
         assert client.get(f"{theirs}/accounts/{ws1.id}/edit").status_code == 404
-        for path in (PAGES, f"{PAGES}/accounts", f"{PAGES}/accounts/{ws1.id}/edit"):
+        for path in (
+            PAGES,
+            f"{PAGES}/accounts",
+            f"{PAGES}/accounts/{ws1.id}/edit",
+            f"{PAGES}/cash-flows",
+        ):
             assert client.get(path).status_code == 404, path
 
     def test_bare_paths_go_to_your_own_oldest_workspace(
