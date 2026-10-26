@@ -13,12 +13,13 @@ from asset_manager.repository import get_account, get_all_records, upsert_amount
 from tests.support import WS
 from tests.web_support import PAGES, SNAPSHOTS, login
 
-# 06:30 UTC on Oct 27 is still Oct 26 in Los Angeles (23:30) but already
-# Oct 27 in Tokyo (15:30) and in Chicago, the default (01:30).
-NOW = datetime(2026, 10, 27, 6, 30, tzinfo=timezone.utc)
-LA_DAY, TOKYO_DAY = date(2026, 10, 26), date(2026, 10, 27)
-# 04:00 UTC on Oct 27 is Oct 26 in Chicago (23:00) but Oct 27 in Tokyo.
-EVENING = datetime(2026, 10, 27, 4, 0, tzinfo=timezone.utc)
+# Far from the real date, so a clock that ignores clock.now cannot pass.
+# 06:30 UTC on Jan 15 is still Jan 14 in Los Angeles (22:30) but already
+# Jan 15 in Tokyo (15:30) and in Chicago, the default (00:30).
+NOW = datetime(2031, 1, 15, 6, 30, tzinfo=timezone.utc)
+LA_DAY, TOKYO_DAY = date(2031, 1, 14), date(2031, 1, 15)
+# 04:00 UTC on Jan 15 is Jan 14 in Chicago (22:00) but Jan 15 in Tokyo.
+EVENING = datetime(2031, 1, 15, 4, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture
@@ -97,18 +98,18 @@ class TestPageSave:
         at(EVENING)
         login(client)
         client.cookies.set("tz", "Mars/Olympus")
-        assert save_page(client, cash).json()["date"] == "2026-10-26"
+        assert save_page(client, cash).json()["date"] == "2031-01-14"
 
     def test_no_cookie_uses_the_default(self, client, cash, at):
         at(EVENING)
         login(client)
-        assert save_page(client, cash).json()["date"] == "2026-10-26"
+        assert save_page(client, cash).json()["date"] == "2031-01-14"
 
     def test_default_comes_from_the_setting(self, client, cash, at, monkeypatch):
         monkeypatch.setattr(clock, "default_timezone", lambda: "Asia/Tokyo")
         at(EVENING)
         login(client)
-        assert save_page(client, cash).json()["date"] == "2026-10-27"
+        assert save_page(client, cash).json()["date"] == "2031-01-15"
 
 
 @pytest.mark.db
@@ -130,7 +131,7 @@ class TestApiSave:
         at(EVENING)
         login(client)
         response = save_api(client, cash, headers={"X-Timezone": "Asia/Tokyo"})
-        assert response.json()["date"] == "2026-10-27"
+        assert response.json()["date"] == "2031-01-15"
 
     def test_unknown_header_is_a_400_and_saves_nothing(
         self, client, db_connection, cash, at
@@ -145,7 +146,7 @@ class TestApiSave:
     def test_no_cookie_uses_the_default(self, client, cash, at):
         at(EVENING)
         login(client)
-        assert save_api(client, cash).json()["date"] == "2026-10-26"
+        assert save_api(client, cash).json()["date"] == "2031-01-14"
 
 
 @pytest.mark.db
@@ -170,7 +171,7 @@ class TestRetire:
         login(client)
         client.post(f"{PAGES}/accounts/{cash.id}/retire", follow_redirects=False)
         loaded = get_account(db_connection, WS, cash.id)
-        assert loaded is not None and loaded.retired_at == date(2026, 10, 26)
+        assert loaded is not None and loaded.retired_at == date(2031, 1, 14)
 
 
 @pytest.mark.db
@@ -185,10 +186,10 @@ class TestSnapshotLine:
         login(client)
         client.cookies.set("tz", "America/Los_Angeles")
         text = client.get(f"{PAGES}/accounts").text
-        assert "today&#39;s snapshot, Oct 26, 2026. Last saved today" in text
+        assert "today&#39;s snapshot, Jan 14, 2031. Last saved today" in text
         client.cookies.set("tz", "Asia/Tokyo")
         text = client.get(f"{PAGES}/accounts").text
-        assert "today&#39;s snapshot, Oct 27, 2026. Last saved Oct 26." in text
+        assert "today&#39;s snapshot, Jan 15, 2031. Last saved Jan 14." in text
 
     def test_account_drawer_line_uses_the_cookie_zone(
         self, client, cash, saved_on_la_day, at
@@ -197,10 +198,10 @@ class TestSnapshotLine:
         login(client)
         client.cookies.set("tz", "America/Los_Angeles")
         text = client.get(f"{PAGES}/accounts/{cash.id}/edit").text
-        assert "today&#39;s snapshot, Oct 26, 2026. Last saved today" in text
+        assert "today&#39;s snapshot, Jan 14, 2031. Last saved today" in text
         client.cookies.set("tz", "Asia/Tokyo")
         text = client.get(f"{PAGES}/accounts/new").text
-        assert "today&#39;s snapshot, Oct 27, 2026. Last saved Oct 26." in text
+        assert "today&#39;s snapshot, Jan 15, 2031. Last saved Jan 14." in text
 
 
 @pytest.mark.db

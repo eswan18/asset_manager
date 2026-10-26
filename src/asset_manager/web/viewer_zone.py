@@ -40,11 +40,12 @@ def _today_dependency(
     x_timezone: Annotated[
         str | None,
         Header(
+            alias=TZ_HEADER,
             description=(
                 "IANA zone (e.g. America/Los_Angeles) that decides which "
                 "calendar day today is. Wins over the browser's `tz` cookie; "
                 "without either, the server default is used."
-            )
+            ),
         ),
     ] = None,
 ) -> date:
