@@ -1,0 +1,266 @@
+{#- Category management (board T): a drawer over the Cash flows page. Each
+    rename, move, add and delete is its own small form that posts and comes
+    back here, so it all works without JS; the script only saves a rename
+    when its field loses focus. Deleting asks first, in the row
+    (`?confirm=<id>`). The drawer's shared styles are in base.html. -#}
+{% extends "cash_flows.html" %}
+
+{% block title %}Categories · {{ workspace.name }}{% endblock %}
+
+{% block styles %}
+{{ super() }}
+
+    /* --- categories --- */
+
+    .drawer-head.plain { border-bottom: 1px solid var(--rule-strong); }
+
+    .categories-body { gap: 0; padding-top: 16px; }
+
+    .categories-body .drawer-error { margin-bottom: 12px; }
+
+    .categories-intro {
+        margin-bottom: 12px;
+        font-size: 14px;
+        color: var(--muted);
+    }
+
+    .cat-list { list-style: none; }
+
+    .cat-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--rule);
+    }
+
+    .cat-move {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .cat-move button {
+        width: 40px;
+        height: 26px;
+        border: 0;
+        border-radius: 6px;
+        background: var(--chip);
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .cat-move button:disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
+
+    .cat-main {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .cat-rename {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .cat-swatch {
+        flex: none;
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+    }
+
+    .cat-rename input,
+    .cat-add input {
+        flex-grow: 1;
+        min-width: 0;
+        min-height: 40px;
+        padding: 0 10px;
+        border: 1px solid var(--rule-strong);
+        border-radius: var(--radius-input);
+        background: var(--input);
+        color: var(--ink);
+        font: inherit;
+        font-size: 15px;
+    }
+
+    .cat-rename input[aria-invalid="true"] { border-color: var(--danger); }
+
+    .cat-meta {
+        padding-left: 18px;
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .cat-delete {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .cat-delete:hover { color: var(--danger); }
+
+    .cat-move button:focus-visible,
+    .cat-rename input:focus-visible,
+    .cat-add input:focus-visible,
+    .cat-delete:focus-visible {
+        outline: 2px solid var(--asset);
+        outline-offset: 1px;
+    }
+
+    .cat-confirm {
+        margin: 8px 0;
+        padding: 14px 16px;
+        border-radius: 12px;
+        box-shadow: inset 0 0 0 1px var(--danger);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .cat-confirm strong { font-weight: 600; }
+    .cat-confirm .why { color: var(--muted); }
+
+    .cat-confirm-actions {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .btn-danger-solid {
+        background: var(--danger);
+        color: var(--on-primary);
+        font-weight: 600;
+    }
+
+    .cat-empty {
+        padding: 12px 0;
+        font-size: 14px;
+        color: var(--muted);
+    }
+
+    .cat-add {
+        margin-top: 16px;
+        display: flex;
+        gap: 8px;
+    }
+
+    .cat-add input {
+        min-height: 44px;
+        padding: 0 12px;
+        border-style: dashed;
+    }
+
+    .cat-add .btn { min-height: 44px; }
+
+    .drawer-foot .drawer-status {
+        margin-right: auto;
+        align-self: center;
+        font-size: 14px;
+        color: var(--muted);
+    }
+{% endblock %}
+
+{% block drawer %}
+<div class="scrim" aria-hidden="true"></div>
+<aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <div class="drawer-head plain">
+        <div class="drawer-heading">
+            <span class="drawer-eyebrow">Cash flows</span>
+            <h1 id="drawer-title">Categories</h1>
+        </div>
+        <a class="drawer-close" href="{{ close_href }}" aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>
+        </a>
+    </div>
+
+    <div class="drawer-body categories-body">
+        {% if form_error %}
+        <div class="drawer-error" role="alert">{{ form_error }}</div>
+        {% endif %}
+
+        <p class="categories-intro">Order here is the order of the cards and the bar. Renaming or reordering saves right away.</p>
+
+        <ul class="cat-list">
+            {% for row in rows %}
+            {% if confirm == row.id %}
+            <li class="cat-confirm">
+                <span><strong>Delete {{ row.name }}?</strong>
+                <span class="why">{% if row.count %}{{ row.count }} flow{{ "s" if row.count != 1 }}. {{ "They move" if row.count != 1 else "It moves" }} to Uncategorized; nothing else is deleted.{% else %}It has no flows; nothing else is deleted.{% endif %}</span></span>
+                <div class="cat-confirm-actions">
+                    <a class="btn btn-outline" href="{{ categories_url }}" autofocus>Keep</a>
+                    <form method="post" action="{{ base }}/cash-flow-categories/{{ row.id }}/delete?per={{ period }}">
+                        <button type="submit" class="btn btn-danger-solid">Delete category</button>
+                    </form>
+                </div>
+            </li>
+            {% else %}
+            <li class="cat-row">
+                <div class="cat-move">
+                    <button type="submit" form="move-{{ row.id }}" name="direction" value="up" aria-label="Move {{ row.name }} up"{% if row.first %} disabled{% endif %}><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 7.5L6 4l3.5 3.5"/></svg></button>
+                    <button type="submit" form="move-{{ row.id }}" name="direction" value="down" aria-label="Move {{ row.name }} down"{% if row.last %} disabled{% endif %}><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg></button>
+                </div>
+                <div class="cat-main">
+                    <form class="cat-rename" method="post" action="{{ base }}/cash-flow-categories/{{ row.id }}?per={{ period }}">
+                        <span class="cat-swatch" style="background: {{ row.color }};" aria-hidden="true"></span>
+                        <input type="text" name="name" value="{{ row.value }}" data-saved="{{ row.name }}" aria-label="Name of {{ row.name }}" required{% if row.invalid %} aria-invalid="true" autofocus{% endif %}>
+                    </form>
+                    <span class="cat-meta">{{ row.meta }}</span>
+                </div>
+                <a class="cat-delete" href="{{ categories_url }}&amp;confirm={{ row.id }}" aria-label="Delete {{ row.name }}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5"/></svg></a>
+                <form id="move-{{ row.id }}" method="post" action="{{ base }}/cash-flow-categories/{{ row.id }}/move?per={{ period }}" hidden></form>
+            </li>
+            {% endif %}
+            {% else %}
+            <li class="cat-empty">No categories yet. Add one below; expenses in it get their own card.</li>
+            {% endfor %}
+        </ul>
+
+        <form class="cat-add" method="post" action="{{ base }}/cash-flow-categories?per={{ period }}">
+            <input type="text" name="name" value="{{ new_name }}" placeholder="New category name" aria-label="New category name" required{% if focus_new %} autofocus{% endif %}>
+            <button type="submit" class="btn btn-secondary">+ Add</button>
+        </form>
+    </div>
+
+    <div class="drawer-foot">
+        <span class="drawer-status" role="status">{{ flash.text if flash and flash.kind == "success" else "" }}</span>
+        <a class="btn btn-primary" href="{{ close_href }}">Done</a>
+    </div>
+</aside>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+    // A rename saves when its field loses focus, as Enter already does.
+    // A form submits once: Enter can fire both change and submit.
+    document.querySelectorAll('.cat-rename').forEach(function (form) {
+        const input = form.elements.name;
+        form.addEventListener('submit', function (event) {
+            if (form.dataset.sent) { event.preventDefault(); return; }
+            form.dataset.sent = '1';
+        });
+        input.addEventListener('change', function () {
+            if (input.value.trim() !== input.dataset.saved && !form.dataset.sent) {
+                form.requestSubmit();
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -201,15 +201,22 @@ class TestIsolation:
 class TestRoles:
     def _expected_403_for_viewer(self) -> set[tuple[str, str]]:
         """Every write to the workspace, plus the owner-only invite list and
-        the add-account form, which only exists to write. Creating your own
-        workspace and answering your own invites are not workspace writes."""
+        the forms that only exist to write: the add-account drawer and the
+        Cash flows page's drawers. Creating your own workspace and answering
+        your own invites are not workspace writes."""
         return {
             (method, path)
             for method, path in protected_routes()
             if method != "GET"
             and path != "/api/workspaces"
             and not path.startswith("/api/invites/")
-        } | {("GET", f"{PAGES}/accounts/new"), ("GET", f"/api/workspaces/{WS}/invites")}
+        } | {
+            ("GET", f"{PAGES}/accounts/new"),
+            ("GET", f"{PAGES}/cash-flows/new"),
+            ("GET", f"{PAGES}/cash-flows/1/edit"),
+            ("GET", f"{PAGES}/cash-flow-categories"),
+            ("GET", f"/api/workspaces/{WS}/invites"),
+        }
 
     def test_a_viewer_can_read_but_not_write_anywhere(self, client, db_connection, ws1):
         add_user(db_connection, STRANGER, "viewer")

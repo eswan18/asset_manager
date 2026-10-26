@@ -19,6 +19,7 @@ from asset_manager.cashflows import (
     delete_category,
     every_text,
     in_period,
+    move_category,
     parse_period,
     per_year,
     percent_text,
@@ -447,6 +448,45 @@ class TestCategories:
         assert loaded is not None
         assert (loaded.category_id, loaded.workspace_id) == (None, WS)
 
+    def test_move_swaps_with_the_neighbour_and_renumbers(self, db_connection):
+        a, b, c = (create_category(db_connection, WS, n) for n in "ABC")
+        moved = move_category(db_connection, WS, c.id, -1)
+        assert (moved.id, moved.position) == (c.id, 1)
+        listed = repo.get_cash_flow_categories(db_connection, WS)
+        assert [x.name for x in listed] == ["A", "C", "B"]
+        assert [x.position for x in listed] == [0, 1, 2]
+        move_category(db_connection, WS, a.id, 1)
+        listed = repo.get_cash_flow_categories(db_connection, WS)
+        assert [x.name for x in listed] == ["C", "A", "B"]
+
+    @pytest.mark.parametrize(("name", "step"), [("A", -1), ("C", 1)])
+    def test_move_past_an_end_changes_nothing(self, db_connection, name, step):
+        made = {n: create_category(db_connection, WS, n) for n in "ABC"}
+        moved = move_category(db_connection, WS, made[name].id, step)
+        assert moved.position == (0 if name == "A" else 2)
+        listed = repo.get_cash_flow_categories(db_connection, WS)
+        assert [(x.name, x.position) for x in listed] == [("A", 0), ("B", 1), ("C", 2)]
+
+    def test_move_untangles_tied_positions(self, db_connection):
+        # Positions set through the API can tie; display order breaks ties
+        # by id, and a move works on that order.
+        a, b, c = (create_category(db_connection, WS, n) for n in "ABC")
+        for x in (a, b, c):
+            update_category(db_connection, WS, x.id, position=5)
+        move_category(db_connection, WS, c.id, -1)
+        listed = repo.get_cash_flow_categories(db_connection, WS)
+        assert [(x.name, x.position) for x in listed] == [
+            ("A", 0),
+            ("C", 1),
+            ("B", 2),
+        ]
+
+    @pytest.mark.parametrize("step", [0, 2, -2])
+    def test_move_is_one_step(self, db_connection, step):
+        a = create_category(db_connection, WS, "A")
+        with pytest.raises(CashFlowError, match="one place"):
+            move_category(db_connection, WS, a.id, step)
+
     def test_another_workspaces_category_cannot_be_changed(self, db_connection):
         other = create_workspace(db_connection, USER_ID, "Other")
         theirs = create_category(db_connection, other.id, "Fitness")
@@ -454,6 +494,8 @@ class TestCategories:
             update_category(db_connection, WS, theirs.id, name="Mine")
         with pytest.raises(CashFlowError, match="does not exist"):
             delete_category(db_connection, WS, theirs.id)
+        with pytest.raises(CashFlowError, match="does not exist"):
+            move_category(db_connection, WS, theirs.id, 1)
         assert repo.get_cash_flow_categories(db_connection, other.id) == [theirs]
 
 
