@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -31,7 +32,21 @@ from .auth import (
     handle_logout,
 )
 from .cash_flows_routes import router as cash_flows_router
-from .charts import build_chart_html
+from .charts import COLUMN_LABELS, build_figure
+from .dashboard import (
+    RANGES,
+    account_cards,
+    change_since,
+    daily_totals,
+    filter_range,
+    latest_category_totals,
+    long_date,
+    money,
+    parse_range,
+    short_date,
+    signed_money,
+    signed_percent,
+)
 from .rendering import render, templates
 
 logger = logging.getLogger(__name__)
@@ -109,10 +124,16 @@ async def bare_accounts(user: CurrentUser) -> RedirectResponse:
 
 
 @app.get("/workspaces/{workspace_id}", response_class=HTMLResponse)
-async def dashboard(request: Request, access: ViewerAccess):
-    """Render the main dashboard."""
+async def dashboard(
+    request: Request,
+    access: ViewerAccess,
+    range_key: Annotated[str | None, Query(alias="range")] = None,
+):
+    """Render the main dashboard. ?range= is 6m, 1y (the default) or all."""
     workspace_id = access.workspace.id
     shell = shell_context(access, request.url.path)
+    selected = parse_range(range_key)
+    page = {**shell, "active_tab": "dashboard", "has_data": False}
     try:
         with get_connection_context() as conn:
             records = get_all_records(conn, workspace_id)
@@ -123,34 +144,81 @@ async def dashboard(request: Request, access: ViewerAccess):
             request,
             "dashboard.html",
             {
-                **shell,
-                "active_tab": "dashboard",
+                **page,
                 "error": "An error occurred while loading your data. Please try again later.",
-                "charts": {},
             },
         )
-
-    if records:
-        charts, totals, assets_breakdown, liabilities_breakdown = build_chart_html(
-            records, accounts
-        )
-    else:
-        charts, totals = {}, {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
-        assets_breakdown, liabilities_breakdown = {}, {}
-
+    if not records:
+        return render(request, "dashboard.html", page)
     return render(
         request,
         "dashboard.html",
-        {
-            **shell,
-            "active_tab": "dashboard",
-            "charts": charts,
-            "totals": totals,
-            "assets_breakdown": assets_breakdown,
-            "liabilities_breakdown": liabilities_breakdown,
-            "record_count": len(records),
-        },
+        {**page, **dashboard_context(records, accounts, selected, shell["base"])},
     )
+
+
+def dashboard_context(records, accounts, selected: str, base: str) -> dict:
+    """Template values for a workspace with at least one snapshot."""
+    points = daily_totals(records)
+    latest = points[-1]
+    categories = latest_category_totals(records, accounts)
+    change = change_since(points)
+    cards = account_cards(records, accounts)
+    return {
+        "has_data": True,
+        "net_worth": money(latest.net_worth),
+        "last_snapshot": long_date(latest.date),
+        "change": None
+        if change is None
+        else {
+            "amount": signed_money(change.amount),
+            "percent": None
+            if change.percent is None
+            else signed_percent(change.percent),
+            "since": short_date(change.since, latest.date),
+        },
+        "figure": build_figure(filter_range(points, selected), categories),
+        "ranges": [
+            (label, f"{base}?range={key}", key == selected)
+            for key, (label, _) in RANGES.items()
+        ],
+        "category_keys": [
+            {
+                "title": title,
+                "items": [
+                    {"label": c.label, "amount": money(c.amount), "color": c.color}
+                    for c in categories[type]
+                ],
+            }
+            for type, title in COLUMN_LABELS.items()
+            if categories[type]
+        ],
+        "cards": [
+            {
+                "title": title,
+                "kind": type.value,
+                "total": money(cards[type]["total"]),
+                "groups": [
+                    {
+                        "label": g["label"],
+                        "total": money(g["total"]),
+                        "rows": [
+                            {
+                                "name": r["name"],
+                                "amount": "—"
+                                if r["amount"] is None
+                                else money(r["amount"]),
+                                "computed": r["computed"],
+                            }
+                            for r in g["rows"]
+                        ],
+                    }
+                    for g in cards[type]["groups"]
+                ],
+            }
+            for type, title in COLUMN_LABELS.items()
+        ],
+    }
 
 
 @app.get("/login", response_class=HTMLResponse)

@@ -5,203 +5,219 @@
 {% endblock %}
 
 {% block styles %}
-    .summary-cards {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1rem;
-        margin-bottom: 1.75rem;
-        align-items: start;
-    }
-
-    .summary-card {
-        background-color: var(--bg-surface);
-        border-radius: var(--radius);
-        border: 1px solid var(--border-subtle);
-        padding: 1rem 1.25rem;
+    .dashboard {
         display: flex;
-        align-items: baseline;
-        gap: 0.75rem;
-        transition: border-color 0.2s;
+        flex-direction: column;
+        gap: 16px;
     }
 
-    .summary-card:hover {
-        border-color: var(--border-medium);
+    .overview {
+        padding: 32px;
+        gap: 32px;
     }
 
-    .summary-card .value {
-        font-family: var(--font-mono);
-        font-size: 1.5rem;
-        font-weight: 600;
-        letter-spacing: -0.02em;
-    }
-
-    .summary-card .label {
-        color: var(--text-secondary);
-        font-size: 0.85rem;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .summary-card .chevron {
-        margin-left: auto;
-        color: var(--text-muted);
-        line-height: 1;
-        cursor: pointer;
-        transition: transform 0.25s ease, color 0.2s;
-    }
-
-    .summary-card .chevron:hover {
-        color: var(--text-secondary);
-    }
-
-    .summary-card .chevron.expanded {
-        transform: rotate(180deg);
-    }
-
-    .card-wrapper {
-        position: relative;
-    }
-
-    .breakdown {
-        display: none;
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
-        border-top: none;
-        border-radius: 0 0 var(--radius) var(--radius);
-        margin-top: -1px;
-        padding: 0.5rem 1.25rem 0.75rem;
-    }
-
-    .breakdown.show {
-        display: block;
-    }
-
-    .breakdown-item {
+    .headline {
         display: flex;
         justify-content: space-between;
-        padding: 0.3rem 0;
-        font-size: 0.85rem;
-        border-bottom: 1px solid var(--border-subtle);
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 16px;
     }
 
-    .breakdown-item:last-child {
-        border-bottom: none;
+    .headline-figure {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
     }
 
-    .breakdown-item .description {
-        color: var(--text-secondary);
-    }
-
-    .breakdown-item .amount {
-        font-family: var(--font-mono);
+    .headline-label {
+        font-size: 14px;
         font-weight: 500;
-        font-size: 0.82rem;
-        color: var(--text-primary);
+        color: var(--muted);
     }
 
-    .summary-card.net-worth .value {
-        color: var(--accent-gold);
+    .net-worth {
+        font-family: var(--font-display);
+        font-size: 64px;
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: -0.03em;
     }
 
-    .summary-card.assets .value {
-        color: var(--color-asset);
+    .change {
+        color: var(--muted);
     }
 
-    .summary-card.liabilities .value {
-        color: var(--color-liability);
+    .change strong {
+        color: var(--ink);
+        font-weight: 600;
     }
 
-    .chart-container {
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius);
-        margin-bottom: 1.5rem;
-        padding: 1rem;
+    .headline-actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
     }
 
-    /* Override Plotly's default white background */
-    .chart-container .plotly .main-svg {
-        background: transparent !important;
+    .last-snapshot {
+        font-size: 14px;
+        color: var(--muted);
     }
 
-    .chart-row {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1.5rem;
+    .headline-actions .btn {
+        min-height: 48px;
+        padding: 0 22px;
+        font-size: 15px;
     }
 
-    .chart-row .chart-container {
-        margin-bottom: 0;
+    .chart-block {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
     }
 
-    @media (max-width: 768px) {
-        .summary-cards {
-            grid-template-columns: 1fr;
-        }
-        .chart-row {
-            grid-template-columns: 1fr;
-        }
+    .chart-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .line-key, .category-key {
+        display: flex;
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .line-key { gap: 20px; }
+
+    .line-key span, .category-key span {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .line-swatch {
+        width: 16px;
+        height: 3px;
+        border-radius: 2px;
+    }
+
+    .category-key {
+        gap: 8px 40px;
+        justify-content: flex-end;
+        padding-top: 8px;
+    }
+
+    .key-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+    }
+
+    .category-key .key-title {
+        font-weight: 600;
+        color: var(--ink);
+    }
+
+    .category-swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+    }
+
+    #net-worth-chart {
+        width: 100%;
+        height: 320px;
+    }
+
+    .account-row {
+        min-height: 44px;
+    }
+
+    .account-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .card-head {
+        align-items: baseline;
+    }
+
+    @media (max-width: 600px) {
+        .overview { padding: 24px 20px; }
+        .net-worth { font-size: 48px; }
     }
 {% endblock %}
 
 {% block content %}
-    {% if charts %}
-    <div class="summary-cards fade-in">
-        <div class="summary-card net-worth">
-            <div class="value">${{ "{:,.0f}".format(totals.net_worth) }}</div>
-            <div class="label">Net Worth</div>
-        </div>
-        <div class="card-wrapper">
-            <div class="summary-card assets">
-                <div class="value">${{ "{:,.0f}".format(totals.assets) }}</div>
-                <div class="label">Assets</div>
-                <span class="chevron" onclick="toggleBreakdown('assets-breakdown', this)">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M4 6l4 4 4-4z"/>
-                    </svg>
-                </span>
-            </div>
-            <div id="assets-breakdown" class="breakdown">
-                {% for description, amount in assets_breakdown.items() %}
-                <div class="breakdown-item">
-                    <span class="description">{{ description }}</span>
-                    <span class="amount">${{ "{:,.0f}".format(amount) }}</span>
+    {% if has_data %}
+    <div class="dashboard fade-in">
+        <section class="card overview" aria-label="Net worth">
+            <div class="headline">
+                <div class="headline-figure">
+                    <span class="headline-label">Net worth</span>
+                    <span class="net-worth">{{ net_worth }}</span>
+                    {% if change %}
+                    <span class="change"><strong>{{ change.amount }}{% if change.percent %} ({{ change.percent }}){% endif %}</strong> since {{ change.since }}</span>
+                    {% endif %}
                 </div>
-                {% endfor %}
-            </div>
-        </div>
-        <div class="card-wrapper">
-            <div class="summary-card liabilities">
-                <div class="value">${{ "{:,.0f}".format(totals.liabilities) }}</div>
-                <div class="label">Liabilities</div>
-                <span class="chevron" onclick="toggleBreakdown('liabilities-breakdown', this)">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M4 6l4 4 4-4z"/>
-                    </svg>
-                </span>
-            </div>
-            <div id="liabilities-breakdown" class="breakdown">
-                {% for description, amount in liabilities_breakdown.items() %}
-                <div class="breakdown-item">
-                    <span class="description">{{ description }}</span>
-                    <span class="amount">${{ "{:,.0f}".format(amount) }}</span>
+                <div class="headline-actions">
+                    <span class="last-snapshot">Last snapshot {{ last_snapshot }}</span>
+                    <a class="btn btn-primary" href="{{ base }}/accounts">Update balances</a>
                 </div>
-                {% endfor %}
             </div>
-        </div>
-    </div>
 
-    <div class="chart-container fade-in" style="animation-delay: 0.05s">
-        {{ charts.summary | safe }}
-    </div>
+            <div class="chart-block">
+                <div class="chart-controls">
+                    <div class="line-key">
+                        <span><span class="line-swatch" style="background: var(--asset);"></span>Assets</span>
+                        <span><span class="line-swatch" style="background: var(--ink);"></span>Net worth</span>
+                        <span><span class="line-swatch" style="background: var(--liability);"></span>Liabilities</span>
+                    </div>
+                    {{ ui.toggle("Range", ranges) }}
+                </div>
 
-    <div class="chart-row fade-in" style="animation-delay: 0.1s">
-        <div class="chart-container">
-            {{ charts.assets | safe }}
-        </div>
-        <div class="chart-container">
-            {{ charts.liabilities | safe }}
+                <div id="net-worth-chart" role="img" aria-label="Assets, net worth and liabilities over time, with the latest snapshot's assets and liabilities by category"></div>
+
+                {% if category_keys %}
+                <div class="category-key">
+                    {% for key in category_keys %}
+                    <div class="key-group">
+                        <span class="key-title">{{ key.title }}</span>
+                        {% for c in key["items"] %}
+                        <span><span class="category-swatch" style="background: {{ c.color }};"></span>{{ c.label }} {{ c.amount }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <div class="card-grid">
+            {% for card in cards %}
+            {% call ui.card(card.title, total=card.total, kind=card.kind) %}
+                {% for group in card.groups %}
+                {{ ui.group_head(group.label, group.total) }}
+                <div>
+                    {% for row in group.rows %}
+                    <div class="row account-row">
+                        <span class="account-name">{{ row.name }}{% if row.computed %} {{ ui.computed_tag(row.computed) }}{% endif %}</span>
+                        <span>{{ row.amount }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="no-data">No active {{ card.title | lower }}.</p>
+                {% endfor %}
+            {% endcall %}
+            {% endfor %}
         </div>
     </div>
     {% else %}
@@ -212,43 +228,76 @@
 {% endblock %}
 
 {% block scripts %}
+{% if has_data %}
 <script>
-    function toggleBreakdown(breakdownId, chevron) {
-        const breakdown = document.getElementById(breakdownId);
-        breakdown.classList.toggle('show');
-        chevron.classList.toggle('expanded');
-    }
-
-    // The charts are rendered server-side with the dark palette. Re-theme them
-    // from the page's CSS variables so they follow the system theme too.
+    // The figure names its colors as tokens (in each trace's meta). Resolve
+    // them for the current theme, plot, and re-plot when the theme changes.
     (function () {
         if (typeof Plotly === 'undefined') return;
-        const lightQuery = window.matchMedia('(prefers-color-scheme: light)');
-        function applyChartTheme() {
-            const css = getComputedStyle(document.documentElement);
-            const v = name => css.getPropertyValue(name).trim();
-            const axis = {
-                gridcolor: v('--border-row'),
-                linecolor: v('--border-subtle'),
-                tickfont: { color: v('--text-muted') },
-                title: { font: { color: v('--text-secondary') } },
-            };
-            const layout = {
-                'font.color': v('--text-secondary'),
-                'title.font.color': v('--text-primary'),
-                'xaxis.gridcolor': axis.gridcolor, 'xaxis.linecolor': axis.linecolor,
-                'xaxis.tickfont.color': axis.tickfont.color, 'xaxis.title.font.color': axis.title.font.color,
-                'xaxis.zerolinecolor': axis.gridcolor, 'yaxis.zerolinecolor': axis.gridcolor,
-                'yaxis.gridcolor': axis.gridcolor, 'yaxis.linecolor': axis.linecolor,
-                'yaxis.tickfont.color': axis.tickfont.color, 'yaxis.title.font.color': axis.title.font.color,
-                'hoverlabel.bgcolor': v('--bg-surface'),
-                'hoverlabel.bordercolor': v('--border-medium'),
-                'hoverlabel.font.color': v('--text-primary'),
-            };
-            document.querySelectorAll('.js-plotly-plot').forEach(el => Plotly.relayout(el, layout));
+        const figure = {{ figure | tojson }};
+        const el = document.getElementById('net-worth-chart');
+        const probe = document.createElement('span');
+        probe.style.display = 'none';
+        document.body.appendChild(probe);
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        // Any CSS color (var(), color-mix()) as rgba() that Plotly can read.
+        function resolve(css) {
+            probe.style.color = '';
+            probe.style.color = css;
+            ctx.clearRect(0, 0, 1, 1);
+            ctx.fillStyle = getComputedStyle(probe).color;
+            ctx.fillRect(0, 0, 1, 1);
+            const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+            return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
         }
-        window.addEventListener('load', applyChartTheme);
-        lightQuery.addEventListener('change', applyChartTheme);
+
+        function draw() {
+            const m = figure.layout.meta;
+            const font = resolve(m.font), grid = resolve(m.grid), axis = resolve(m.axis);
+            const surface = resolve(m.surface), ink = resolve(m.ink);
+            const data = figure.data.map(trace => {
+                const color = resolve(trace.meta.color);
+                if (trace.type === 'bar') {
+                    return { ...trace, marker: { ...trace.marker, color, line: { ...trace.marker.line, color: resolve(trace.meta.gap) } } };
+                }
+                return { ...trace, line: { ...trace.line, color } };
+            });
+            const l = figure.layout;
+            const n = m.narrow;
+            const narrow = el.clientWidth < n.below;
+            const layout = {
+                ...l,
+                font: { ...l.font, color: font },
+                hoverlabel: { bgcolor: surface, bordercolor: axis, font: { color: ink } },
+                xaxis: {
+                    ...l.xaxis, linecolor: axis, tickfont: { ...l.xaxis.tickfont, color: font },
+                    ...(narrow ? { domain: n.lines, nticks: 3, tickangle: 0 } : {}),
+                },
+                xaxis2: {
+                    ...l.xaxis2, linecolor: axis, tickfont: { ...l.xaxis2.tickfont, color: font },
+                    ...(narrow ? { domain: n.columns, showticklabels: false } : {}),
+                },
+                yaxis: { ...l.yaxis, gridcolor: grid, tickfont: { ...l.yaxis.tickfont, color: font } },
+                shapes: l.shapes.map(s => ({
+                    ...s, line: { ...s.line, color: axis },
+                    ...(narrow ? { x0: n.divider, x1: n.divider } : {}),
+                })),
+            };
+            Plotly.react(el, data, layout, { displayModeBar: false, responsive: true });
+        }
+
+        draw();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+        // Crossing the narrow breakpoint changes the domains, so re-plot then.
+        let wasNarrow = el.clientWidth < figure.layout.meta.narrow.below;
+        window.addEventListener('resize', () => {
+            const isNarrow = el.clientWidth < figure.layout.meta.narrow.below;
+            if (isNarrow !== wasNarrow) { wasNarrow = isNarrow; draw(); }
+        });
     })();
 </script>
+{% endif %}
 {% endblock %}

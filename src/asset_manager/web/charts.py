@@ -1,171 +1,173 @@
-"""Plotly chart HTML for the dashboard."""
+"""The dashboard's Plotly figure: lines over time beside today's columns.
+
+One figure, two x domains sharing one y-axis, so the columns sit on the same
+dollar scale as the lines and each column's top meets its line's end.
+
+Colors are tokens, not values: each trace and shape carries the CSS color it
+should be in `meta`, and the page's script resolves those for the current
+theme before plotting (and again when the theme changes). The values below
+are only the light theme's, so the figure is readable if no script runs.
+"""
 
 from __future__ import annotations
 
-from asset_manager.models import Account, Record, RecordType
-from asset_manager.report import _transform_data
+import json
+from typing import Any
+
+from asset_manager.models import RecordType
+
+from .dashboard import CategoryTotal, Point
+
+# Where the lines end and the columns begin, as fractions of the plot width.
+LINES_DOMAIN = [0.0, 0.8]
+COLUMNS_DOMAIN = [0.86, 1.0]
+DIVIDER_X = 0.83
+# On a phone the columns need a larger share to stay legible.
+NARROW = {"lines": [0.0, 0.62], "columns": [0.72, 1.0], "divider": 0.67}
+NARROW_BELOW_PX = 600
+
+# Light-theme fallbacks; the page re-colors from the tokens.
+LIGHT = {
+    "var(--asset)": "#2457C5",
+    "var(--asset-2)": "#8FB0EE",
+    "var(--liability-2)": "#D9772E",
+    "var(--liability-3)": "#E9A066",
+    "var(--liability-4)": "#F3C79E",
+    "var(--ink)": "#15171A",
+    "var(--liability)": "#B4530F",
+    "var(--muted)": "#4A505A",
+    "var(--grid)": "#ECEEF1",
+    "var(--rule-strong)": "#DADDE2",
+    "var(--surface)": "#FFFFFF",
+}
+
+COLUMN_LABELS = {RecordType.ASSET: "Assets", RecordType.LIABILITY: "Liabilities"}
 
 
-def build_chart_html(
-    records: list[Record],
-    accounts: list[Account],
-) -> tuple[dict[str, str], dict[str, float], dict[str, float], dict[str, float]]:
-    """Build Plotly chart HTML snippets for embedding.
+def _fallback(css: str) -> str:
+    return LIGHT.get(css, LIGHT["var(--muted)"])
 
-    Returns:
-        Tuple of (charts dict, totals dict, assets_breakdown dict, liabilities_breakdown dict)
-        - charts: HTML snippets for each chart
-        - totals: current net_worth, assets, liabilities
-        - assets_breakdown: description -> latest amount for each active asset
-        - liabilities_breakdown: description -> latest amount for each active liability
-    """
+
+def build_figure(
+    points: list[Point], categories: dict[RecordType, list[CategoryTotal]]
+) -> dict[str, Any]:
+    """The figure as Plotly JSON (a plain dict): data, layout."""
     import plotly.graph_objects as go
 
-    assets_data, liabilities_data, summary_data = _transform_data(records)
-    retired = {(a.type, a.name) for a in accounts if not a.is_active}
-
-    charts = {}
-    totals = {"net_worth": 0.0, "assets": 0.0, "liabilities": 0.0}
-
-    # Dark theme layout defaults
-    dark_layout = {
-        "paper_bgcolor": "rgba(0,0,0,0)",
-        "plot_bgcolor": "rgba(0,0,0,0)",
-        "font": {"color": "#918c86", "family": "DM Sans, sans-serif"},
-        "title_font": {
-            "color": "#e8e4df",
-            "family": "DM Serif Display, Georgia, serif",
-            "size": 16,
-        },
-        "xaxis": {
-            "gridcolor": "rgba(46,51,64,0.6)",
-            "linecolor": "#2e3340",
-            "tickfont": {"color": "#5f5b56"},
-            "title_font": {"color": "#918c86"},
-        },
-        "yaxis": {
-            "gridcolor": "rgba(46,51,64,0.6)",
-            "linecolor": "#2e3340",
-            "tickfont": {"color": "#5f5b56", "family": "JetBrains Mono, monospace"},
-            "title_font": {"color": "#918c86"},
-        },
-        "hoverlabel": {
-            "bgcolor": "#22262e",
-            "bordercolor": "#3a3f4a",
-            "font": {"color": "#e8e4df", "family": "DM Sans, sans-serif"},
-        },
-    }
-
-    # Extract latest value for each active asset/liability for breakdown display
-    assets_breakdown = {}
-    for description, series in sorted(assets_data.items()):
-        if series and (RecordType.ASSET, description) not in retired:
-            # Series is sorted by date, last entry is most recent
-            assets_breakdown[description] = float(series[-1][1])
-
-    liabilities_breakdown = {}
-    for description, series in sorted(liabilities_data.items()):
-        if series and (RecordType.LIABILITY, description) not in retired:
-            liabilities_breakdown[description] = float(series[-1][1])
-
-    # Assets chart
-    fig_assets = go.Figure()
-    for description, series in sorted(assets_data.items()):
-        dates = [point[0] for point in series]
-        amounts = [float(point[1]) for point in series]
-        fig_assets.add_trace(
-            go.Scatter(x=dates, y=amounts, name=description, mode="lines")
-        )
-    fig_assets.update_layout(
-        **dark_layout,
-        title="Assets over Time",
-        xaxis_title="Date",
-        yaxis_title="Amount ($)",
-        yaxis_tickprefix="$",
-        yaxis_tickformat=",.0f",
-        hovermode="x unified",
-        showlegend=False,
-        height=300,
-        margin={"t": 40, "b": 40, "l": 60, "r": 20},
-    )
-    charts["assets"] = fig_assets.to_html(full_html=False, include_plotlyjs=False)
-
-    # Liabilities chart
-    fig_liabilities = go.Figure()
-    for description, series in sorted(liabilities_data.items()):
-        dates = [point[0] for point in series]
-        amounts = [float(point[1]) for point in series]
-        fig_liabilities.add_trace(
-            go.Scatter(x=dates, y=amounts, name=description, mode="lines")
-        )
-    fig_liabilities.update_layout(
-        **dark_layout,
-        title="Liabilities over Time",
-        xaxis_title="Date",
-        yaxis_title="Amount ($)",
-        yaxis_tickprefix="$",
-        yaxis_tickformat=",.0f",
-        hovermode="x unified",
-        showlegend=False,
-        height=300,
-        margin={"t": 40, "b": 40, "l": 60, "r": 20},
-    )
-    charts["liabilities"] = fig_liabilities.to_html(
-        full_html=False, include_plotlyjs=False
-    )
-
-    # Summary chart (Net Worth over Time)
-    fig_summary = go.Figure()
-    if summary_data:
-        dates = [point[0] for point in summary_data]
-        total_assets = [float(point[1]) for point in summary_data]
-        total_liabilities = [float(point[2]) for point in summary_data]
-        net_worth = [float(point[3]) for point in summary_data]
-
-        # Get latest totals for summary cards
-        totals["assets"] = total_assets[-1] if total_assets else 0.0
-        totals["liabilities"] = total_liabilities[-1] if total_liabilities else 0.0
-        totals["net_worth"] = net_worth[-1] if net_worth else 0.0
-
-        fig_summary.add_trace(
+    dates = [p.date.isoformat() for p in points]
+    # A lone point draws no line, so give it a marker.
+    mode = "lines+markers" if len(points) == 1 else "lines"
+    fig = go.Figure()
+    for name, values, color, width in [
+        ("Assets", [p.assets for p in points], "var(--asset)", 2),
+        ("Net worth", [p.net_worth for p in points], "var(--ink)", 3),
+        ("Liabilities", [p.liabilities for p in points], "var(--liability)", 2),
+    ]:
+        fig.add_trace(
             go.Scatter(
                 x=dates,
-                y=total_assets,
-                name="Total Assets",
-                mode="lines",
-                line={"color": "rgba(106, 173, 122, 0.5)"},
+                y=[float(v) for v in values],
+                name=name,
+                mode=mode,
+                line={"color": _fallback(color), "width": width},
+                meta={"color": color},
+                hovertemplate="%{y:$,.0f}",
+                xaxis="x",
+                yaxis="y",
             )
         )
-        fig_summary.add_trace(
-            go.Scatter(
-                x=dates,
-                y=total_liabilities,
-                name="Total Liabilities",
-                mode="lines",
-                line={"color": "rgba(199, 92, 92, 0.5)"},
-            )
-        )
-        fig_summary.add_trace(
-            go.Scatter(
-                x=dates,
-                y=net_worth,
-                name="Net Worth",
-                mode="lines",
-                line={"color": "#c9a55a", "width": 3},
-            )
-        )
-    fig_summary.update_layout(
-        **dark_layout,
-        title="Net Worth over Time",
-        xaxis_title="Date",
-        yaxis_title="Amount ($)",
-        yaxis_tickprefix="$",
-        yaxis_tickformat=",.0f",
-        hovermode="x unified",
-        showlegend=False,
-        height=400,
-        margin={"t": 40, "b": 40, "l": 60, "r": 20},
-    )
-    charts["summary"] = fig_summary.to_html(full_html=False, include_plotlyjs=False)
 
-    return charts, totals, assets_breakdown, liabilities_breakdown
+    # Largest category first, so it sits at the bottom of its column.
+    for type, column in COLUMN_LABELS.items():
+        for category in categories.get(type, []):
+            fig.add_trace(
+                go.Bar(
+                    x=[column],
+                    y=[float(category.amount)],
+                    name=category.label,
+                    marker={
+                        "color": _fallback(category.color),
+                        "line": {"color": LIGHT["var(--surface)"], "width": 2},
+                    },
+                    meta={"color": category.color, "gap": "var(--surface)"},
+                    hovertemplate="%{y:$,.0f}",
+                    xaxis="x2",
+                    yaxis="y",
+                    width=0.7,
+                )
+            )
+
+    axis_font = {"color": LIGHT["var(--muted)"], "size": 12}
+    fig.update_layout(
+        template="none",
+        height=320,
+        margin={"t": 8, "b": 32, "l": 56, "r": 0},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"family": "Inter, system-ui, sans-serif", "color": axis_font["color"]},
+        showlegend=False,
+        barmode="stack",
+        hovermode="x unified",
+        hoverlabel={
+            "bgcolor": LIGHT["var(--surface)"],
+            "bordercolor": LIGHT["var(--rule-strong)"],
+            "font": {"color": LIGHT["var(--ink)"]},
+        },
+        xaxis={
+            "domain": LINES_DOMAIN,
+            "type": "date",
+            "showgrid": False,
+            "showline": True,
+            "linecolor": LIGHT["var(--rule-strong)"],
+            "tickfont": axis_font,
+            "ticks": "",
+            "fixedrange": True,
+        },
+        xaxis2={
+            "domain": COLUMNS_DOMAIN,
+            "type": "category",
+            "anchor": "y",
+            "showgrid": False,
+            "showline": True,
+            "linecolor": LIGHT["var(--rule-strong)"],
+            "tickfont": axis_font,
+            "categoryorder": "array",
+            "categoryarray": list(COLUMN_LABELS.values()),
+            "range": [-0.5, 1.5],
+            "fixedrange": True,
+        },
+        yaxis={
+            "rangemode": "tozero",
+            "tickprefix": "$",
+            "tickformat": "~s",
+            "gridcolor": LIGHT["var(--grid)"],
+            "zeroline": False,
+            "tickfont": axis_font,
+            "fixedrange": True,
+        },
+        shapes=[
+            {
+                "type": "line",
+                "xref": "paper",
+                "yref": "paper",
+                "x0": DIVIDER_X,
+                "x1": DIVIDER_X,
+                "y0": -0.08,
+                "y1": 1,
+                "line": {
+                    "color": LIGHT["var(--rule-strong)"],
+                    "width": 1,
+                    "dash": "dash",
+                },
+            }
+        ],
+        meta={
+            "font": "var(--muted)",
+            "grid": "var(--grid)",
+            "axis": "var(--rule-strong)",
+            "surface": "var(--surface)",
+            "ink": "var(--ink)",
+            "narrow": {**NARROW, "below": NARROW_BELOW_PX},
+        },
+    )
+    return json.loads(fig.to_json())

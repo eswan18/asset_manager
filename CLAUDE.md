@@ -114,7 +114,8 @@ asset_manager/
 │           ├── accounts_routes.py  # Accounts page, account form, POST /snapshots
 │           ├── api_routes.py   # JSON API: /api/me, /api/workspaces/...
 │           ├── cash_flows_routes.py  # Cash flows page (read-only) and its view model
-│           ├── charts.py       # Plotly chart HTML for the dashboard
+│           ├── charts.py       # The dashboard's Plotly figure (lines + columns)
+│           ├── dashboard.py    # Dashboard numbers: 30-day change, ranges, categories
 │           ├── rendering.py    # Templates, render(), flash messages
 │           └── templates/
 │               ├── account_form.html
@@ -145,7 +146,9 @@ asset_manager/
 - **`db.py`**: Database connection management using psycopg3
 - **`report.py`**: Interactive HTML report generation using Plotly
 - **`cli.py`**: Typer CLI with `report`, `serve`, and `version` commands
-- **`web/app.py`**: App wiring, dashboard (`/workspaces/{id}`), auth routes, and the bare-path redirects: `GET /` and `GET /accounts` go to the same page in your oldest live workspace (403 if you have none). `/docs`, `/redoc` and `/openapi.json` are public
+- **`web/app.py`**: App wiring, dashboard (`/workspaces/{id}`, `?range=6m|1y|all`, default 1y), auth routes, and the bare-path redirects: `GET /` and `GET /accounts` go to the same page in your oldest live workspace (403 if you have none). `/docs`, `/redoc` and `/openapi.json` are public
+- **`web/dashboard.py`**: Pure helpers over `get_all_records` + `get_accounts`. `change_since` compares the latest snapshot with the earlier one closest to 30 days before it (ties to the older; none earlier → no change line). `filter_range` counts back from the latest snapshot, not today. `latest_category_totals` reads the latest snapshot's rows (so the columns meet the lines' ends; a same-day-retired account still counts until the next save); `account_cards` lists only active accounts. Category colors go by size along the token ramps; past a ramp's end the last token fades toward `--surface` with `color-mix`
+- **`web/charts.py`**: One Plotly figure, two x domains sharing one y-axis. Every trace names its color as a token in `meta`; the page's script resolves the tokens and calls `Plotly.react`, again on a `prefers-color-scheme` change. The hex values in `charts.py` are only light-theme fallbacks (page templates may not contain hex colors)
 - **`web/accounts_routes.py`**: Accounts page, account form, `POST .../snapshots`, all under `/workspaces/{workspace_id}`. **A page's path is its API path without `/api`** (`/api/workspaces/1/accounts` is the data behind `/workspaces/1/accounts`)
 - **`web/cash_flows_routes.py`**: `GET /workspaces/{id}/cash-flows?per=day|month|year` (default month). Read-only: no add/edit links until the cash flow form is designed; writes go through the JSON API. `cash_flows_view` builds every figure: the net "left over", the "Where income goes" bar (100% = income; all expenses, scaled to their total, when they exceed income; empty when there is no income), and the cards (Income, then expense categories that have flows, Uncategorized last). Expense colors follow the liability ramp by size, largest strongest; past four, the rest share `--liability-4`
 - **`web/api_routes.py`**: JSON API. `GET /api/me` (you + workspaces with roles); `GET /api/invites` (your pending invites), `POST /api/invites/{id}/accept|decline`; `POST /api/workspaces`; `GET/PATCH/DELETE /api/workspaces/{id}`; `/members` (list, `PATCH /{user_id}` role, `DELETE /{user_id}` remove or leave); `/invites` (owner: create, list pending, `DELETE /{invite_id}` revoke); `/cash-flows` (list with per-day/month/year and totals, create, `PATCH`, delete) and `/cash-flow-categories` (list, create, `PATCH` name/position, delete); `GET /accounts` (active accounts + latest amounts); `POST /snapshots` saves today's snapshot with `carry_forward=True`, so omitted plain accounts keep their latest amount, and reports each account's `source` (`updated`/`carried_forward`/`computed`). Session auth for now; logged-out `/api/` requests always get 401. All errors are `{"error": ...}`
@@ -291,6 +294,7 @@ Tests are organized by module with pytest:
 - `test_migration.py`: Applies migrations to legacy rows and checks the backfill and rollback; the workspaces migration also checks the database refuses rows crossing workspaces. `test_every_migration_reverses_cleanly` runs all ups, all downs, all ups, so a new migration needs a working down
 - `test_cashflows.py`: Rate math against rows from the original spreadsheet, Hypothesis properties (equivalent frequencies agree, direction only flips the sign, category totals add up to `totals()`), period and wording helpers, rules, and workspace scoping down to the repository
 - `test_users.py`, `test_workspaces.py`, `test_invites.py`: Login matching/claiming; workspace and invite rules, including concurrency tests for the last-owner lock and accept-vs-revoke
+- `test_dashboard.py`: Pure tests of the dashboard helpers (30-day change edge cases, ranges and month-end clamping, category totals and ramps, cards, formatting) and the figure's structure
 - `test_cash_flows_page.py`: the Cash flows view model (periods, no income, expenses above income, colors) and the page against the container, including another workspace's flows never appearing
 - `test_web.py`: FastAPI TestClient with a signed session cookie against the container, including the every-route login and allowlist sweeps
 - `test_workspace_api.py`: Isolation sweep (a member of workspace 2 gets 404 on every workspace-1 route and changes nothing), role sweeps (exact 403 sets for viewer and editor), members, login
