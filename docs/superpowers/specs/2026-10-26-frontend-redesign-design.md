@@ -2,8 +2,9 @@
 
 **Date:** 2026-10-26
 **Status:** The three main pages (Dashboard, Accounts, Cash flows) are
-approved as mockups. The smaller screens are still to be designed. The
-open decisions listed below need answers before building starts.
+approved as mockups in light and dark. The workspace-in-URL and dark mode
+decisions are made, so building can start. The smaller screens are still to
+be designed.
 
 **Mockups:** [Design canvas](https://claude.ai/artifact/BMRjmDM7b239Ro2SbBtvsR)
 (private; share it from its Share menu). The chosen boards are **H**
@@ -33,26 +34,37 @@ design system.
 
 ### Tokens
 
-| Token | Value | Use |
-|---|---|---|
-| `--bg` | `#F2F3F5` | Page background |
-| `--surface` | `#FFFFFF` | Cards |
-| `--ink` | `#15171A` | Text, active nav pill, net worth line |
-| `--muted` | `#4A505A` | Secondary text (passes 4.5:1 on both backgrounds) |
-| `--rule` | `#F0F1F3` | Row dividers |
-| `--rule-strong` | `#DADDE2` | Input borders, axes |
-| `--asset` | `#2457C5` | Assets, primary buttons, focus/edited state |
-| `--asset-2` | `#8FB0EE` | Second asset category |
-| `--asset-tint` | `#EEF3FC` | Edited input background |
-| `--liability` | `#B4530F` | Liabilities, expenses |
-| `--liability-2..4` | `#D9772E`, `#E9A066`, `#F3C79E` | More expense / liability categories |
-| `--leftover` | `#DCE6F8` | "Left over" slice on Cash flows |
-| `--estimate-bg` / `--estimate-fg` | `#FFF4E5` / `#8A4B0C` | `≈` estimate tag |
-| `--danger` | `#B42318` | Delete |
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `--bg` | `#F2F3F5` | `#0F1115` | Page background |
+| `--surface` | `#FFFFFF` | `#191C21` | Cards, inactive toggle segment |
+| `--ink` | `#15171A` | `#ECEEF1` | Text, active nav pill (with `--surface` text), net worth line |
+| `--muted` | `#4A505A` | `#9BA3AF` | Secondary text (passes 4.5:1 on both `--bg` and `--surface`) |
+| `--rule` | `#F0F1F3` | `#23272E` | Row dividers |
+| `--rule-strong` | `#DADDE2` | `#3A404A` | Input borders, axes, dashed dividers |
+| `--grid` | `#ECEEF1` | `#262A31` | Chart gridlines |
+| `--chip` | `#F2F3F5` | `#23272E` | Secondary buttons (+ Add), toggle track, tag background |
+| `--input` | `#FFFFFF` | `#12151A` | Input background |
+| `--asset` | `#2457C5` | `#6E9CF5` | Assets, income, links, focus/edited border |
+| `--asset-2` | `#8FB0EE` | `#34558F` | Second asset category |
+| `--asset-tint` | `#EEF3FC` | `#1B2638` | Edited input background |
+| `--primary` / `--on-primary` | `#2457C5` / `#FFFFFF` | `#6E9CF5` / `#0F1115` | Primary buttons |
+| `--liability` | `#B4530F` | `#F08C4A` | Liabilities, expenses |
+| `--liability-2` | `#D9772E` | `#C46A2C` | More liability / expense categories |
+| `--liability-3` | `#E9A066` | `#8F4F24` | |
+| `--liability-4` | `#F3C79E` | `#5E3A20` | |
+| `--leftover` | `#DCE6F8` | `#2C3B5C` | "Left over" slice on Cash flows |
+| `--estimate-bg` / `--estimate-fg` | `#FFF4E5` / `#8A4B0C` | `#3A2A12` / `#F5C27A` | `≈` estimate tag |
+| `--danger` | `#B42318` | `#F97066` | Delete |
+| `--bar-bg` / `--bar-fg` | `#15171A` / `#FFFFFF` | `#2A2F37` / `#ECEEF1` | Sticky save bar |
+| `--bar-muted` / `--bar-border` | `#B9BEC6` / `#15171A` | `#A9B0BA` / `#454B55` | Save bar secondary text, its border and the Discard outline |
+| `--shadow` | `rgba(0,0,0,.06)` | `rgba(0,0,0,.4)` | Nav, picker and toggle shadows |
 
-Categories get their colors in display order, from the asset ramp or the
-liability ramp. Assets are always blue and liabilities and expenses always
-orange, and two colors that must be told apart also differ in lightness.
+Each category takes a color from its ramp, strongest first in order of
+size, so the largest segment of a bar is the strongest color. Assets and
+income are always blue; liabilities and expenses are always orange. In both
+themes the ramps fade toward the page background, and two colors that must
+be told apart also differ in lightness.
 
 ### Type
 
@@ -64,18 +76,21 @@ orange, and two colors that must be told apart also differ in lightness.
 
 ### Shape and spacing
 
-- Cards are white with a 20px radius and 28–32px padding, with 16px between
+- Cards are `--surface` with a 20px radius and 28–32px padding, with 16px between
   cards. The content column is at most 1160px wide.
 - Buttons, nav and toggles are pills (radius 999px). Inputs have a 10px
   radius.
 - Every touch target is at least 44px. Inputs are at least 40px tall, inside
   rows at least 52px tall.
 
-### Light only, for now
+### Light and dark
 
-The current app follows the system's dark/light setting. The redesign ships
-light only. Every color is a token, so a dark theme can come later. **Open
-decision 2** asks whether to keep dark mode at launch.
+Both themes ship at launch, as the current app does, following the system
+setting (`prefers-color-scheme`). The tokens are defined once on `:root` for
+light and overridden for dark, so the templates name only tokens and never
+a hex value. On the canvas, every chosen board has a **theme** tweak, and the
+"Dark mode" row shows each page in dark. New screens are designed the same
+way, in both themes.
 
 ## Shell (every page)
 
@@ -84,12 +99,37 @@ decision 2** asks whether to keep dark mode at launch.
   the right (`<select>` with a visible "Workspace" label). A user menu
   (logout) still needs a home; a small avatar button after the picker is the
   likely spot.
-- **Workspace picker:** pages currently act in the user's oldest membership
-  (`PageViewer` / `PageEditor`). The picker needs a real mechanism; see
-  **Open decision 1**.
+- **Workspace picker:** lists your live workspaces. Choosing one goes to the
+  same page in that workspace. See "Workspace in the URL" below.
 - **Narrow screens:** the header wraps, and any two-column card grid
   (`repeat(auto-fit, minmax(min(100%, 420px), 1fr))`) drops to one column.
   Wide grids scroll inside their own box, never the page.
+
+### Workspace in the URL (decided)
+
+Every page names its workspace in its path, as the JSON API already does:
+
+| Page | Path |
+|---|---|
+| Dashboard | `/w/{workspace_id}/` |
+| Accounts | `/w/{workspace_id}/accounts` |
+| Account forms | `/w/{workspace_id}/accounts/new`, `/w/{workspace_id}/accounts/{id}/edit`, and their POSTs (including retire and unretire) |
+| Save snapshot | `POST /w/{workspace_id}/snapshots` |
+| Cash flows | `/w/{workspace_id}/cash-flows` |
+
+- **Access:** page routes get the same access checks as the API: **404** if
+  you are not a live member of that workspace (its existence is not
+  revealed), **403** if your role is too low. Path-based page dependencies
+  replace `PageViewer` / `PageEditor`, whose "oldest membership" rule goes
+  away.
+- **Bare paths:** `/` and the old bare paths (`/accounts`, …) redirect to the
+  same page in your oldest live workspace, so bookmarks keep working.
+  Remembering the last-used workspace (a cookie) can come later.
+- **No workspace:** a user with no live workspace gets a page offering to
+  create one, instead of today's `NoWorkspace` 403 (one of the empty states
+  still to design).
+- **Why:** this matches the API, a link works when shared, there is no
+  hidden state, and two tabs can show two workspaces at once.
 
 ## Shared components
 
@@ -103,7 +143,7 @@ decision 2** asks whether to keep dark mode at launch.
 | Estimate tag | `≈` pill in the estimate colors |
 | Segmented toggle | Pill group with `aria-pressed`; 1Y/6M/All on the dashboard, Day/Month/Year on Cash flows |
 | Stacked bar | Horizontal; segments separated by a 2px gap; a key below with amounts |
-| Sticky save bar | Ink bar stuck to the bottom: unsaved count, live net worth and change, Discard, Save snapshot |
+| Sticky save bar | `--bar-bg` bar stuck to the bottom: unsaved count, live net worth and change, Discard, Save snapshot. Near-black in light, a raised grey with a border in dark |
 
 ## Pages
 
@@ -138,8 +178,8 @@ decision 2** asks whether to keep dark mode at launch.
 - Plotly 2.27 is already loaded on this page. Build both the lines and the
   columns as one figure with a shared y-axis (two x-axis domains), so they
   keep the same scale and the lines keep hover.
-- Theme the figure from the tokens. The current re-theming JS goes away
-  if the redesign is light only.
+- Theme the figure from the tokens, and re-theme it when the system theme
+  changes, as the dashboard's JS does today, reading the new token names.
 
 ### Accounts: board **Accounts I**
 
@@ -223,21 +263,18 @@ These can be designed on the canvas while the three pages above are built:
    flows), and error and flash messages.
 5. **Expenses above income** on Cash flows.
 
-## Open decisions
+## Decisions made
 
-1. **How a page knows its workspace.** Recommended: put it in the URL,
-   `/w/{workspace_id}/`, `/w/{id}/accounts`, `/w/{id}/cash-flows`. This
-   matches the API, links work when shared, there is no hidden state, and
-   each page route can use the API's 404/403 access checks. `/` redirects to
-   the last-used or oldest workspace. The alternative is a cookie holding the
-   current workspace.
-2. **Dark mode at launch:** drop it for now (recommended), or carry the
-   tokens over to dark before launch.
+1. **The workspace is in the URL** (`/w/{workspace_id}/…`), not a cookie.
+   See "Workspace in the URL".
+2. **Dark mode ships at launch**, designed alongside light. See "Light and
+   dark".
 
 ## Build plan
 
-1. **Shell first** (blocks the rest; small): tokens as CSS custom
-   properties, fonts, the header, nav, workspace picker (decision 1), the
+1. **Shell first** (blocks the rest; small): light and dark tokens as CSS
+   custom properties, fonts, the header, nav, the workspace picker and the
+   `/w/{workspace_id}/` routes with their access checks and redirects, the
    user menu, and the shared components above. Jinja macros for card, group
    and row.
 2. **Then in parallel:**
@@ -254,3 +291,4 @@ These can be designed on the canvas while the three pages above are built:
    - the dashboard's 30-day change and category totals
    - per-category cash flow totals adding up to `totals()`
    - the workspace in the URL refusing non-members with 404
+   - bare paths redirecting to the oldest live workspace
