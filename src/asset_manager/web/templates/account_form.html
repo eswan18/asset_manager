@@ -1,370 +1,520 @@
-{% extends "base.html" %}
+{#- The account form (board Account form Q): a drawer over the Accounts page.
+    accounts.html renders underneath as it does on its own, inert behind a
+    scrim; Close, Cancel and Escape are links back to it. -#}
+{% extends "accounts.html" %}
+
+{% block title %}{{ account.name if account else "New account" }} · {{ workspace.name }}{% endblock %}
 
 {% block styles %}
-    .form-card {
-        max-width: 560px;
-        margin: 0 auto;
-        background: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius);
-        padding: 1.5rem 1.75rem;
-    }
+{{ super() }}
 
-    .form-card h2 {
-        font-family: var(--font-display);
-        font-weight: 400;
-        font-size: 1.3rem;
-        margin-bottom: 1.25rem;
-    }
+    /* --- drawer --- */
 
-    .form-card h2.asset { color: var(--color-asset); }
-    .form-card h2.liability { color: var(--color-liability); }
-
-    .field {
-        display: block;
-        margin-bottom: 1rem;
-    }
-
-    .field > span {
-        display: block;
-        font-size: 0.7rem;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        margin-bottom: 0.3rem;
-    }
-
-    .field input[type=text],
-    .field select {
-        width: 100%;
-        background: var(--bg-primary);
-        border: 1px solid var(--border-medium);
-        border-radius: var(--radius);
-        color: var(--text-primary);
-        font-family: var(--font-body);
-        font-size: 0.95rem;
-        padding: 0.5rem 0.7rem;
-        outline: none;
-        transition: border-color 0.15s;
-    }
-
-    .field input[type=text]:focus,
-    .field select:focus {
-        border-color: var(--accent-gold);
-    }
-
-    .field input.mono {
-        font-family: var(--font-mono);
-    }
-
-    .choice {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        margin-right: 1.25rem;
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        cursor: pointer;
-    }
-
-    .choice input {
-        accent-color: var(--accent-gold);
-    }
-
-    .locked {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-    }
-
-    fieldset {
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius);
-        padding: 0.75rem 1rem;
-        margin-bottom: 1rem;
-    }
-
-    legend {
-        font-size: 0.7rem;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        padding: 0 0.4rem;
-    }
-
-    fieldset h4 {
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: var(--text-muted);
-        margin: 0.5rem 0 0.25rem;
-    }
-
-    fieldset .choice {
-        display: flex;
-        margin: 0.15rem 0;
-    }
-
-    .hint {
-        color: var(--text-muted);
-        font-size: 0.8rem;
-        margin: 0.25rem 0 1rem;
-    }
-
-    .hint code {
-        font-family: var(--font-mono);
-        color: var(--accent-gold);
-    }
-
-    .form-actions {
-        display: flex;
-        gap: 0.75rem;
-        align-items: center;
-        margin-top: 1.25rem;
-    }
-
-    .danger-zone {
-        margin-top: 1.75rem;
-        padding-top: 1.25rem;
-        border-top: 1px solid var(--border-subtle);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .danger-zone .hint {
-        margin: 0;
-    }
-
-    .danger-zone .btn {
-        white-space: nowrap;
-    }
-
-    .danger-zone .hint.warning {
-        color: var(--accent-gold);
-    }
-
-    .btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .history-card {
-        max-width: 560px;
-        margin: 1.5rem auto 0;
-        background: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius);
+    body.drawer-open {
         overflow: hidden;
     }
 
-    .history-card h3 {
-        font-family: var(--font-display);
-        font-weight: 400;
-        font-size: 1.05rem;
-        padding: 0.85rem 1.75rem;
-        border-bottom: 1px solid var(--border-subtle);
+    .scrim {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        background: var(--scrim);
     }
 
-    .history-card h3 span {
-        color: var(--text-muted);
-        font-family: var(--font-body);
-        font-size: 0.8rem;
-        margin-left: 0.5rem;
-    }
-
-    .history-scroll {
-        max-height: 24rem;
-        overflow-y: auto;
-    }
-
-    .history-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .history-table th {
-        position: sticky;
+    .drawer {
+        position: fixed;
         top: 0;
-        background: var(--bg-surface);
-        text-align: left;
-        padding: 0.55rem 1.75rem;
-        font-size: 0.7rem;
+        right: 0;
+        bottom: 0;
+        z-index: 41;
+        width: min(100%, 500px);
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        box-shadow: -12px 0 32px var(--shadow);
+        animation: drawerIn 0.2s ease-out both;
+    }
+
+    @keyframes drawerIn {
+        from { transform: translateX(24px); opacity: 0; }
+        to { transform: none; opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .drawer { animation: none; }
+    }
+
+    .drawer-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 20px 24px;
+        border-bottom: 2px solid var(--section, var(--ink));
+    }
+
+    .drawer-heading {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .drawer-eyebrow {
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .drawer-head h1 {
+        font-family: var(--font-display);
+        font-size: 22px;
         font-weight: 600;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        border-bottom: 1px solid var(--border-subtle);
+        line-height: 1.25;
+        overflow-wrap: anywhere;
     }
 
-    .history-table th.num,
-    .history-table td.num {
+    .drawer-close {
+        flex: 0 0 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--chip);
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .drawer-body {
+        flex-grow: 1;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+
+    .drawer-foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 16px 24px;
+        border-top: 1px solid var(--rule-strong);
+    }
+
+    .drawer-foot .btn {
+        min-height: 44px;
+        padding: 0 22px;
+    }
+
+    .drawer-error {
+        padding: 12px 16px;
+        border-radius: 12px;
+        border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+        background: color-mix(in srgb, var(--danger) 8%, transparent);
+        color: var(--danger);
+        font-size: 14px;
+    }
+
+    /* --- fields --- */
+
+    #account-form,
+    #formula-fields {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+
+    #formula-fields[hidden] {
+        display: none;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--muted);
+    }
+
+    .field input,
+    .field select {
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+        padding: 0 12px;
+        border: 1px solid var(--rule-strong);
+        border-radius: var(--radius-input);
+        background: var(--input);
+        color: var(--ink);
+        font: inherit;
+        font-size: 15px;
+        font-weight: 400;
+    }
+
+    .field input.num {
         text-align: right;
-        font-family: var(--font-mono);
-        font-variant-numeric: tabular-nums;
     }
 
-    .history-table td {
-        padding: 0.5rem 1.75rem;
-        font-size: 0.88rem;
-        color: var(--text-secondary);
-        border-bottom: 1px solid var(--border-row);
+    .field input:focus-visible,
+    .field select:focus-visible,
+    .drawer-close:focus-visible {
+        outline: 2px solid var(--asset);
+        outline-offset: 1px;
     }
 
-    .history-table tr:last-child td {
-        border-bottom: none;
+    .field-pair {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
     }
 
-    .history-table td.amount {
-        color: var(--text-primary);
+    .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        font-weight: 600;
+        cursor: pointer;
     }
 
-    .history-table td.change.up { color: var(--color-asset); }
-    .history-table td.change.down { color: var(--color-liability); }
-    .history-table td.change.flat,
-    .history-table td.change.first { color: var(--text-muted); }
+    .check input {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--primary);
+    }
+
+    /* Checkable pills: the type choice and the formula's inputs. */
+    .pills {
+        border: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .pills legend {
+        padding: 0 0 8px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--muted);
+    }
+
+    .pill-group {
+        flex-basis: 100%;
+        font-size: 12px;
+        color: var(--muted);
+    }
+
+    .pill-group:not(:first-of-type) {
+        margin-top: 4px;
+    }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 44px;
+        padding: 0 14px;
+        border: 1px solid var(--rule-strong);
+        border-radius: 999px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .pill:has(input:checked) {
+        background: var(--asset-tint);
+        border-color: var(--asset);
+    }
+
+    .pill:has(input:focus-visible) {
+        outline: 2px solid var(--asset);
+        outline-offset: 1px;
+    }
+
+    .pill input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--primary);
+    }
+
+    .pills-empty {
+        font-size: 14px;
+        color: var(--muted);
+    }
+
+    .formula-preview {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: var(--chip);
+        font-size: 14px;
+    }
+
+    .formula-preview span {
+        color: var(--muted);
+    }
+
+    .formula-preview strong {
+        font-family: var(--font-display);
+        font-size: 18px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    /* --- history and retire --- */
+
+    .drawer-history {
+        border-top: 1px solid var(--rule);
+        padding-top: 8px;
+    }
+
+    .drawer-history summary {
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 44px;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .drawer-history summary::-webkit-details-marker { display: none; }
+
+    .drawer-history summary::after {
+        content: "";
+        width: 8px;
+        height: 8px;
+        margin-right: 6px;
+        border-right: 1.5px solid var(--muted);
+        border-bottom: 1.5px solid var(--muted);
+        transform: rotate(45deg);
+    }
+
+    .drawer-history[open] summary::after {
+        transform: rotate(-135deg);
+    }
+
+    .history-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 40px;
+        border-top: 1px solid var(--rule);
+        font-size: 14px;
+    }
+
+    .history-row span:first-child,
+    .history-empty {
+        color: var(--muted);
+    }
 
     .history-empty {
-        padding: 1.5rem 1.75rem;
-        color: var(--text-muted);
-        font-size: 0.88rem;
+        padding: 8px 0;
+        font-size: 14px;
+    }
+
+    .drawer-retire {
+        border-top: 1px solid var(--rule);
+        padding-top: 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .drawer-retire p {
+        font-size: 14px;
+        color: var(--muted);
+    }
+
+    @media (max-width: 600px) {
+        .drawer-head, .drawer-body, .drawer-foot { padding-left: 16px; padding-right: 16px; }
     }
 {% endblock %}
 
-{% block content %}
-<div class="form-card fade-in">
-    <h2 class="{{ form.type }}">{{ 'Edit' if account else 'New' }} {{ form.type }}</h2>
-
-    <form method="post" action="{{ base }}/accounts{{ ('/' ~ account.id) if account else '' }}">
-        <label class="field">
-            <span>Name</span>
-            <input type="text" name="name" value="{{ form.name }}" required autofocus>
-        </label>
-
-        <div class="field">
-            <span>Type</span>
-            {% if account %}
-            <span class="locked">{{ form.type }} (cannot be changed)</span>
-            {% else %}
-            <label class="choice">
-                <input type="radio" name="type" value="asset" {% if form.type == 'asset' %}checked{% endif %}> Asset
-            </label>
-            <label class="choice">
-                <input type="radio" name="type" value="liability" {% if form.type == 'liability' %}checked{% endif %}> Liability
-            </label>
-            {% endif %}
+{% block drawer %}
+<div class="scrim" aria-hidden="true"></div>
+<aside class="drawer section-{{ form.type }}" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <div class="drawer-head">
+        <div class="drawer-heading">
+            <span class="drawer-eyebrow">{{ ("Edit " ~ form.type) if account else "New account" }}</span>
+            <h1 id="drawer-title">{{ account.name if account else "New " ~ form.type }}</h1>
         </div>
+        <a class="drawer-close" href="{{ base }}/accounts" aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>
+        </a>
+    </div>
 
-        <label class="field">
-            <span>Category</span>
-            <select name="category">
-                <option value="" {% if not form.category %}selected{% endif %}>Uncategorized</option>
-                {% for category in categories %}
-                <option value="{{ category.value }}" {% if form.category == category.value %}selected{% endif %}>{{ category.label }}</option>
-                {% endfor %}
-            </select>
-        </label>
+    <div class="drawer-body">
+        {% if form_error %}
+        <div class="drawer-error" role="alert">{{ form_error }}</div>
+        {% endif %}
 
-        <label class="choice field">
-            <input type="checkbox" name="computed" id="computed" {% if form.computed %}checked{% endif %}>
-            Computed from other accounts
-        </label>
-
-        <div id="formula-fields" {% if not form.computed %}hidden{% endif %}>
-            <p class="hint">Value = <code>rate × (sum of inputs − cost basis)</code>. Leave the basis blank for zero.</p>
-            <label class="field">
-                <span>Rate (%)</span>
-                <input type="text" class="mono" name="rate_percent" value="{{ form.rate_percent }}" inputmode="decimal" placeholder="15">
+        <form id="account-form" method="post" action="{{ base }}/accounts{{ ('/' ~ account.id) if account else '' }}">
+            <label class="field">Name
+                <input type="text" name="name" value="{{ form.name }}" required autofocus>
             </label>
-            <label class="field">
-                <span>Cost basis ($)</span>
-                <input type="text" class="mono" name="cost_basis" value="{{ form.cost_basis }}" inputmode="decimal" placeholder="0.00">
-            </label>
-            <fieldset>
-                <legend>Inputs</legend>
-                {% for label, candidates in candidate_groups %}
-                <h4>{{ label }}</h4>
-                {% for candidate in candidates %}
-                <label class="choice">
-                    <input type="checkbox" name="input_ids" value="{{ candidate.id }}" {% if candidate.id in form.input_ids %}checked{% endif %}>
-                    {{ candidate.name }}
-                </label>
-                {% endfor %}
-                {% else %}
-                <p class="hint">No plain, active accounts to use as inputs yet.</p>
+
+            {% if not account %}
+            <fieldset class="pills" id="type-choice">
+                <legend>Type</legend>
+                {% for value, label in [("asset", "Asset"), ("liability", "Liability")] %}
+                <label class="pill"><input type="radio" name="type" value="{{ value }}"{% if form.type == value %} checked{% endif %}>{{ label }}</label>
                 {% endfor %}
             </fieldset>
-        </div>
+            {% endif %}
 
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Save</button>
-            <a href="{{ base }}/accounts" class="btn btn-secondary">Cancel</a>
-        </div>
-    </form>
+            <label class="field">Category
+                <select name="category">
+                    <option value=""{% if not form.category %} selected{% endif %}>Uncategorized</option>
+                    {% for category in categories %}
+                    <option value="{{ category.value }}"{% if form.category == category.value %} selected{% endif %}>{{ category.label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
 
-    {% if account %}
-    <div class="danger-zone">
-        {% if account.retired_at %}
-        <p class="hint">Retired {{ account.retired_at }}. Unretiring brings it back with a blank amount.</p>
-        <form method="post" action="{{ base }}/accounts/{{ account.id }}/unretire">
-            <button type="submit" class="btn btn-secondary">Unretire</button>
-        </form>
-        {% else %}
-        {% if retire_blocker %}
-        <p class="hint">{{ retire_blocker }}</p>
-        {% elif retire_warning %}
-        <p class="hint warning">{{ retire_warning }}</p>
-        {% else %}
-        <p class="hint">Retiring hides this account and stops including it in snapshots. History is kept.</p>
-        {% endif %}
-        <form method="post" action="{{ base }}/accounts/{{ account.id }}/retire">
-            <button type="submit" class="btn btn-secondary" {% if retire_blocker %}disabled{% endif %}>{{ 'Retire anyway' if retire_warning else 'Retire' }}</button>
-        </form>
-        {% endif %}
-    </div>
-    {% endif %}
-</div>
+            <label class="check"><input type="checkbox" name="computed" id="computed"{% if form.computed %} checked{% endif %}>Computed from other accounts</label>
 
-{% if account %}
-<div class="history-card fade-in" style="animation-delay: 0.05s">
-    <h3>History{% if history %}<span>{{ history | length }} snapshot{{ '' if history | length == 1 else 's' }}</span>{% endif %}</h3>
-    {% if history %}
-    <div class="history-scroll">
-        <table class="history-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th class="num">Amount</th>
-                    <th class="num">Change</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in history %}
-                <tr>
-                    <td>{{ row.date }}</td>
-                    <td class="num amount">{{ row.amount }}</td>
-                    {% if row.change is none %}
-                    <td class="num change first">—</td>
+            <div id="formula-fields"{% if not form.computed %} hidden{% endif %}>
+                <div class="field-pair">
+                    <label class="field">Rate (%)
+                        <input type="text" class="num" name="rate_percent" value="{{ form.rate_percent }}" inputmode="decimal" placeholder="15">
+                    </label>
+                    <label class="field">Cost basis ($)
+                        <input type="text" class="num" name="cost_basis" value="{{ form.cost_basis }}" inputmode="decimal" placeholder="0.00">
+                    </label>
+                </div>
+                <fieldset class="pills">
+                    <legend>Inputs</legend>
+                    {% for label, candidates in candidate_groups %}
+                    {% if candidate_groups | length > 1 %}<span class="pill-group">{{ label }}</span>{% endif %}
+                    {% for candidate in candidates %}
+                    <label class="pill"><input type="checkbox" name="input_ids" value="{{ candidate.id }}" data-amount="{{ candidate.amount }}"{% if candidate.id in form.input_ids %} checked{% endif %}>{{ candidate.name }}</label>
+                    {% endfor %}
                     {% else %}
-                    <td class="num change {{ row.direction }}">{{ row.change }}</td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    <p class="pills-empty">No plain, active accounts to use as inputs yet.</p>
+                    {% endfor %}
+                </fieldset>
+                <div class="formula-preview" aria-live="polite">
+                    <span id="formula-text">{{ preview.text if preview else "rate × (sum of inputs − cost basis)" }}</span>
+                    <strong id="formula-value">{{ preview.value if preview else "—" }}</strong>
+                </div>
+            </div>
+        </form>
+
+        {% if account %}
+        <details class="drawer-history">
+            <summary>History ({% if history %}{{ history | length }} snapshot{{ "" if history | length == 1 else "s" }}{% else %}no snapshots{% endif %})</summary>
+            {% for row in history %}
+            <div class="history-row"><span>{{ row.date }}</span><span>{{ row.amount }}</span></div>
+            {% else %}
+            <p class="history-empty">No snapshots yet. Save one from the Accounts page.</p>
+            {% endfor %}
+        </details>
+
+        <section class="drawer-retire" aria-label="Retire">
+            {% if account.retired_at %}
+            <p>Retired {{ retired_display }}. Unretiring brings it back with a blank amount.</p>
+            <form method="post" action="{{ base }}/accounts/{{ account.id }}/unretire">
+                <button type="submit" class="btn btn-outline">Unretire</button>
+            </form>
+            {% elif retire_blocker %}
+            <p>{{ retire_blocker }}</p>
+            {% else %}
+            <p>{{ retire_warning or "Retiring hides this account and stops including it in snapshots. History is kept." }}</p>
+            <form method="post" action="{{ base }}/accounts/{{ account.id }}/retire">
+                <button type="submit" class="btn btn-danger-outline">{{ "Retire anyway" if retire_warning else "Retire" }}</button>
+            </form>
+            {% endif %}
+        </section>
+        {% endif %}
     </div>
-    {% else %}
-    <p class="history-empty">No snapshots yet. Save one from the Accounts tab.</p>
-    {% endif %}
-</div>
-{% endif %}
+
+    <div class="drawer-foot">
+        <a class="btn btn-outline" href="{{ base }}/accounts">Cancel</a>
+        <button type="submit" class="btn btn-primary" form="account-form">Save</button>
+    </div>
+</aside>
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
+(function () {
+    const drawer = document.querySelector('.drawer');
+    const closeHref = drawer.querySelector('.drawer-close').href;
+
+    // Escape closes, like the Close button: back to the Accounts page.
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !event.defaultPrevented) {
+            window.location.href = closeHref;
+        }
+    });
+
+    // The computed fields show only while the box is checked.
     const computedBox = document.getElementById('computed');
     const formulaFields = document.getElementById('formula-fields');
     computedBox.addEventListener('change', () => { formulaFields.hidden = !computedBox.checked; });
+
+    // A new account's type recolors the drawer and retitles it.
+    document.querySelectorAll('#type-choice input').forEach(radio => {
+        radio.addEventListener('change', () => {
+            drawer.classList.remove('section-asset', 'section-liability');
+            drawer.classList.add('section-' + radio.value);
+            document.getElementById('drawer-title').textContent = 'New ' + radio.value;
+        });
+    });
+
+    // The computed-value line, live. Mirrors formula_preview() on the
+    // server, which renders the first one; a save rounds the same way.
+    const form = document.getElementById('account-form');
+    const textEl = document.getElementById('formula-text');
+    const valueEl = document.getElementById('formula-value');
+    const HINT = 'rate × (sum of inputs − cost basis)';
+
+    function number(text) {
+        let s = String(text).replace(/[$,\s]/g, '');
+        let negative = false;
+        if (s.startsWith('(') && s.endsWith(')')) { negative = true; s = s.slice(1, -1); }
+        if (s.startsWith('-')) { negative = !negative; s = s.slice(1); }
+        if (!/^(\d+\.?\d*|\.\d+)$/.test(s)) return null;
+        return negative ? -Number(s) : Number(s);
+    }
+    function roundHalfUp(n, places) {
+        const f = Math.pow(10, places);
+        return Math.sign(n) * Math.round(Math.abs(n) * f + 1e-9) / f;
+    }
+    function money(n, places) {
+        const text = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: places, maximumFractionDigits: places });
+        return (n < 0 ? '-$' : '$') + text;
+    }
+
+    function updatePreview() {
+        const checked = Array.from(form.querySelectorAll('input[name="input_ids"]:checked'));
+        const rateText = form.elements.rate_percent.value.trim();
+        const percent = /^(\d+\.?\d*|\.\d+)$/.test(rateText) ? roundHalfUp(Number(rateText), 4) : null;
+        const basisText = form.elements.cost_basis.value.trim();
+        const basis = basisText === '' ? 0 : number(basisText);
+        if (!checked.length || percent === null || basis === null) {
+            textEl.textContent = HINT;
+            valueEl.textContent = '—';
+            return;
+        }
+        if (checked.some(el => el.dataset.amount === '')) {
+            textEl.textContent = 'Needs a saved amount for every input';
+            valueEl.textContent = '—';
+            return;
+        }
+        const total = checked.reduce((sum, el) => sum + Number(el.dataset.amount), 0);
+        const roundedBasis = roundHalfUp(basis, 2);
+        textEl.textContent = percent + '% × (' + money(roundHalfUp(total, 0), 0) + ' − ' + money(roundHalfUp(roundedBasis, 0), 0) + ')';
+        valueEl.textContent = money(roundHalfUp(percent / 100 * (total - roundedBasis), 2), 2);
+    }
+    form.addEventListener('input', updatePreview);
+    form.addEventListener('change', updatePreview);
+})();
 </script>
 {% endblock %}

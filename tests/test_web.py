@@ -1,5 +1,6 @@
 """Web tests: real database container plus a signed session cookie."""
 
+import re
 from datetime import date
 from decimal import Decimal
 
@@ -1590,12 +1591,13 @@ class TestAccountForm:
         assert "Edit liability" in response.text
         assert 'value="32.5"' in response.text
         assert 'value="100.00"' in response.text
-        assert f'value="{schwab.id}" checked' in response.text
-        assert "cannot be changed" in response.text
+        assert re.search(
+            rf'value="{schwab.id}" data-amount=""\s+checked', response.text
+        )
+        # The type is fixed once created: the drawer names it and offers no choice.
+        assert 'name="type"' not in response.text
 
-    def test_edit_page_shows_history_newest_first_with_changes(
-        self, client, db_connection
-    ):
+    def test_edit_page_shows_history_newest_first(self, client, db_connection):
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         upsert_amounts(db_connection, WS, date(2026, 7, 1), {cash.id: Decimal("1000")})
         upsert_amounts(
@@ -1605,20 +1607,18 @@ class TestAccountForm:
         db_connection.commit()
         login(client)
         text = client.get(f"{PAGES}/accounts/{cash.id}/edit").text
-        assert "History" in text
-        first = text.index("September 1, 2026")
-        second = text.index("August 1, 2026")
-        third = text.index("July 1, 2026")
-        assert first < second < third
-        assert "$900.00" in text
-        assert "$1,250.50" in text
-        assert "-$350.50" in text
-        assert "+$250.50" in text
-        assert (
-            'class="num change first"' in text
-        )  # the oldest row has no previous value
-        assert 'class="num change down">-$350.50' in text
-        assert 'class="num change up">+$250.50' in text
+        history = text[text.index('<details class="drawer-history">') :]
+        history = history[: history.index("</details>")]
+        assert "History (3 snapshots)" in history
+        rows = re.findall(
+            r'<div class="history-row"><span>([^<]+)</span><span>([^<]+)</span>',
+            history,
+        )
+        assert rows == [
+            ("Sep 1, 2026", "$900.00"),
+            ("Aug 1, 2026", "$1,250.50"),
+            ("Jul 1, 2026", "$1,000.00"),
+        ]
 
     def test_edit_page_history_empty_state(self, client, db_connection):
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
@@ -1700,7 +1700,8 @@ class TestAccountForm:
         assert "Schwab is an input to Tax" in page.text
         edit = client.get(f"{PAGES}/accounts/{schwab.id}/edit")
         assert "Schwab is an input to Tax" in edit.text
-        assert 'class="btn btn-secondary" disabled' in edit.text
+        # Blocked: no Retire button at all, just the reason.
+        assert f"{schwab.id}/retire" not in edit.text
 
     def test_retire_nonzero_warns_then_succeeds(self, client, db_connection):
         from asset_manager.repository import get_account
@@ -1712,7 +1713,7 @@ class TestAccountForm:
         edit = client.get(f"{PAGES}/accounts/{cash.id}/edit")
         assert "Last saved at $5.00 on September 1, 2026" in edit.text
         assert "Retire anyway" in edit.text
-        assert 'class="btn btn-secondary" disabled' not in edit.text
+        assert f'action="{PAGES}/accounts/{cash.id}/retire"' in edit.text
         response = client.post(
             f"{PAGES}/accounts/{cash.id}/retire", follow_redirects=False
         )
