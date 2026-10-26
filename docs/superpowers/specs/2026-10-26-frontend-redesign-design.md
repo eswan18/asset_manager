@@ -107,15 +107,17 @@ way, in both themes.
 
 ### Workspace in the URL (decided)
 
-Every page names its workspace in its path, as the JSON API already does:
+Every page names its workspace in its path, using the API's own prefix: a
+page's path is the matching API path without `/api` (`/api/workspaces/1/accounts`
+is the data behind `/workspaces/1/accounts`).
 
 | Page | Path |
 |---|---|
-| Dashboard | `/w/{workspace_id}/` |
-| Accounts | `/w/{workspace_id}/accounts` |
-| Account forms | `/w/{workspace_id}/accounts/new`, `/w/{workspace_id}/accounts/{id}/edit`, and their POSTs (including retire and unretire) |
-| Save snapshot | `POST /w/{workspace_id}/snapshots` |
-| Cash flows | `/w/{workspace_id}/cash-flows` |
+| Dashboard | `/workspaces/{workspace_id}/` |
+| Accounts | `/workspaces/{workspace_id}/accounts` |
+| Account forms | `/workspaces/{workspace_id}/accounts/new`, `/workspaces/{workspace_id}/accounts/{id}/edit`, and their POSTs (including retire and unretire) |
+| Save snapshot | `POST /workspaces/{workspace_id}/snapshots` |
+| Cash flows | `/workspaces/{workspace_id}/cash-flows` |
 
 - **Access:** page routes get the same access checks as the API: **404** if
   you are not a live member of that workspace (its existence is not
@@ -265,7 +267,7 @@ These can be designed on the canvas while the three pages above are built:
 
 ## Decisions made
 
-1. **The workspace is in the URL** (`/w/{workspace_id}/…`), not a cookie.
+1. **The workspace is in the URL** (`/workspaces/{workspace_id}/…`), not a cookie.
    See "Workspace in the URL".
 2. **Dark mode ships at launch**, designed alongside light. See "Light and
    dark".
@@ -274,7 +276,7 @@ These can be designed on the canvas while the three pages above are built:
 
 1. **Shell first** (blocks the rest; small): light and dark tokens as CSS
    custom properties, fonts, the header, nav, the workspace picker and the
-   `/w/{workspace_id}/` routes with their access checks and redirects, the
+   `/workspaces/{workspace_id}/` routes with their access checks and redirects, the
    user menu, and the shared components above. Jinja macros for card, group
    and row.
 2. **Then in parallel:**
