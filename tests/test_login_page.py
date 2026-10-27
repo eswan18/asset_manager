@@ -122,6 +122,16 @@ class TestRefusedLogin:
         assert "This account can't use Asset Manager yet." in text
         assert "None" not in text
 
+    def test_no_email_is_refused_even_where_everyone_is_allowed(
+        self, client, monkeypatch
+    ):
+        # ENV=dev with no ALLOWED_EMAILS lets any email in, but never none.
+        _use(monkeypatch, FakeIdp(token={"userinfo": claims(USER, email=None)}))
+        response = client.get("/auth/callback", follow_redirects=False)
+        assert response.status_code == 403
+        assert "This account can't use Asset Manager yet." in _text(response.text)
+        assert _session_cookie(response) is None
+
     @pytest.mark.parametrize("verified", [False, None, "true"])
     def test_unverified_email(self, client, monkeypatch, verified):
         info = claims(USER)

@@ -61,7 +61,7 @@
     {% if action %}
     <a class="btn btn-primary" href="{{ action[1] }}">{{ action[0] }}</a>
     {% elif viewer_note %}
-    <p>{{ viewer_note }}</p>
+    <p class="empty-viewer">{{ viewer_note }}</p>
     {% endif %}
 </section>
 {%- endmacro %}
