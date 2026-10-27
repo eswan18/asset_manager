@@ -57,11 +57,11 @@ class TestLoginPage:
         response = client.get("/login")
         assert response.status_code == 200
         text = _text(response.text)
-        assert "Asset Manager" in text
+        assert "Sensibility" in text
         assert "What you own, what you owe." in text
         assert "Track your net worth and where your money goes" in text
         assert re.search(r'<a [^>]*href="/auth/start"[^>]*>Log in</a>', response.text)
-        assert "<title>Log in · Asset Manager</title>" in response.text
+        assert "<title>Log in · Sensibility</title>" in response.text
 
     def test_footnote_names_the_identity_host(self, client, monkeypatch):
         _use(monkeypatch, FakeIdp())
@@ -104,7 +104,7 @@ class TestRefusedLogin:
         assert response.headers["content-type"].startswith("text/html")
         text = _text(response.text)
         assert "This account isn't on the list yet" in text
-        assert "stranger@example.com can't use Asset Manager yet." in text
+        assert "stranger@example.com can't use Sensibility yet." in text
         assert "Access is invite-only for now." in text
         assert re.search(
             r'<a [^>]*href="/auth/switch"[^>]*>Log in with a different account</a>',
@@ -127,7 +127,7 @@ class TestRefusedLogin:
         response = client.get("/auth/callback")
         assert response.status_code == 403
         text = _text(response.text)
-        assert "This account can't use Asset Manager yet." in text
+        assert "This account can't use Sensibility yet." in text
         assert "None" not in text
 
     def test_no_email_is_refused_even_where_everyone_is_allowed(
@@ -137,7 +137,7 @@ class TestRefusedLogin:
         _use(monkeypatch, FakeIdp(token={"userinfo": claims(USER, email=None)}))
         response = client.get("/auth/callback", follow_redirects=False)
         assert response.status_code == 403
-        assert "This account can't use Asset Manager yet." in _text(response.text)
+        assert "This account can't use Sensibility yet." in _text(response.text)
         assert _session_cookie(response) is None
 
     @pytest.mark.parametrize("verified", [False, None, "true"])

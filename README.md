@@ -1,8 +1,8 @@
-# Asset Manager
+# Sensibility Money
 
 [![CI Status](https://github.com/eswan18/asset_manager/workflows/Continuous%20Integration/badge.svg)](https://github.com/eswan18/asset_manager/actions)
 
-A Python application for tracking personal financial assets and liabilities. Values are entered on the web dashboard's Accounts tab and saved as dated snapshots in PostgreSQL. Liabilities such as deferred tax can be computed from other accounts by a formula.
+Sensibility (in full, Sensibility Money) is a Python application for tracking personal financial assets and liabilities. Values are entered on the web dashboard's Accounts tab and saved as dated snapshots in PostgreSQL. Liabilities such as deferred tax can be computed from other accounts by a formula.
 
 ## Prerequisites
 

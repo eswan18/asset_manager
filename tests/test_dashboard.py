@@ -15,7 +15,10 @@ from asset_manager.models import (
 from asset_manager.web.charts import build_figure
 from asset_manager.web.dashboard import (
     Point,
+    BarSegment,
+    CategoryTotal,
     account_cards,
+    category_bars,
     change_since,
     computed_label,
     daily_totals,
@@ -284,6 +287,44 @@ class TestLatestCategoryTotals:
         assert latest_category_totals([], [account(1)]) == {A: [], L: []}
 
 
+class TestCategoryBars:
+    def bars(self, assets, liabilities=()):
+        def totals(type, rows):
+            return [
+                CategoryTotal(label, Decimal(amount), ramp_color(type, i))
+                for i, (label, amount) in enumerate(rows)
+            ]
+
+        return category_bars({A: totals(A, assets), L: totals(L, liabilities)})
+
+    def test_both_bars_share_one_scale_the_larger_total_fills_the_track(self):
+        bars = self.bars([("Invest", "600"), ("Bank", "200")], [("Cards", "200")])
+        assert bars[A] == [
+            BarSegment("Invest", "var(--asset)", Decimal("75.00")),
+            BarSegment("Bank", "var(--asset-2)", Decimal("25.00")),
+        ]
+        assert bars[L] == [BarSegment("Cards", "var(--liability)", Decimal("25.00"))]
+
+    def test_liabilities_larger_than_assets_fill_their_track(self):
+        bars = self.bars([("Bank", "50")], [("Mortgage", "200")])
+        assert [s.share for s in bars[L]] == [Decimal("100.00")]
+        assert [s.share for s in bars[A]] == [Decimal("25.00")]
+
+    def test_shares_round_to_two_places_and_add_up_to_about_the_track(self):
+        bars = self.bars([("a", "1"), ("b", "1"), ("c", "1")])
+        assert [s.share for s in bars[A]] == [Decimal("33.33")] * 3
+        assert bars[L] == []
+
+    def test_a_negative_category_draws_nothing(self):
+        bars = self.bars([("Bank", "100"), ("Overdrawn", "-20")])
+        assert [s.label for s in bars[A]] == ["Bank"]
+        assert bars[A][0].share == Decimal("100.00")
+
+    def test_nothing_positive_means_no_bars(self):
+        assert self.bars([("Overdrawn", "-5")]) == {A: [], L: []}
+        assert category_bars({A: [], L: []}) == {A: [], L: []}
+
+
 class TestRampColor:
     def test_ramps_start_with_the_tokens_in_order(self):
         assert [ramp_color(A, i) for i in range(2)] == [
@@ -500,6 +541,15 @@ class TestFigure:
         assert divider["line"]["dash"] == "dash"
         narrow = layout["meta"]["narrow"]
         assert narrow["lines"][1] < narrow["divider"] < narrow["columns"][0]
+
+    def test_the_chart_never_drags_so_a_swipe_scrolls_the_page(self):
+        layout = self.figure()["layout"]
+        assert layout["dragmode"] is False
+        assert all(layout[axis]["fixedrange"] for axis in ("xaxis", "xaxis2", "yaxis"))
+
+    def test_the_phone_layout_is_named_for_the_page_script(self):
+        phone = self.figure()["layout"]["meta"]["phone"]
+        assert phone == {"query": "(max-width: 600px)", "height": 240}
 
     def test_the_y_axis_includes_zero(self):
         assert self.figure()["layout"]["yaxis"]["rangemode"] == "tozero"

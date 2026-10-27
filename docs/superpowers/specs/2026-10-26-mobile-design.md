@@ -69,9 +69,11 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
 - **Account menu (phones).** The panel opens as a full-width card under the
   top bar (left and right at the gutter), its buttons 44px tall.
 - `main` pads its bottom by `--tabbar-h` so the last card clears the bar.
-- **While a field in the page has focus** (the keyboard is up), the tab bar
-  is hidden and `--tabbar-h` is `0px`, so anything at
-  `bottom: var(--tabbar-h)` (the save bar) sits right on the keyboard.
+- The tab bar **stays put while a field has focus**. (The first build hid it
+  then, to rest the save bar on the keyboard. But the tap that blurs the
+  field brought the bar back and moved the save bar under the finger, so
+  Discard and Save missed; and the keyboard covers fixed bars on iOS and
+  Android anyway.)
 - **Invite strip and flash (phones).** The strip's text sits above its
   buttons, which share the row equally. The flash's × is a 44px target.
 - **Shared controls on phones:** `.btn` at least 44px tall; `.toggle`
@@ -95,6 +97,13 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
   to zoom (`dragmode: false`, fixed ranges), so a swipe over it scrolls the
   page; a tap still shows the hover label.
 - The account cards: rows at least 44px.
+- *As built:* the range toggle also spans the card (three equal segments).
+  Each bar sits directly above its own part of the key (Assets bar, Assets
+  key, Liabilities bar, Liabilities key), so the key's group titles are
+  hidden visually on phones (the bar's title stands for them; screen readers
+  still get them, the bars being `aria-hidden`). Both bars share one scale,
+  as the columns do. The column traces and their axis are removed from the
+  phone figure, not hidden, since an empty subplot still catches taps.
 
 ## Accounts
 
@@ -102,10 +111,16 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
   decimal, at least 44px tall, including the cost basis field on computed
   accounts. The account name link is a 44px-tall target.
 - "Show retired" is a 44px label.
-- The card head (title, + Add, total) stays on one line at 320px.
-- **Save bar:** fixed at `bottom: var(--tabbar-h)` with the bottom safe area,
+- The card head (title, + Add, total) stays on one line at 320px. (As
+  built: + Add shows as a round 44px "+", its accessible name unchanged;
+  "+ Add" in text did not fit beside "Liabilities" and a seven-figure total.)
+- **Save bar:** at `bottom: var(--tabbar-h)` with the bottom safe area,
   full width less the gutters. Two lines: the count and the net worth on the
-  first, Discard and Save snapshot sharing the second.
+  first, Discard and Save snapshot sharing the second. (As built: *sticky*,
+  as on desktop, rather than fixed: it behaves as fixed while scrolling, and
+  at the end of the page rests in flow under the last card, so nothing needs
+  padding to clear it. The change in net worth sits under the net worth, and
+  below 360px the "Net worth" label is visually hidden.)
 - The account drawer: field pairs stay two columns down to 320px; the formula
   input chips wrap, each a 44px label; the computed-value line wraps instead
   of clipping.
@@ -151,7 +166,7 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
 - Behavior tests for what phones do differently: the tab bar shows and
   marks the current page, the account menu opens on screen, the chart drops
   its columns and re-lays when the width changes, the save bar sits above the
-  tab bar, the tab bar hides while a field is focused.
+  tab bar, the tab bar stays put while a field is focused.
 - The desktop browser tests keep passing unchanged.
 
 ## Workstreams

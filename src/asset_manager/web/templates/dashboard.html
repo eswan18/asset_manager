@@ -281,12 +281,82 @@
         margin-top: 8px;
     }
 
+    /* Phones only (below): the columns as two stacked bars. */
+    .category-bars { display: none; }
+
     @media (max-width: 600px) {
-        .overview { padding: 24px 20px; }
-        .net-worth { font-size: 48px; }
-        .welcome { padding: 28px 20px; gap: 28px; }
-        .welcome h1 { font-size: 30px; }
-        .placeholder-chart { height: 220px; }
+        .overview { padding: 24px 16px; gap: 24px; }
+        .net-worth { font-size: 44px; }
+
+        /* Last snapshot over a button that spans the card. */
+        .headline-actions {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+            width: 100%;
+        }
+        .headline-actions .btn { width: 100%; }
+
+        /* The key on its own line, then the range toggle across the card. */
+        .chart-controls { gap: 16px; }
+        .line-key { gap: 8px 14px; }
+        .chart-controls .toggle { width: 100%; }
+        .chart-controls .toggle a {
+            flex: 1;
+            justify-content: center;
+            min-height: 44px;
+        }
+
+        #net-worth-chart { height: 240px; }
+
+        .category-bar {
+            display: grid;
+            grid-template-columns: 76px minmax(0, 1fr);
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .bar-track {
+            display: flex;
+            height: 12px;
+            border-radius: 3px;
+            overflow: hidden;
+            background: var(--chip);
+        }
+
+        /* The surface between segments, as between the columns' blocks. */
+        .bar-segment {
+            flex: none;
+            height: 100%;
+            border-right: 2px solid var(--surface);
+        }
+        .bar-segment:last-child { border-right: 0; }
+
+        /* Each bar over its own key: Assets bar, Assets key, Liabilities
+           bar, Liabilities key. The bar's title stands for the key's. */
+        .category-bars, .category-key { display: contents; }
+        .category-bar.kind-asset { order: 1; }
+        .key-group.kind-asset { order: 2; }
+        .category-bar.kind-liability { order: 3; margin-top: 12px; }
+        .key-group.kind-liability { order: 4; }
+        /* Hidden from sight only: the bars are aria-hidden, so the key
+           still names its group for a screen reader. */
+        .category-key .key-title {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+        .key-group { gap: 6px 16px; font-size: 13px; color: var(--muted); }
+
+        .welcome { padding: 28px 16px; gap: 24px; }
+        .welcome h1 { font-size: 28px; }
+        .placeholder-chart { height: 200px; }
+        .card-add { min-height: 44px; align-self: stretch; }
     }
 {% endblock %}
 
@@ -320,10 +390,28 @@
 
                 <div id="net-worth-chart" role="img" aria-label="Assets, net worth and liabilities over time, with the latest snapshot's assets and liabilities by category"></div>
 
+                {% if category_bars %}
+                {#- Phones only: the chart's columns on their side, on one
+                    scale, so the larger total fills the track. The key
+                    below names each segment and its amount. -#}
+                <div class="category-bars" aria-hidden="true">
+                    {% for bar in category_bars %}
+                    <div class="category-bar kind-{{ bar.kind }}">
+                        <span class="bar-title">{{ bar.title }}</span>
+                        <span class="bar-track">
+                            {% for s in bar.segments %}
+                            <span class="bar-segment" style="width: {{ s.share }}%; background: {{ s.color }};" title="{{ s.label }}"></span>
+                            {% endfor %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
                 {% if category_keys %}
                 <div class="category-key">
                     {% for key in category_keys %}
-                    <div class="key-group">
+                    <div class="key-group kind-{{ key.kind }}">
                         <span class="key-title">{{ key.title }}</span>
                         {% for c in key["items"] %}
                         <span><span class="category-swatch" style="background: {{ c.color }};"></span>{{ c.label }} {{ c.amount }}</span>
@@ -446,11 +534,20 @@
             return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
         }
 
+        // A phone gets lines only, full width; the columns become the
+        // stacked bars under the chart (rendered by the page, shown by CSS).
+        const phoneQuery = window.matchMedia(figure.layout.meta.phone.query);
+
         function draw() {
             const m = figure.layout.meta;
             const font = resolve(m.font), grid = resolve(m.grid), axis = resolve(m.axis);
             const surface = resolve(m.surface), ink = resolve(m.ink);
-            const data = figure.data.map(trace => {
+            const phone = phoneQuery.matches;
+            // On a phone the columns' traces and their axis are left out
+            // altogether: even hidden, their subplot would catch taps over
+            // the right end of the lines.
+            const traces = phone ? figure.data.filter(t => t.type !== 'bar') : figure.data;
+            const data = traces.map(trace => {
                 const color = resolve(trace.meta.color);
                 if (trace.type === 'bar') {
                     return { ...trace, marker: { ...trace.marker, color, line: { ...trace.marker.line, color: resolve(trace.meta.gap) } } };
@@ -459,30 +556,35 @@
             });
             const l = figure.layout;
             const n = m.narrow;
-            const narrow = el.clientWidth < n.below;
+            const narrow = !phone && el.clientWidth < n.below;
             const layout = {
                 ...l,
+                ...(phone ? { height: m.phone.height, margin: { ...l.margin, l: 48, r: 12 } } : {}),
                 font: { ...l.font, color: font },
                 hoverlabel: { bgcolor: surface, bordercolor: axis, font: { color: ink } },
                 xaxis: {
                     ...l.xaxis, linecolor: axis, tickfont: { ...l.xaxis.tickfont, color: font },
                     ...(narrow ? { domain: n.lines, nticks: 3, tickangle: 0 } : {}),
+                    // Dates start at their tick, so the first clears the $0 label.
+                    ...(phone ? { domain: [0, 1], nticks: el.clientWidth < 300 ? 3 : 4, tickangle: 0, ticklabelposition: 'outside right' } : {}),
                 },
                 xaxis2: {
                     ...l.xaxis2, linecolor: axis, tickfont: { ...l.xaxis2.tickfont, color: font },
                     ...(narrow ? { domain: n.columns, showticklabels: false } : {}),
                 },
                 yaxis: { ...l.yaxis, gridcolor: grid, tickfont: { ...l.yaxis.tickfont, color: font } },
-                shapes: l.shapes.map(s => ({
+                shapes: phone ? [] : l.shapes.map(s => ({
                     ...s, line: { ...s.line, color: axis },
                     ...(narrow ? { x0: n.divider, x1: n.divider } : {}),
                 })),
             };
+            if (phone) delete layout.xaxis2;
             Plotly.react(el, data, layout, { displayModeBar: false, responsive: true });
         }
 
         draw();
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+        phoneQuery.addEventListener('change', draw);
         // Crossing the narrow breakpoint changes the domains, so re-plot then.
         let wasNarrow = el.clientWidth < figure.layout.meta.narrow.below;
         window.addEventListener('resize', () => {

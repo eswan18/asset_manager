@@ -841,7 +841,7 @@ class TestAccountsPage:
             in text
         )
         # Retired accounts count for nothing, as in a save.
-        assert 'Net worth <span id="net-worth">$400,750.00</span>' in text
+        assert 'Net worth </span><span id="net-worth">$400,750.00</span>' in text
         assert '<span id="net-change" hidden></span>' in text
         assert '<span class="total">$401,000.25</span>' in text
         assert '<span class="total">$250.25</span>' in text

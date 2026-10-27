@@ -82,10 +82,12 @@
         overflow-wrap: anywhere;
     }
 
-    .account-name:hover {
-        text-decoration: underline;
-        text-decoration-color: var(--rule-strong);
-        text-underline-offset: 3px;
+    @media (hover: hover) {
+        .account-name:hover {
+            text-decoration: underline;
+            text-decoration-color: var(--rule-strong);
+            text-underline-offset: 3px;
+        }
     }
 
     .was,
@@ -273,11 +275,131 @@
         to { transform: rotate(360deg); }
     }
 
+    /* --- phones (docs/superpowers/specs/2026-10-26-mobile-design.md) --- */
+
     @media (max-width: 600px) {
-        .card { padding: 20px; }
+        .card { padding: 20px 16px; }
+
+        /* The card head stays one line at 320px: + Add becomes a round 44px
+           "+" (its text is still its name), and the inline gap tightens. */
+        .card-head { flex-wrap: nowrap; gap: 8px; }
+        .card-head h2 {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .card-head h2,
+        .card-head .total { font-size: 17px; }
+        .card-head > div { gap: 8px !important; flex-shrink: 0; }
+        .card-head .btn {
+            width: 44px;
+            min-height: 44px;
+            padding: 0;
+            font-size: 0;
+        }
+        .card-head .btn::before {
+            content: "+";
+            content: "+" / "";  /* decorative: the link's name stays "+ Add" */
+            font-size: 22px;
+            font-weight: 400;
+            line-height: 1;
+        }
+
+        /* Rows: the name is a 44px target, the fields are thumb-sized and
+           16px, so iOS does not zoom in on focus. */
+        .account-row .row-main { flex: 1 1 auto; }
+        .account-name {
+            display: flex;
+            align-items: center;
+            min-height: 44px;
+            min-width: 44px;
+        }
         .account-row .money-input,
         .computed-value { flex-basis: 124px; width: 124px; }
-        .save-bar { padding: 12px 12px 12px 16px; }
+        .account-row .money-input {
+            min-height: 44px;
+            font-size: 16px;
+        }
+
+        /* A computed row: name and value on top, the formula and its basis
+           field across the full width under them. */
+        .account-row.computed-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            column-gap: 12px;
+            align-items: center;
+            padding-bottom: 12px;
+        }
+        .computed-row .row-main { display: contents; }
+        .computed-row .account-name { grid-area: 1 / 1; }
+        .computed-row .was { grid-area: 2 / 1; }
+        .computed-row .computed-value { grid-area: 1 / 2 / 3 / 3; width: auto; }
+        .computed-row .formula-line {
+            grid-area: 3 / 1 / 4 / 3;
+            justify-content: space-between;
+            gap: 4px 12px;
+        }
+        .formula-line label { gap: 6px; }
+        .basis-input {
+            width: 132px;
+            min-height: 44px;
+            padding: 0 12px;
+            font-size: 16px;
+        }
+
+        /* The save bar sticks above the tab bar (--tabbar-h, which includes
+           the safe area while the bar shows; with no bar, the safe area
+           itself). Sticky, not fixed: at the end of the page it rests under
+           the last card instead of covering it. Two lines: the count and
+           net worth, then Discard and Save sharing the row. */
+        .save-bar-wrap {
+            bottom: var(--tabbar-h);
+            padding-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) + 8px - var(--tabbar-h)));
+            pointer-events: none;
+        }
+        .save-bar {
+            pointer-events: auto;
+            flex-direction: column;
+            flex-wrap: nowrap;
+            align-items: stretch;
+            gap: 10px;
+            padding: 12px;
+        }
+        .save-status {
+            flex-wrap: nowrap;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 0 4px;
+            font-size: 14px;
+        }
+        #dirty-status { min-width: 0; }
+        .save-net {
+            flex-shrink: 0;
+            text-align: right;
+        }
+        /* The change goes under the net worth, so the first line holds the
+           count and the net worth. */
+        #net-change {
+            display: block;
+            font-size: 13px;
+        }
+        #net-change[hidden] { display: none; }
+        .save-actions .btn { flex: 1 1 0; padding: 0 12px; }
+        .formula-line label { margin-left: auto; }
+    }
+
+    /* Too narrow for the label beside the count: keep it for screen readers. */
+    @media (max-width: 360px) {
+        .save-net-label {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
     }
 {% endblock %}
 
@@ -304,7 +426,7 @@
             <div class="group{% if group.retired %} retired-row{% endif %}" data-group="{{ section.kind }}:{{ group.key }}">
                 {{ ui.group_head(group.label, group.subtotal) }}
                 {% for row in group.rows %}
-                <div class="row account-row{% if row.retired %} retired-row{% endif %}" data-account-id="{{ row.id }}">
+                <div class="row account-row{% if row.retired %} retired-row{% elif row.computed %} computed-row{% endif %}" data-account-id="{{ row.id }}">
                     <span class="row-main">
                         <a class="account-name" href="{{ base }}/accounts/{{ row.id }}/edit">{{ row.name }}</a>
                         {% if not row.retired %}
@@ -340,7 +462,7 @@
         <div class="save-bar" role="region" aria-label="Save snapshot">
             <span class="save-status" aria-live="polite">
                 <strong id="dirty-status" class="clean">No unsaved changes</strong>
-                <span class="save-net">Net worth <span id="net-worth">{{ net_worth }}</span><span id="net-change" hidden></span></span>
+                <span class="save-net"><span class="save-net-label">Net worth </span><span id="net-worth">{{ net_worth }}</span><span id="net-change" hidden></span></span>
             </span>
             <span class="save-actions">
                 <button type="button" class="btn btn-bar" id="discard-button">Discard</button>

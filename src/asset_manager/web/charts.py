@@ -26,6 +26,9 @@ DIVIDER_X = 0.83
 # On a phone the columns need a larger share to stay legible.
 NARROW = {"lines": [0.0, 0.62], "columns": [0.72, 1.0], "divider": 0.67}
 NARROW_BELOW_PX = 600
+# On a phone (the page's one breakpoint) the columns leave the figure for
+# the stacked bars under it, and the lines take the whole width.
+PHONE = {"query": "(max-width: 600px)", "height": 240}
 # With one snapshot, Plotly zooms the date axis down to milliseconds; show
 # the month before it instead, with the point at the right edge (by the columns).
 LONE_POINT_DAYS = 30
@@ -121,6 +124,9 @@ def build_figure(
         showlegend=False,
         barmode="stack",
         hovermode="x unified",
+        # No drag (with every range fixed): a swipe over the chart scrolls
+        # the page instead of being captured, and a tap still hovers.
+        dragmode=False,
         hoverlabel={
             "bgcolor": LIGHT["var(--surface)"],
             "bordercolor": LIGHT["var(--rule-strong)"],
@@ -182,6 +188,7 @@ def build_figure(
             "surface": "var(--surface)",
             "ink": "var(--ink)",
             "narrow": {**NARROW, "below": NARROW_BELOW_PX},
+            "phone": PHONE,
         },
     )
     return json.loads(fig.to_json())
