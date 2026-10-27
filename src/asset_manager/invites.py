@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
+from typing import NamedTuple
 
 from psycopg import Connection
 
@@ -95,13 +96,19 @@ def sender_is_owner(conn: Connection, invite: Invite) -> bool:
     return sender is not None and sender[1] == Role.OWNER
 
 
-def acceptable_invites(conn: Connection, email: str) -> list[tuple[Invite, Workspace]]:
-    """The pending invites to live workspaces this email could accept now:
-    lapsed ones (sender no longer an owner) are left out."""
+class AcceptableInvite(NamedTuple):
+    invite: Invite
+    workspace: Workspace
+    sender: str  # the sender's name, or their email when they have none
+
+
+def acceptable_invites(conn: Connection, email: str) -> list[AcceptableInvite]:
+    """The pending invites to live workspaces this email could accept now,
+    oldest first: lapsed ones (sender no longer an owner) are left out, the
+    same rule `sender_is_owner` applies on accept. One query."""
     return [
-        (invite, workspace)
-        for invite, workspace in repo.get_pending_invites_for_email(conn, email)
-        if sender_is_owner(conn, invite)
+        AcceptableInvite(*row)
+        for row in repo.get_acceptable_invites_for_email(conn, email)
     ]
 
 

@@ -1497,7 +1497,7 @@ class TestAccountForm:
         assert response.headers["location"] == f"{PAGES}/accounts"
         assert [a.name for a in get_accounts(db_connection, WS)] == ["Cash"]
         page = client.get(f"{PAGES}/accounts")
-        assert "Added Cash" in page.text
+        assert "Added Cash to assets." in page.text
 
     def test_create_computed_account(self, client, db_connection):
         from asset_manager.repository import get_accounts

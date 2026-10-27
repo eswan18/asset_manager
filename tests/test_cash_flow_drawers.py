@@ -452,7 +452,7 @@ class TestCreate:
         assert gym.is_estimate is True
         assert gym.description == "Monthly pass"
         page = client.get(response.headers["location"]).text
-        assert "Added Gym" in page
+        assert "Added Gym: $2,271.49 a month." in page
         assert "Left over each year" in visible(page)
 
     def test_creates_income_without_a_category(self, client, db_connection):
@@ -585,7 +585,9 @@ class TestUpdate:
             None,
             False,
         )
-        assert "Saved Food shop" in client.get(response.headers["location"]).text
+        assert "Saved Food shop: $2,027.78 a month." in (
+            client.get(response.headers["location"]).text
+        )
 
     def test_moves_to_another_category(self, client, db_connection, seed):
         login(client)

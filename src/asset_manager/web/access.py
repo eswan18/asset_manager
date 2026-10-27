@@ -10,13 +10,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 
 from asset_manager import repository as repo
 from asset_manager.db import get_connection_context
 from asset_manager.models import Role, Workspace
 
 from .auth import CurrentUser
+from .invite_strip import strip_items
+from .viewer_zone import zone_of
 
 
 @dataclass(frozen=True)
@@ -72,15 +74,32 @@ def oldest_workspace_id(user: dict[str, Any]) -> int | None:
     return memberships[0][0].id if memberships else None
 
 
-def shell_context(access: WorkspaceAccess, path: str) -> dict[str, Any]:
-    """What base.html needs on every page: the user, this workspace, and the
+def shell_context(
+    request: Request, access: WorkspaceAccess, path: str | None = None
+) -> dict[str, Any]:
+    """What base.html needs on every page: the user, this workspace, the
     picker's other workspaces, each linking to the same section of the app
-    (an account's edit page maps to the other workspace's Accounts page)."""
+    (an account's edit page maps to the other workspace's Accounts page),
+    and the invite strip.
+
+    `path` is the page's own path when the request's is not (a drawer, or a
+    refused POST that re-renders its page); it defaults to the request's.
+    The strip's Decline returns to this page: the request itself on a GET,
+    query included, else `path`."""
+    path = path or request.url.path
     prefix = page_prefix(access.workspace.id)
     section = path.removeprefix(prefix).strip("/").split("/")[0]
+    if request.method == "GET":
+        query = request.url.query
+        here = request.url.path + (f"?{query}" if query else "")
+    else:
+        here = path
     with get_connection_context() as conn:
         memberships = repo.get_memberships(conn, access.user["id"])
+        invites = strip_items(conn, access.user["email"], zone_of(request))
     return {
+        "invite_strip": invites,
+        "here": here,
         "user": access.user,
         "workspace": access.workspace,
         "role": access.role,
