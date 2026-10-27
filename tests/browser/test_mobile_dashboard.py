@@ -9,27 +9,12 @@ from playwright.sync_api import Page
 
 from asset_manager.accounts import create_account
 from asset_manager.models import RecordType
-from tests.browser.mobile import PHONE_WIDTHS, layout_problems
+from tests.browser.mobile import PHONE_WIDTHS, assert_fits_phone
 from tests.browser.test_dashboard_chart import PLOTLY_JS
 from tests.support import WS
 from tests.web_support import PAGES
 
 pytestmark = [pytest.mark.browser, pytest.mark.db]
-
-# The header is the Shell stream's (its phone layout lands separately), and
-# the invite strip is part of the shell too.
-SHELL = ("header *", ".invite-strip *")
-
-
-def assert_fits_phone(page: Page) -> None:
-    """mobile.assert_fits_phone for the page below the shell. Its field-size
-    check cannot be scoped (the header's workspace select is the Shell
-    stream's), and the dashboard has no fields of its own, so that check
-    becomes: no field in main."""
-    problems = layout_problems(page, SHELL)
-    assert problems["overflow"] == 0, problems["wide"]
-    assert not problems["small"], problems["small"]
-    assert page.locator("main").locator("input, select, textarea").count() == 0
 
 
 def open_dashboard(open_page, width: int | None, path: str = PAGES) -> Page:

@@ -2,8 +2,11 @@
 
 **Date:** 2026-10-26
 **Status:** First pass, planned and built without mockups (Ethan reviews the
-result rather than boards). The desktop layout stays exactly as built from the
-frontend redesign; everything here applies at phone width only.
+result rather than boards), and merged: shell #67, dashboard #66, accounts
+#63, cash flows #64, settings/welcome/login #65. Where a stream departed from
+this plan, its section says so ("As built"). The desktop layout stays exactly
+as built from the frontend redesign; everything here applies at phone width
+only.
 
 ## Goal
 
@@ -153,6 +156,9 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
 
 ## Testing
 
+- `test_mobile_sweep.py` opens every HTML page route at both widths and
+  fails when a page route has no entry in its `SCREENS`, so a new page has
+  to be looked at on a phone.
 - `open_page(path, phone=390)` (tests/browser/conftest.py) opens a page as a
   phone: touch, a mobile viewport of that width, 2x pixels.
 - `tests/browser/mobile.py` has `assert_fits_phone(page)`, which checks rules

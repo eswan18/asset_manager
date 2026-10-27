@@ -1,9 +1,7 @@
 """Settings, welcome and login on a phone (docs/superpowers/specs/2026-10-26-mobile-design.md).
 
 Each screen, in each state that changes its layout, fits a 320px and a 390px
-phone: nothing scrolls sideways, tap targets are 44px, fields are 16px. The
-shell's header (nav, workspace picker, user menu) is the shell's to size and
-is checked by its own tests, so `fits` leaves it out.
+phone: nothing scrolls sideways, tap targets are 44px, fields are 16px.
 """
 
 from types import SimpleNamespace
@@ -13,7 +11,6 @@ import pytest
 from asset_manager.invites import create_invite
 from asset_manager.models import Role
 from asset_manager.workspaces import create_workspace
-from playwright.sync_api import Page
 
 from tests.browser.mobile import PHONE_WIDTHS, assert_fits_phone
 from tests.support import USER_ID, WS
@@ -22,15 +19,6 @@ from tests.web_support import PAGES, USER, FakeIdp, add_user, claims
 pytestmark = [pytest.mark.browser, pytest.mark.db]
 
 SETTINGS = f"{PAGES}/settings"
-
-
-def fits(page: Page) -> None:
-    """assert_fits_phone on the page's content. `allow_small` cannot exempt
-    the header's picker from the 16px field rule, so the header is made
-    inert (which the checks skip) for the targets and fields; its width
-    still counts toward sideways scrolling."""
-    page.evaluate("() => document.querySelector('header')?.setAttribute('inert', '')")
-    assert_fits_phone(page)
 
 
 LONG_NAME = {
@@ -70,7 +58,7 @@ def _box(page, selector: str) -> dict:
 class TestSettings:
     def test_owner(self, open_page, team, width):
         page = open_page(SETTINGS, phone=width)
-        fits(page)
+        assert_fits_phone(page)
         # One column: People comes under Leave / Delete.
         outline = _box(page, ".outline-card")
         people = _box(page, ".people-head")
@@ -99,7 +87,7 @@ class TestSettings:
             confirm = f"invite-{team.id}"
         page = open_page(f"{SETTINGS}?confirm={confirm}", phone=width)
         assert page.locator(".confirm").count() == 1
-        fits(page)
+        assert_fits_phone(page)
 
     def test_confirm_buttons_share_a_row(self, open_page, team, width):
         page = open_page(f"{SETTINGS}?confirm=invite-{team.id}", phone=width)
@@ -114,17 +102,17 @@ class TestSettings:
         page.fill(".invite-form input[name=email]", LONG_NAME["email"])
         page.click(".invite-form button")
         page.wait_for_selector(".invite-form .form-error")
-        fits(page)
+        assert_fits_phone(page)
 
     @pytest.mark.parametrize("role", ["editor", "viewer"])
     def test_read_only(self, open_page, db_connection, team, width, role):
         _set_my_role(db_connection, role)
         page = open_page(SETTINGS, phone=width)
         assert page.locator(".invite-form").count() == 0
-        fits(page)
+        assert_fits_phone(page)
         page = open_page(f"{SETTINGS}?confirm=leave", phone=width)
         assert page.locator(".confirm").count() == 1
-        fits(page)
+        assert_fits_phone(page)
 
 
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
@@ -132,7 +120,7 @@ class TestWelcome:
     def test_with_a_workspace_and_no_invites(self, open_page, width):
         page = open_page("/welcome", phone=width)
         assert page.locator(".invite-row").count() == 0
-        fits(page)
+        assert_fits_phone(page)
 
     def test_with_invites_and_no_workspace(self, open_page, db_connection, width):
         add_user(db_connection, LONG_NAME)
@@ -148,7 +136,7 @@ class TestWelcome:
         db_connection.commit()
         page = open_page("/welcome", phone=width)
         assert page.locator("h1").inner_text().startswith("Welcome")
-        fits(page)
+        assert_fits_phone(page)
         decline = _box(page, ".invite-row button >> nth=0")
         join = _box(page, ".invite-row button >> nth=1")
         assert abs(decline["y"] - join["y"]) < 2
@@ -161,7 +149,7 @@ class TestWelcome:
         page.fill(".create-form input[name=name]", "   ")
         page.click(".create-form button")
         page.wait_for_selector(".create-form .form-error")
-        fits(page)
+        assert_fits_phone(page)
 
 
 def _refused_login_html(client, monkeypatch, info: dict) -> str:
@@ -184,7 +172,7 @@ def _refused_login_html(client, monkeypatch, info: dict) -> str:
 class TestLogin:
     def test_login(self, open_page, width):
         page = open_page("/login", phone=width)
-        fits(page)
+        assert_fits_phone(page)
 
     @pytest.mark.parametrize(
         "info",
@@ -204,4 +192,4 @@ class TestLogin:
         )
         page.goto("/auth/callback")
         assert page.locator(".login-card.refused").count() == 1
-        fits(page)
+        assert_fits_phone(page)
