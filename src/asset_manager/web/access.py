@@ -26,10 +26,6 @@ class WorkspaceAccess:
     role: Role
 
 
-class NoWorkspace(Exception):
-    """A page was requested by a user who is not in any workspace."""
-
-
 def _check_role(role: Role, needed: Role) -> None:
     if not role.allows(needed):
         raise HTTPException(
@@ -60,13 +56,20 @@ def page_prefix(workspace_id: int) -> str:
     return f"/workspaces/{workspace_id}"
 
 
-def oldest_workspace_id(user: dict[str, Any]) -> int:
-    """The workspace that bare paths (`/`, `/accounts`) redirect into."""
+def check_can_remove(access: WorkspaceAccess, user_id: int) -> None:
+    """Owners remove anyone; anyone may remove themselves (leave)."""
+    if user_id != access.user["id"] and access.role != Role.OWNER:
+        raise HTTPException(
+            status_code=403, detail="Only owners can remove other members"
+        )
+
+
+def oldest_workspace_id(user: dict[str, Any]) -> int | None:
+    """The workspace that bare paths (`/`, `/accounts`) redirect into; None
+    when the user is in no live workspace (they go to the welcome page)."""
     with get_connection_context() as conn:
         memberships = repo.get_memberships(conn, user["id"])
-    if not memberships:
-        raise NoWorkspace()
-    return memberships[0][0].id
+    return memberships[0][0].id if memberships else None
 
 
 def shell_context(access: WorkspaceAccess, path: str) -> dict[str, Any]:

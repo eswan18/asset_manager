@@ -14,7 +14,6 @@ from asset_manager.models import Role
 from asset_manager.repository import get_accounts, get_all_records
 
 from .access import (
-    NoWorkspace,
     ViewerAccess,
     oldest_workspace_id,
     page_prefix,
@@ -55,6 +54,9 @@ from .dashboard import (
     signed_percent,
 )
 from .rendering import render
+from .settings_routes import router as settings_router
+from .welcome_routes import WELCOME_PATH
+from .welcome_routes import router as welcome_router
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +74,8 @@ app.add_middleware(
 
 app.include_router(accounts_router)
 app.include_router(cash_flows_router)
+app.include_router(settings_router)
+app.include_router(welcome_router)
 app.include_router(api_router)
 
 # OAuth client (lazy initialization)
@@ -108,26 +112,25 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
-@app.exception_handler(NoWorkspace)
-async def no_workspace_handler(request: Request, exc: NoWorkspace):
-    message = "You are not a member of any workspace yet."
-    if _wants_json(request):
-        return JSONResponse({"error": message}, status_code=403)
-    return HTMLResponse(message, status_code=403)
-
-
 # Bare paths predate workspaces in the URL. They redirect into your oldest
-# workspace so bookmarks keep working; only GETs, since a form or a save
-# should never land in a workspace it did not name.
+# workspace so bookmarks keep working, or to the welcome page if you have
+# none; only GETs, since a form or a save should never land in a workspace
+# it did not name.
+def _bare(user: dict, section: str = "") -> RedirectResponse:
+    workspace_id = oldest_workspace_id(user)
+    if workspace_id is None:
+        return RedirectResponse(WELCOME_PATH, status_code=302)
+    return RedirectResponse(page_prefix(workspace_id) + section, status_code=302)
+
+
 @app.get("/")
 async def home(user: CurrentUser) -> RedirectResponse:
-    return RedirectResponse(page_prefix(oldest_workspace_id(user)), status_code=302)
+    return _bare(user)
 
 
 @app.get("/accounts")
 async def bare_accounts(user: CurrentUser) -> RedirectResponse:
-    url = f"{page_prefix(oldest_workspace_id(user))}/accounts"
-    return RedirectResponse(url, status_code=302)
+    return _bare(user, "/accounts")
 
 
 @app.get("/workspaces/{workspace_id}", response_class=HTMLResponse)

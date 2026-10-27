@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from psycopg import Connection
 
 from . import repository as repo
-from .models import Invite, Role
+from .models import Invite, Role, Workspace
 
 INVITE_TTL = timedelta(days=14)
 
@@ -83,12 +83,26 @@ def _pending_for(conn: Connection, email: str, invite_id: int) -> Invite:
     workspace = repo.get_workspace(conn, invite.workspace_id)
     if workspace is None or workspace.deleted_at is not None:
         raise InviteNotFound()
-    # An invite speaks for its sender, so it lapses when they stop being an
-    # owner: a removed or demoted owner's invites must not let anyone in.
-    sender = repo.get_access(conn, invite.workspace_id, invite.invited_by)
-    if sender is None or sender[1] != Role.OWNER:
+    if not sender_is_owner(conn, invite):
         raise InviteNotFound()
     return invite
+
+
+def sender_is_owner(conn: Connection, invite: Invite) -> bool:
+    """An invite speaks for its sender, so it lapses when they stop being an
+    owner: a removed or demoted owner's invites must not let anyone in."""
+    sender = repo.get_access(conn, invite.workspace_id, invite.invited_by)
+    return sender is not None and sender[1] == Role.OWNER
+
+
+def acceptable_invites(conn: Connection, email: str) -> list[tuple[Invite, Workspace]]:
+    """The pending invites to live workspaces this email could accept now:
+    lapsed ones (sender no longer an owner) are left out."""
+    return [
+        (invite, workspace)
+        for invite, workspace in repo.get_pending_invites_for_email(conn, email)
+        if sender_is_owner(conn, invite)
+    ]
 
 
 def accept_invite(conn: Connection, user_id: int, email: str, invite_id: int) -> Invite:

@@ -4,17 +4,18 @@
 **Status:** The three main pages (Dashboard, Accounts, Cash flows) are
 approved as mockups in light and dark. The workspace-in-URL and dark mode
 decisions are made, so building can start. The three pages and the account
-form are built, and so are the cash flow form and category management.
-Login, the empty states and expenses above income (boards X, Y, AA) are
-built too. The invite strip and the flash restyle (board Z) are designed
-and still to build.
+form are built, and so are the cash flow form, category management,
+workspace settings and the welcome page. Login, the empty states and
+expenses above income (boards X, Y, AA) are built too. The invite strip
+and the flash restyle (board Z) are designed and still to build.
 
 **Mockups:** [Design canvas](https://claude.ai/artifact/BMRjmDM7b239Ro2SbBtvsR)
 (private; share it from its Share menu). The chosen boards are **H**
 (dashboard), **Accounts I**, **Cash flows N**, **Account form Q** (drawer
-over Accounts), **Cash flow form R** (drawer over Cash flows) and
-**Categories T** (drawer over Cash flows), **Login X**, **Empty
-workspace Y** and **Expenses over income AA**. The other boards are the
+over Accounts), **Cash flow form R** (drawer over Cash flows),
+**Categories T** (drawer over Cash flows), **Settings V** (workspace
+settings, two columns), **Welcome W** (no workspace yet), **Login X**,
+**Empty workspace Y** and **Expenses over income AA**. The other boards are the
 alternatives we rejected, kept for reference. Every number in the mockups is
 sample data.
 
@@ -104,9 +105,11 @@ way, in both themes.
 
 - **Header:** wordmark on the left, pill nav in the middle (Dashboard /
   Accounts / Cash flows; the active one is ink-filled), workspace picker on
-  the right (`<select>` with a visible "Workspace" label). A user menu
-  (logout) still needs a home; a small avatar button after the picker is the
-  likely spot.
+  the right (`<select>` with a visible "Workspace" label), then a round gear
+  button to the workspace's settings (ink-filled, `aria-current`, when on
+  them), then the user menu: an avatar button opening your name and email,
+  **New workspace** (to `/welcome`) and **Log out**. Pages outside a
+  workspace (welcome) show only the wordmark and the user menu.
 - **Workspace picker:** lists your live workspaces. Choosing one goes to the
   same page in that workspace. See "Workspace in the URL" below.
 - **Narrow screens:** the header wraps, and any two-column card grid
@@ -128,6 +131,8 @@ is the data behind `/workspaces/1/accounts`).
 | Cash flows | `/workspaces/{workspace_id}/cash-flows` |
 | Cash flow form | `/workspaces/{workspace_id}/cash-flows/new` (`?direction=`, `?category_id=`), `/workspaces/{workspace_id}/cash-flows/{id}/edit`, and POSTs `.../cash-flows`, `.../cash-flows/{id}`, `.../cash-flows/{id}/delete` |
 | Categories | `/workspaces/{workspace_id}/cash-flow-categories` (`?confirm={id}`, `?add=1`), and POSTs to it (create), `.../{id}` (rename), `.../{id}/move` (`direction=up\|down`), `.../{id}/delete` |
+| Workspace settings | `/workspaces/{workspace_id}/settings` (`?confirm=member-{user_id}\|invite-{id}\|leave\|delete`), and POSTs `.../settings` (rename), `.../delete`, `.../members/{user_id}` (role), `.../members/{user_id}/remove` (remove, or leave when it is you), `.../invites` (create), `.../invites/{id}/revoke` |
+| Welcome | `/welcome`, and POSTs `/workspaces` (create), `/invites/{id}/accept`, `/invites/{id}/decline` (the API's paths without `/api`; no workspace in them) |
 
 - **Access:** page routes get the same access checks as the API: **404** if
   you are not a live member of that workspace (its existence is not
@@ -137,9 +142,9 @@ is the data behind `/workspaces/1/accounts`).
 - **Bare paths:** `/` and the old bare paths (`/accounts`, …) redirect to the
   same page in your oldest live workspace, so bookmarks keep working.
   Remembering the last-used workspace (a cookie) can come later.
-- **No workspace:** a user with no live workspace gets a page offering to
-  create one, instead of today's `NoWorkspace` 403 (one of the empty states
-  still to design).
+- **No workspace:** bare paths send a user with no live workspace to the
+  welcome page (board W, below), which offers their invites and a form to
+  create one. (This replaced a `NoWorkspace` 403.)
 - **Why:** this matches the API, a link works when shared, there is no
   hidden state, and two tabs can show two workspaces at once.
 
@@ -359,6 +364,67 @@ Chosen over a stacked page and a split layout. Built.
 - **Viewers** see the same drawer as editors, as they saw the old form; its
   writes are refused (403). The new-account drawer is editor-only, as before.
 
+### Workspace settings: board **Settings V**
+
+Chosen over a single stacked column. Reached from the header's gear button,
+for every member.
+
+- **Head:** "{Workspace} settings" and "You're an owner of this workspace."
+  (your role, with its article).
+- **Two columns** (5 : 7; one column below 860px):
+  - **Left:** a **General** card (Name and Save; the time zone was removed
+    in #55), then an outlined card with **Leave {name}** and **Delete
+    {name}**. Leave explains whether you can ("Another owner stays, so you
+    can leave"; the only owner gets "You're its only owner, so you can't
+    leave…" and no button). Delete is a danger outline: "Removes it for all
+    N members. Its data is kept and can be restored by an admin." (it is a
+    soft delete).
+  - **Right:** one **People** card: "N members · M invited"; an invite form
+    (email, role select defaulting to Editor, **Invite**); then members
+    (initials avatar, name and "(you)", email, a role select, × to remove;
+    your own × means Leave) and pending invites in the same list (dashed
+    avatar, the email as the name, an **Invited** tag, "Sent by you Oct 20
+    · expires Nov 3", the role as text, × to revoke). An invite whose sender
+    is no longer an owner says "lapsed: X is no longer an owner" instead of
+    the expiry. Footnote: no email is sent, tell them yourself, they see it
+    when they log in with that address; invites expire after 14 days; one
+    line on what each role can do.
+- **Role select:** submits on change (a small script); a Save button beside
+  it is the no-JS fallback and is hidden by the script.
+- **Confirms** are inline, via `?confirm=`: removing a member, revoking an
+  invite, leaving, deleting. Each replaces its row or section with the
+  question, **Keep** and a solid danger button.
+- **Editors and viewers** get the same page read-only: no General card, no
+  Delete, no invite form, roles as text, and no pending invites (the API
+  lists invites to owners only). They keep Leave, in the left card and as
+  the × on their own row, and the footnote says only owners invite or change
+  roles. This mirrors the API's roles exactly; nothing new is exposed.
+- **After** leaving or deleting, redirect to `/` (your oldest remaining
+  workspace, or the welcome page). Every other write comes back to settings
+  with a flash; a refusal (a blank name, a bad or duplicate invite, demoting
+  or removing the last owner) re-renders it with a 400, the service's
+  message beside the control, and the user's input kept.
+
+### Welcome: board **Welcome W**
+
+Where a logged-in user with no live workspace lands, and where "New
+workspace" in the user menu leads for everyone.
+
+- **Header:** the wordmark and the user menu only (no nav, picker or gear).
+- **Head:** "Welcome, {first name}" (the email's local part with no name);
+  "New workspace" for someone who already has one. Then "A workspace holds
+  a set of accounts and cash flows that you track, alone or with others."
+- **Invites for you:** each pending invite you could accept now: the
+  workspace's name, "{inviter} invited you as an editor · expires Nov 3",
+  **Decline** and **Join**. Join goes into that workspace's dashboard with a
+  flash; Decline comes back here. Lapsed invites are left out. With no
+  invites, this card and the "or" divider are hidden.
+- **Start your own workspace:** Name and **Create workspace** (an outline
+  button when there are invites, the primary one when there are none);
+  creating goes into the new workspace.
+- The mockup's footnote about a strip on the dashboard is left out until
+  that strip exists.
+
 ### Login: board **X** (built)
 
 - **Logged out** (`/login`): a centered card, no shell. The wordmark
@@ -398,15 +464,11 @@ Chosen over a stacked page and a split layout. Built.
   one button for editors (**+ Add an account**; **+ Add income**, since the
   drawer can switch it to an expense), or the viewer's line instead.
 
-## Still to design
-
-1. **Workspace settings:** name, members and roles, pending invites, leave
-   and delete. Also **My invites** (accept / decline). (Being built
-   separately.)
-
 ## Still to build
 
-1. **Invite strip and flash restyle** (board Z).
+1. **Invite strip and flash restyle** (board Z). The strip tells someone
+   already in a workspace they have a pending invite; today they find it
+   only on `/welcome`.
 
 ## Decisions made
 
@@ -419,6 +481,10 @@ Chosen over a stacked page and a split layout. Built.
 4. **Cash flows are edited in drawers over Cash flows** (boards R and T),
    built the same way. The drawers are editor-only, since they exist only to
    write; viewers get the page without the controls.
+5. **Workspace settings is one page for every member** (board V): owners
+   get every control, editors and viewers a read-only view plus Leave.
+6. **A user with no workspace lands on the welcome page** (board W) rather
+   than a 403; it is also where anyone starts a new workspace.
 
 ## Build plan
 
