@@ -10,9 +10,6 @@
 # Certificate from the tls block; issuance is DNS-01 through the
 # sensibility.money-scoped Cloudflare token (the letsencrypt-dns01
 # ClusterIssuer in infra/__main__.py).
-#
-# The Tailscale ingress (assets-staging.<tailnet>.ts.net) still runs beside it
-# until this host is confirmed working.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

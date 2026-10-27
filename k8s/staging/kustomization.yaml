@@ -9,7 +9,6 @@ resources:
   - secret-provider-class.yaml
   - service-account.yaml
   - configmap-env.yaml
-  - tailscale-ingress.yaml
   - nginx-ingress.yaml
 
 patches:
