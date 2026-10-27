@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Annotated
+from urllib.parse import unquote
 
 from fastapi import Depends, Header, HTTPException, Request
 
@@ -21,18 +22,26 @@ TZ_COOKIE = "tz"
 TZ_HEADER = "X-Timezone"
 
 
+def _cookie_zone(request: Request) -> str | None:
+    """The browser's zone from its cookie. base.html writes it through
+    encodeURIComponent, so "America/Chicago" arrives as "America%2FChicago"
+    and must be decoded before it names a zone."""
+    raw = request.cookies.get(TZ_COOKIE)
+    return unquote(raw) if raw else raw
+
+
 def _today(request: Request, explicit: str | None) -> date:
     if explicit is not None and not is_known_zone(explicit):
         raise HTTPException(
             status_code=400, detail=f"{explicit!r} is not a known time zone"
         )
-    return today(zone_for(explicit, request.cookies.get(TZ_COOKIE)))
+    return today(zone_for(explicit, _cookie_zone(request)))
 
 
 def zone_of(request: Request) -> str:
     """The viewer's zone, for showing dates (the browser's cookie, else the
     default). Pages only: it ignores the API's header."""
-    return zone_for(None, request.cookies.get(TZ_COOKIE))
+    return zone_for(None, _cookie_zone(request))
 
 
 def today_for(request: Request) -> date:

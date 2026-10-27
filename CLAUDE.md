@@ -77,7 +77,7 @@ ENV=dev uv run python -m asset_manager report --workspace 1
 ```
 
 ### Development Commands
-- **Run tests**: `uv run pytest`
+- **Run tests**: `uv run pytest` (browser tests excluded; `uv run pytest -m browser` runs them, after a one-time `uv run playwright install chromium`)
 - **Run tests with coverage**: `uv run pytest --cov=asset_manager`
 - **Type checking**: `uv run ty check src/asset_manager`
 - **Linting**: `uv run ruff check src tests`
@@ -317,6 +317,7 @@ Tests are organized by module with pytest:
 - `test_invite_strip.py`: board Z: the invite strip (which invites, order, where it shows), Decline's `next` (`safe_next`), Join, the flash markup and roles, the snapshot-saved flash, the header gear. `FakeIdp` carries a `client_id` and `server_metadata`; public routes are listed in `web_support.PUBLIC_PATHS`
 - `test_empty_states.py`: the getting-started dashboard (editor vs viewer, accounts but no snapshot) and the empty Accounts and Cash flows pages
 - `test_workspace_api.py`: Isolation sweep (a member of workspace 2 gets 404 on every workspace-1 route and changes nothing), role sweeps (exact 403 sets for viewer and editor), members, login
+- `browser/`: real-browser tests of the page scripts (Playwright, Chromium only), marked `browser`. They run the app under uvicorn in a subprocess against the session's test container (so nothing is shared with TestClient), log in by adding the signed `session` cookie to the browser context, and fail on any uncaught JS error. Covered: Accounts staging, "was $X", the save bar's count and net worth, computed accounts recomputing, Discard, sessionStorage across reloads, and a save dated in the browser's zone via the `tz` cookie; the account drawer (focus, inert page, scroll lock, Escape, the live computed-value line, type switch); the cash flow drawer's rates strip (checked against `form_rates` and the server-rendered strip), header colours and Escape; categories rename-on-blur, the Enter double-submit guard and the 44px move targets; the dashboard chart re-theming (Plotly served from the plotly package, no network)
 
 `conftest.py` seeds workspace `WS = 1` owned by user `USER_ID = 1` (`tests/support.py`) before every DB test; web helpers (sessions, `FakeIdp`, `sweep`, `add_user`, and `PAGES`, the seeded workspace's page prefix) live in `tests/web_support.py`. **New routes are swept automatically** (they come from the OpenAPI schema); the role sweeps compare exact 403 sets, so a new write route makes them fail until you decide its role.
 
@@ -325,6 +326,8 @@ The project uses:
 - **hypothesis**: Property-based testing
 
 To run tests: `uv run pytest`
+
+**Browser tests** are excluded from that run (`addopts` has `-m 'not browser'`); opt in with `uv run pytest -m browser` (a later `-m` overrides the default, so `-m browser tests/browser/test_x.py` works for one file). They need Chromium once: `uv run playwright install chromium`; without it they fail at setup with that command in the message. They take about 20s locally. CI runs them as their own **Browser Tests** job, in parallel with Test All, with the Playwright download cached. A change to a page script should come with a browser test that fails without it.
 
 ### Rules worth knowing
 
