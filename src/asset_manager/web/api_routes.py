@@ -58,7 +58,7 @@ from asset_manager.workspaces import (
     update_workspace,
 )
 
-from .access import EditorAccess, OwnerAccess, ViewerAccess
+from .access import EditorAccess, OwnerAccess, ViewerAccess, check_can_remove
 from .auth import CurrentUser
 from .viewer_zone import Today
 
@@ -187,10 +187,7 @@ async def change_member_role(
 async def remove_member_route(user_id: int, access: ViewerAccess) -> JSONResponse:
     """Owners remove anyone; anyone can remove themselves (leave). The last
     owner cannot leave."""
-    if user_id != access.user["id"] and access.role != Role.OWNER:
-        raise HTTPException(
-            status_code=403, detail="Only owners can remove other members"
-        )
+    check_can_remove(access, user_id)
     try:
         with get_connection_context() as conn:
             remove_member(conn, access.workspace.id, user_id)

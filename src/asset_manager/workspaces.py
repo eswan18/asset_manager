@@ -62,9 +62,15 @@ def _locked_member(
     raise WorkspaceError(f"User {user_id} is not a member of this workspace")
 
 
-def _check_not_last_owner(member: Member, members: list[Member]) -> None:
+def is_last_owner(member: Member, members: list[Member]) -> bool:
+    """`member` is the only owner among `members`, so cannot leave, be
+    removed, or stop being an owner."""
     owners = [m for m in members if m.role == Role.OWNER]
-    if member.role == Role.OWNER and len(owners) == 1:
+    return member.role == Role.OWNER and len(owners) == 1
+
+
+def _check_not_last_owner(member: Member, members: list[Member]) -> None:
+    if is_last_owner(member, members):
         raise WorkspaceError(
             "A workspace needs at least one owner. Make someone else an owner first."
         )
