@@ -245,7 +245,11 @@ class TestFlowDrawer:
         assert '<main class="container" inert>' in text
         assert '<body class="drawer-open">' in text
         assert 'class="scrim"' in text
-        assert f'<a href="{PAGE}" aria-current="page">Cash flows</a>' in page
+        assert re.search(
+            rf'<a href="{PAGE}" aria-current="page">(<svg class="tab-icon".*?</svg>)?Cash flows</a>',
+            page,
+            flags=re.S,
+        )
         assert "<title>Groceries · Test · " in text
         assert "event.key === 'Escape'" in text
 
