@@ -174,6 +174,45 @@ def latest_category_totals(
     return by_type
 
 
+@dataclass(frozen=True)
+class BarSegment:
+    label: str
+    color: str
+    share: Decimal  # percent of the bar's track, 0..100, to two places
+
+
+def category_bars(
+    categories: dict[RecordType, list[CategoryTotal]],
+) -> dict[RecordType, list[BarSegment]]:
+    """The phone's stacked bars: the chart's columns laid on their side.
+
+    Like the columns, both bars share one scale: the larger total fills the
+    track and the other is as long as it is in proportion. Segments keep the
+    columns' order and colors. A negative category draws nothing (a bar has
+    no below-zero side); a type with no categories gets no segments.
+    """
+    positive = {
+        type: [c for c in categories.get(type, []) if c.amount > 0]
+        for type in RecordType
+    }
+    scale = max(sum((c.amount for c in cs), Decimal(0)) for cs in positive.values())
+    if scale == 0:
+        return {type: [] for type in RecordType}
+    return {
+        type: [
+            BarSegment(
+                c.label,
+                c.color,
+                (c.amount / scale * 100).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                ),
+            )
+            for c in cs
+        ]
+        for type, cs in positive.items()
+    }
+
+
 def account_cards(
     records: list[Record], accounts: list[Account]
 ) -> dict[RecordType, dict[str, Any]]:
