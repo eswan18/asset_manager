@@ -114,6 +114,9 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
 
 - The headline card: the period toggle spans the card (three equal
   segments, 44px); "Manage categories" and "+ Add cash flow" share a row.
+  *As built:* they share it from about 360px; on narrower phones (320px)
+  the two labels do not fit side by side, so each takes the card's width,
+  one above the other, rather than shortening "Manage categories".
 - The "Where income goes" bar and its legend fit; legend rows wrap cleanly.
 - Flow rows are whole-row links for editors, at least 44px tall; the
   card "+ Add" is 44px.
