@@ -8,6 +8,8 @@ Sensibility Money (usually just "Sensibility"; formerly Asset Manager) is a Pyth
 
 The pages show the name from one constant, `rendering.APP_NAME` ("Sensibility"). The repo, the `asset_manager` package, the `asset-manager` CLI and the deployment (namespaces, image, secrets, OAuth client) still use the old name until a separate rename.
 
+Prod is served at `https://sensibility.money` (and still at `assets.ethanswan.com`) through the Cloudflare tunnel; staging at `https://staging.sensibility.money`, tailnet-only, through the shared ingress-nginx (`k8s/staging/nginx-ingress.yaml`; the older `assets-staging.tailc06f30.ts.net` Tailscale ingress runs beside it for now). The GitHub repo is `eswan18/sensibility`.
+
 ## Development Setup
 
 This project uses uv for dependency management. To set up the development environment:

@@ -1,0 +1,38 @@
+# Staging at staging.sensibility.money, the shape footstrike and haruspex use.
+#
+# Routed by the shared ingress-nginx controller, whose Service is a Tailscale
+# LoadBalancer (staging-ingress.<tailnet>.ts.net). staging.sensibility.money is
+# a grey-cloud (DNS-only) CNAME to that name: it resolves publicly but only
+# tailnet members can reach it, so staging stays tailnet-only with a
+# browser-valid certificate.
+#
+# The cert-manager annotation drives ingress-shim, which creates the
+# Certificate from the tls block; issuance is DNS-01 through the
+# sensibility.money-scoped Cloudflare token (the letsencrypt-dns01
+# ClusterIssuer in infra/__main__.py).
+#
+# The Tailscale ingress (assets-staging.<tailnet>.ts.net) still runs beside it
+# until this host is confirmed working.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: asset-manager-staging-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns01
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: staging.sensibility.money
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: asset-manager
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - staging.sensibility.money
+      secretName: staging-sensibility-money-tls
