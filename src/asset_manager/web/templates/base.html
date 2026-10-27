@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}{{ workspace.name }}{% endblock %} · {{ app_name }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -48,6 +48,11 @@
             --font-body: 'Inter', system-ui, -apple-system, sans-serif;
             --radius-card: 20px;
             --radius-input: 10px;
+            /* Layout: phones are max-width 600px (docs/superpowers/specs/2026-10-26-mobile-design.md).
+               --tabbar-h is the bottom tab bar's height there, 0 elsewhere;
+               anything fixed to the bottom of the screen sits above it. */
+            --gutter: 24px;
+            --tabbar-h: 0px;
             color-scheme: light;
         }
 
@@ -811,6 +816,17 @@
 
         @media (max-width: 600px) {
             .drawer-head, .drawer-body, .drawer-foot { padding-left: 16px; padding-right: 16px; }
+        }
+
+        /* Stopgap so the header fits a phone until the shell's mobile layout lands. */
+        @media (max-width: 600px) {
+            :root { --gutter: 16px; }
+            .shell-header, .container { padding-left: var(--gutter); padding-right: var(--gutter); }
+            .main-nav { max-width: 100%; overflow-x: auto; }
+            .main-nav a { padding: 0 12px; }
+            .shell-tools { width: 100%; }
+            .workspace-picker { flex: 1; min-width: 0; }
+            .workspace-picker select { flex: 1; min-width: 0; width: 100%; }
         }
 
         {% block styles %}{% endblock %}
