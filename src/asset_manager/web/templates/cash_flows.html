@@ -29,6 +29,9 @@
         gap: 12px;
     }
 
+    /* A group only on phones; on desktop the buttons sit beside the toggle. */
+    .flows-buttons { display: contents; }
+
     .flows-actions .btn {
         min-height: 48px;
         padding: 0 22px;
@@ -238,8 +241,6 @@
         text-decoration: none;
     }
 
-    a.flow-row:hover .name { text-decoration: underline; }
-
     a.flow-row:focus-visible {
         outline: 2px solid var(--asset);
         outline-offset: 2px;
@@ -289,11 +290,48 @@
         font-weight: 500;
     }
 
-    .new-category:hover { color: var(--ink); }
+    /* Hover styling only where there is hover, so it does not stick after a tap. */
+    @media (hover: hover) {
+        a.flow-row:hover .name { text-decoration: underline; }
+        .new-category:hover { color: var(--ink); }
+    }
 
+    /* --- phones (docs/superpowers/specs/2026-10-26-mobile-design.md) --- */
     @media (max-width: 600px) {
-        .flows-top { padding: 24px; }
-        .headline-figure { font-size: 48px; }
+        .flows-top { padding: 24px 20px; gap: 24px; }
+        /* "+$19,454.22" stays on one line down to 320px. */
+        .headline-figure { font-size: clamp(32px, 11vw, 48px); }
+
+        /* The period toggle spans the card; the two buttons share a row. */
+        .flows-head { gap: 20px; }
+        .flows-actions { width: 100%; gap: 10px; }
+        .flows-actions .toggle { width: 100%; }
+        .flows-actions .toggle a {
+            flex: 1;
+            justify-content: center;
+            min-height: 44px;
+        }
+        /* Side by side where they fit (from about 360px); stacked, each
+           the card's width, on the narrowest phones. */
+        .flows-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            width: 100%;
+            gap: 10px;
+        }
+        .flows-actions .btn {
+            flex: 1 1 auto;
+            padding: 0 14px;
+            white-space: nowrap;
+        }
+
+        .bar-key { gap: 6px 16px; }
+        .bar-key li { flex-wrap: wrap; }
+
+        .flow-card { padding: 20px; }
+        .flow-row .value { align-self: center; }
+        .flow-card .card-add { min-height: 44px; padding: 0 20px; }
+        .new-category { min-height: 72px; }
     }
 {% endblock %}
 
@@ -323,8 +361,10 @@
             <div class="flows-actions">
                 {{ ui.toggle("Show amounts per", periods) }}
                 {% if can_edit %}
-                <a class="btn btn-outline" href="{{ base }}/cash-flow-categories?per={{ period }}">Manage categories</a>
-                <a class="btn btn-primary" href="{{ base }}/cash-flows/new?per={{ period }}">+ Add cash flow</a>
+                <div class="flows-buttons">
+                    <a class="btn btn-outline" href="{{ base }}/cash-flow-categories?per={{ period }}">Manage categories</a>
+                    <a class="btn btn-primary" href="{{ base }}/cash-flows/new?per={{ period }}">+ Add cash flow</a>
+                </div>
                 {% endif %}
             </div>
         </div>

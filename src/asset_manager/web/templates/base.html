@@ -1088,6 +1088,17 @@
             .workspace-picker select { flex: 1; min-width: 0; width: 100%; }
         }
 
+        /* Stopgap so the header fits a phone until the shell's mobile layout lands. */
+        @media (max-width: 600px) {
+            :root { --gutter: 16px; }
+            .shell-header, .container { padding-left: var(--gutter); padding-right: var(--gutter); }
+            .main-nav { max-width: 100%; overflow-x: auto; }
+            .main-nav a { padding: 0 12px; }
+            .shell-tools { width: 100%; }
+            .workspace-picker { flex: 1; min-width: 0; }
+            .workspace-picker select { flex: 1; min-width: 0; width: 100%; }
+        }
+
         {% block styles %}{% endblock %}
     </style>
 </head>
