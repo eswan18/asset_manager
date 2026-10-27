@@ -41,6 +41,7 @@ from .charts import COLUMN_LABELS, build_figure
 from .dashboard import (
     RANGES,
     cards_view,
+    category_bars,
     change_since,
     daily_totals,
     filter_range,
@@ -202,6 +203,7 @@ def dashboard_context(records, accounts, selected: str, base: str) -> dict:
         "category_keys": [
             {
                 "title": title,
+                "kind": type.value,
                 "items": [
                     {"label": c.label, "amount": money(c.amount), "color": c.color}
                     for c in categories[type]
@@ -209,6 +211,16 @@ def dashboard_context(records, accounts, selected: str, base: str) -> dict:
             }
             for type, title in COLUMN_LABELS.items()
             if categories[type]
+        ],
+        # Phones only: the columns as two stacked bars above that key.
+        "category_bars": [
+            {
+                "title": COLUMN_LABELS[type],
+                "kind": type.value,
+                "segments": segments,
+            }
+            for type, segments in category_bars(categories).items()
+            if segments
         ],
         "cards": cards_view(records, accounts),
     }
