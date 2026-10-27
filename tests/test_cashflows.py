@@ -7,8 +7,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from asset_manager import repository as repo
-from asset_manager.cashflows import (
+from sensibility import repository as repo
+from sensibility.cashflows import (
     DEFAULT_PERIOD,
     CashFlowError,
     Period,
@@ -29,13 +29,13 @@ from asset_manager.cashflows import (
     update_cash_flow,
     update_category,
 )
-from asset_manager.models import (
+from sensibility.models import (
     CashFlow,
     CashFlowCategory,
     CashFlowDirection,
     FrequencyUnit,
 )
-from asset_manager.workspaces import create_workspace
+from sensibility.workspaces import create_workspace
 from tests.support import USER_ID, WS
 
 INCOME, EXPENSE = CashFlowDirection.INCOME, CashFlowDirection.EXPENSE

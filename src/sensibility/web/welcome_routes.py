@@ -15,16 +15,16 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from asset_manager import repository as repo
-from asset_manager.db import get_connection_context
-from asset_manager.invites import (
+from sensibility import repository as repo
+from sensibility.db import get_connection_context
+from sensibility.invites import (
     InviteError,
     InviteNotFound,
     accept_invite,
     acceptable_invites,
     decline_invite,
 )
-from asset_manager.workspaces import WorkspaceError, create_workspace
+from sensibility.workspaces import WorkspaceError, create_workspace
 
 from .access import page_prefix
 from .auth import CurrentUser

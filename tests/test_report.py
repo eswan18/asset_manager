@@ -4,8 +4,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from asset_manager.models import Record, RecordType
-from asset_manager.report import _transform_data, generate_report
+from sensibility.models import Record, RecordType
+from sensibility.report import _transform_data, generate_report
 
 
 def _make_record(

@@ -9,8 +9,8 @@ from datetime import date
 import pytest
 from playwright.sync_api import Page, expect
 
-from asset_manager.accounts import create_account, retire_account
-from asset_manager.models import RecordType
+from sensibility.accounts import create_account, retire_account
+from sensibility.models import RecordType
 from tests.browser.mobile import PHONE_WIDTHS, assert_fits_phone
 from tests.support import WS
 from tests.web_support import PAGES

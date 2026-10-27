@@ -7,8 +7,8 @@ package, so no network is needed."""
 import pytest
 from playwright.sync_api import Page
 
-from asset_manager.accounts import create_account
-from asset_manager.models import RecordType
+from sensibility.accounts import create_account
+from sensibility.models import RecordType
 from tests.browser.mobile import PHONE_WIDTHS, assert_fits_phone
 from tests.browser.test_dashboard_chart import PLOTLY_JS
 from tests.support import WS

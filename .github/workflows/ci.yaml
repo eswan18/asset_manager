@@ -27,7 +27,7 @@ jobs:
           uv run ruff check
       - name: Typecheck
         run:
-          uv run ty check src/asset_manager
+          uv run ty check src/sensibility
   test:
     name: Test All
     runs-on: ubuntu-latest
@@ -51,7 +51,7 @@ jobs:
           sudo chmod +x /usr/local/bin/dbmate
       - name: Run pytest with coverage
         run:
-          CI=true uv run pytest --cov=asset_manager
+          CI=true uv run pytest --cov=sensibility
   browser:
     # Its own job, in parallel with Test All, so it adds to a PR's wall-clock
     # time only when it is the slowest job.

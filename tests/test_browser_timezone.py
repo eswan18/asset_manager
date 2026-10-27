@@ -6,10 +6,10 @@ from decimal import Decimal
 
 import pytest
 
-from asset_manager import clock
-from asset_manager.accounts import create_account
-from asset_manager.models import RecordType
-from asset_manager.repository import get_account, get_all_records, upsert_amounts
+from sensibility import clock
+from sensibility.accounts import create_account
+from sensibility.models import RecordType
+from sensibility.repository import get_account, get_all_records, upsert_amounts
 from tests.support import WS
 from tests.web_support import PAGES, SNAPSHOTS, login
 

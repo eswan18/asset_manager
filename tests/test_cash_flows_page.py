@@ -5,21 +5,21 @@ from decimal import Decimal
 
 import pytest
 
-from asset_manager.cashflows import CategoryTotal, Period, create_cash_flow
-from asset_manager.cashflows import create_category as create_flow_category
-from asset_manager.models import (
+from sensibility.cashflows import CategoryTotal, Period, create_cash_flow
+from sensibility.cashflows import create_category as create_flow_category
+from sensibility.models import (
     CashFlow,
     CashFlowCategory,
     CashFlowDirection,
     FrequencyUnit,
 )
-from asset_manager.web.cash_flows_routes import (
+from sensibility.web.cash_flows_routes import (
     EXPENSE_RAMP,
     cash_flows_view,
     expense_colors,
     money,
 )
-from asset_manager.workspaces import create_workspace
+from sensibility.workspaces import create_workspace
 from tests.support import USER_ID, WS
 from tests.web_support import PAGES, login
 
@@ -532,7 +532,7 @@ class TestCashFlowsPage:
         assert "color-scheme: light" in html and "color-scheme: dark" in html
 
     def test_database_error_shows_a_message(self, client, monkeypatch):
-        import asset_manager.web.cash_flows_routes as routes
+        import sensibility.web.cash_flows_routes as routes
 
         login(client)
 

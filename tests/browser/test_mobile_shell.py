@@ -9,9 +9,9 @@ here are scoped to the shell's own elements.
 import pytest
 from playwright.sync_api import Page
 
-from asset_manager.invites import create_invite
-from asset_manager.models import Role
-from asset_manager.workspaces import create_workspace
+from sensibility.invites import create_invite
+from sensibility.models import Role
+from sensibility.workspaces import create_workspace
 from tests.browser.mobile import PHONE_WIDTHS, TARGET, layout_problems
 from tests.web_support import PAGES, USER, add_user
 

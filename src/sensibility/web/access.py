@@ -12,9 +12,9 @@ from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, Request
 
-from asset_manager import repository as repo
-from asset_manager.db import get_connection_context
-from asset_manager.models import Role, Workspace
+from sensibility import repository as repo
+from sensibility.db import get_connection_context
+from sensibility.models import Role, Workspace
 
 from .auth import CurrentUser
 from .invite_strip import strip_items

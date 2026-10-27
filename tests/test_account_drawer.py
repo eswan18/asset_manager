@@ -11,10 +11,10 @@ from decimal import Decimal
 
 import pytest
 
-from asset_manager.accounts import create_account, retire_account
-from asset_manager.models import ProportionalFormula, RecordType
-from asset_manager.repository import get_account, upsert_amounts
-from asset_manager.web.accounts_routes import formula_preview
+from sensibility.accounts import create_account, retire_account
+from sensibility.models import ProportionalFormula, RecordType
+from sensibility.repository import get_account, upsert_amounts
+from sensibility.web.accounts_routes import formula_preview
 from tests.support import WS
 from tests.web_support import PAGES, STRANGER, add_user, login, session_for
 
@@ -131,7 +131,7 @@ class TestDrawerShell:
         # The real Accounts page: its rows, its staged-edit script and save bar.
         assert f'href="{PAGES}/accounts/{schwab.id}/edit">Schwab</a>' in page
         assert 'id="accounts-data"' in page
-        assert "asset-manager:staged-edits" in page
+        assert "sensibility:staged-edits" in page
         assert 'id="save-button"' in page
         # Shown with the Accounts tab active, its picker on Accounts.
         assert 'href="/workspaces/1/accounts" aria-current="page"' in page

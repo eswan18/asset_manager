@@ -19,9 +19,9 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from psycopg import Connection
 
-from asset_manager import repository as repo
-from asset_manager.db import get_connection_context
-from asset_manager.invites import (
+from sensibility import repository as repo
+from sensibility.db import get_connection_context
+from sensibility.invites import (
     INVITE_TTL,
     InviteError,
     InviteNotFound,
@@ -29,8 +29,8 @@ from asset_manager.invites import (
     revoke_invite,
     sender_is_owner,
 )
-from asset_manager.models import Member, Role
-from asset_manager.workspaces import (
+from sensibility.models import Member, Role
+from sensibility.workspaces import (
     WorkspaceError,
     change_role,
     delete_workspace,

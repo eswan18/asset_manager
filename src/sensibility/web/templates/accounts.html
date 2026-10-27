@@ -487,7 +487,7 @@
 (function () {
     const rows = JSON.parse(document.getElementById('accounts-data').textContent);
     const active = rows.filter(r => !r.retired);
-    const STORAGE_KEY = 'asset-manager:staged-edits';
+    const STORAGE_KEY = 'sensibility:staged-edits';
 
     const amountInputs = Array.from(document.querySelectorAll('input[data-field="amount"]'));
     const basisInputs = Array.from(document.querySelectorAll('input[data-field="basis"]'));

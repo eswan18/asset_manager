@@ -73,7 +73,7 @@ def protected_routes(fill: str = "1"):
     """(method, path) for every non-public route, with `fill` for each path id."""
     # The OpenAPI schema, not app.routes: since FastAPI 0.162, routes from
     # include_router sit behind a wrapper there and would be skipped.
-    from asset_manager.web.app import app
+    from sensibility.web.app import app
 
     for path, operations in app.openapi()["paths"].items():
         if path not in PUBLIC_PATHS:

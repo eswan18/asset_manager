@@ -7,10 +7,10 @@ from decimal import Decimal
 import pytest
 from itsdangerous import URLSafeTimedSerializer
 
-from asset_manager.accounts import create_account, retire_account
-from asset_manager.clock import today
-from asset_manager.models import Account, Record, RecordType
-from asset_manager.repository import upsert_amounts
+from sensibility.accounts import create_account, retire_account
+from sensibility.clock import today
+from sensibility.models import Account, Record, RecordType
+from sensibility.repository import upsert_amounts
 from tests.support import WS
 from tests.web_support import (
     PAGES,
@@ -51,7 +51,7 @@ class TestIsEmailAllowed:
 
     @staticmethod
     def allowed(email):
-        from asset_manager.web.auth import is_email_allowed
+        from sensibility.web.auth import is_email_allowed
 
         return is_email_allowed(email)
 
@@ -147,7 +147,7 @@ class TestTheme:
         import re
         from importlib import resources
 
-        templates = resources.files("asset_manager.web").joinpath("templates")
+        templates = resources.files("sensibility.web").joinpath("templates")
         pages = [
             t
             for t in templates.iterdir()
@@ -213,7 +213,7 @@ class TestDashboard:
     @pytest.fixture
     def seeded(self, db_connection):
         """Two assets, a card and a computed tax, saved on four dates."""
-        from asset_manager.models import AccountCategory, ProportionalFormula
+        from sensibility.models import AccountCategory, ProportionalFormula
 
         conn = db_connection
         bank = create_account(
@@ -433,7 +433,7 @@ class TestDashboard:
 
 
 def test_format_percent():
-    from asset_manager.web.accounts_routes import format_percent
+    from sensibility.web.accounts_routes import format_percent
 
     assert format_percent(Decimal("0.15")) == "15"
     assert format_percent(Decimal("0.325")) == "32.5"
@@ -442,8 +442,8 @@ def test_format_percent():
 
 
 def test_account_rows_view_model():
-    from asset_manager.models import ProportionalFormula
-    from asset_manager.web.accounts_routes import account_rows
+    from sensibility.models import ProportionalFormula
+    from sensibility.web.accounts_routes import account_rows
 
     schwab = Account(id=1, name="Schwab", type=RecordType.ASSET)
     tax = Account(
@@ -512,7 +512,7 @@ def test_account_rows_view_model():
 
 
 def test_was_and_value_display_show_negative_amounts_as_money():
-    from asset_manager.web.accounts_routes import account_rows
+    from sensibility.web.accounts_routes import account_rows
 
     card = Account(id=1, name="Card", type=RecordType.LIABILITY)
     latest = [
@@ -531,7 +531,7 @@ def test_was_and_value_display_show_negative_amounts_as_money():
 
 
 def test_snapshot_line():
-    from asset_manager.web.accounts_routes import snapshot_line
+    from sensibility.web.accounts_routes import snapshot_line
 
     today_ = date(2026, 10, 26)
     head = "Saving writes today's snapshot, Oct 26, 2026."
@@ -551,7 +551,7 @@ def test_snapshot_line():
 
 
 def test_section_view_totals_skip_retired_and_missing_amounts():
-    from asset_manager.web.accounts_routes import saved_total, section_view
+    from sensibility.web.accounts_routes import saved_total, section_view
 
     def row(name, category, amount, retired=False):
         return {
@@ -583,7 +583,7 @@ def test_section_view_totals_skip_retired_and_missing_amounts():
 
 
 def test_category_groups_orders_categories_and_puts_uncategorized_last():
-    from asset_manager.web.accounts_routes import category_groups
+    from sensibility.web.accounts_routes import category_groups
 
     def row(name, category, retired=False):
         return {"name": name, "category": category, "retired": retired}
@@ -615,7 +615,7 @@ class TestAccountsPage:
         assert "No accounts yet" in response.text
 
     def test_renders_rows_and_embeds_json(self, client, db_connection):
-        from asset_manager.models import ProportionalFormula
+        from sensibility.models import ProportionalFormula
 
         schwab = create_account(db_connection, WS, "Schwab Trading", RecordType.ASSET)
         create_account(
@@ -670,7 +670,7 @@ class TestAccountsPage:
     def test_rows_sit_under_category_subheadings(self, client, db_connection):
         import re
 
-        from asset_manager.models import AccountCategory
+        from sensibility.models import AccountCategory
 
         create_account(db_connection, WS, "Mystery", RecordType.ASSET)
         create_account(
@@ -707,7 +707,7 @@ class TestAccountsPage:
     def test_header_says_today_when_latest_snapshot_is_today(
         self, client, db_connection
     ):
-        from asset_manager.clock import today
+        from sensibility.clock import today
 
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         upsert_amounts(db_connection, WS, today(TZ), {cash.id: Decimal("1")})
@@ -739,7 +739,7 @@ class TestAccountsPage:
     def test_edited_rows_carry_their_saved_value_as_was(self, client, db_connection):
         import re
 
-        from asset_manager.models import ProportionalFormula
+        from sensibility.models import ProportionalFormula
 
         schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         tax = create_account(
@@ -808,7 +808,7 @@ class TestAccountsPage:
     def test_save_bar_starts_clean_with_the_saved_net_worth(
         self, client, db_connection
     ):
-        from asset_manager.models import AccountCategory
+        from sensibility.models import AccountCategory
 
         cash = create_account(
             db_connection,
@@ -864,7 +864,7 @@ class TestAccountsPage:
     def test_retired_rows_hide_behind_the_toggle(self, client, db_connection):
         import re
 
-        from asset_manager.models import AccountCategory
+        from sensibility.models import AccountCategory
 
         create_account(db_connection, WS, "Cash", RecordType.ASSET)
         gone = create_account(
@@ -911,7 +911,7 @@ class TestAccountsPage:
         page, so a markup change cannot silently disconnect the script."""
         import re
 
-        from asset_manager.models import ProportionalFormula
+        from sensibility.models import ProportionalFormula
 
         schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         create_account(
@@ -955,8 +955,8 @@ class TestAccountsPage:
 @pytest.mark.db
 class TestSaveSnapshot:
     def test_writes_computed_rows(self, client, db_connection):
-        from asset_manager.models import ProportionalFormula
-        from asset_manager.repository import get_all_records
+        from sensibility.models import ProportionalFormula
+        from sensibility.repository import get_all_records
 
         schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         tax = create_account(
@@ -987,7 +987,7 @@ class TestSaveSnapshot:
         self, client, db_connection
     ):
         """The server, not the browser, decides the final cent (ROUND_HALF_UP)."""
-        from asset_manager.repository import get_all_records
+        from sensibility.repository import get_all_records
 
         schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         login(client)
@@ -1005,7 +1005,7 @@ class TestSaveSnapshot:
     def test_oversized_amount_returns_400_and_writes_nothing(
         self, client, db_connection
     ):
-        from asset_manager.repository import get_all_records
+        from sensibility.repository import get_all_records
 
         schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         login(client)
@@ -1020,7 +1020,7 @@ class TestSaveSnapshot:
         assert get_all_records(db_connection, WS) == []
 
     def test_missing_value_returns_400_and_writes_nothing(self, client, db_connection):
-        from asset_manager.repository import get_all_records
+        from sensibility.repository import get_all_records
 
         create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         create_account(db_connection, WS, "Cash", RecordType.ASSET)
@@ -1046,7 +1046,7 @@ class TestSaveSnapshot:
 @pytest.mark.db
 class TestApi:
     def _setup(self, conn):
-        from asset_manager.models import ProportionalFormula
+        from sensibility.models import ProportionalFormula
 
         schwab = create_account(conn, WS, "Schwab", RecordType.ASSET)
         cash = create_account(conn, WS, "Cash", RecordType.ASSET)
@@ -1128,7 +1128,7 @@ class TestApi:
         }
 
     def test_snapshot_error_returns_400_and_writes_nothing(self, client, db_connection):
-        from asset_manager.repository import get_all_records
+        from sensibility.repository import get_all_records
 
         _, _, tax = self._setup(db_connection)
         before = get_all_records(db_connection, WS)
@@ -1176,7 +1176,7 @@ class TestApi:
     ):
         import json
 
-        from asset_manager.repository import get_account, get_all_records
+        from sensibility.repository import get_account, get_all_records
 
         schwab, _, tax = self._setup(db_connection)
         text = json.dumps(body)
@@ -1212,7 +1212,7 @@ def test_api_docs_are_public(client):
 
 
 def assert_nothing_written(conn, account_id: int) -> None:
-    from asset_manager.repository import get_account, get_all_records
+    from sensibility.repository import get_account, get_all_records
 
     assert get_all_records(conn, WS) == []
     loaded = get_account(conn, WS, account_id)
@@ -1268,7 +1268,7 @@ class TestEveryRouteRequiresLogin:
 
         from itsdangerous import TimestampSigner
 
-        from asset_manager.web.auth import SESSION_MAX_AGE
+        from sensibility.web.auth import SESSION_MAX_AGE
 
         old = int(time.time()) - SESSION_MAX_AGE - 60
         # A scoped patch: monkeypatch.undo() would also revert the client
@@ -1365,7 +1365,7 @@ class TestCallback:
     def _use(self, monkeypatch, idp):
         from types import SimpleNamespace
 
-        import asset_manager.web.app as app_module
+        import sensibility.web.app as app_module
 
         monkeypatch.setattr(
             app_module, "get_oauth_client", lambda: SimpleNamespace(idp=idp)
@@ -1485,7 +1485,7 @@ class TestAccountForm:
         assert "Schwab" in response.text
 
     def test_create_plain_account_redirects_with_flash(self, client, db_connection):
-        from asset_manager.repository import get_accounts
+        from sensibility.repository import get_accounts
 
         login(client)
         response = client.post(
@@ -1500,7 +1500,7 @@ class TestAccountForm:
         assert "Added Cash to assets." in page.text
 
     def test_create_computed_account(self, client, db_connection):
-        from asset_manager.repository import get_accounts
+        from sensibility.repository import get_accounts
 
         schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         login(client)
@@ -1550,7 +1550,7 @@ class TestAccountForm:
         assert "Rate must be a number" in response.text
 
     def test_edit_page_prefills_formula(self, client, db_connection):
-        from asset_manager.models import ProportionalFormula
+        from sensibility.models import ProportionalFormula
 
         schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         tax = create_account(
@@ -1607,7 +1607,7 @@ class TestAccountForm:
         assert client.get(f"{PAGES}/accounts/9999/edit").status_code == 404
 
     def test_update_account(self, client, db_connection):
-        from asset_manager.repository import get_account
+        from sensibility.repository import get_account
 
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
@@ -1621,8 +1621,8 @@ class TestAccountForm:
         assert loaded is not None and loaded.name == "Cash (SoFi)"
 
     def test_create_and_change_category(self, client, db_connection):
-        from asset_manager.models import AccountCategory
-        from asset_manager.repository import get_account_by_name
+        from sensibility.models import AccountCategory
+        from sensibility.repository import get_account_by_name
 
         login(client)
         response = client.post(
@@ -1656,7 +1656,7 @@ class TestAccountForm:
         assert "&#39;boats&#39; is not a category" in response.text
 
     def test_retire_blocked_by_formula_shows_flash(self, client, db_connection):
-        from asset_manager.models import ProportionalFormula
+        from sensibility.models import ProportionalFormula
 
         schwab = create_account(db_connection, WS, "Schwab", RecordType.ASSET)
         create_account(
@@ -1680,7 +1680,7 @@ class TestAccountForm:
         assert f"{schwab.id}/retire" not in edit.text
 
     def test_retire_nonzero_warns_then_succeeds(self, client, db_connection):
-        from asset_manager.repository import get_account
+        from sensibility.repository import get_account
 
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         upsert_amounts(db_connection, WS, date(2026, 9, 1), {cash.id: Decimal("5")})
@@ -1699,7 +1699,7 @@ class TestAccountForm:
         assert "Retired Cash" in client.get(f"{PAGES}/accounts").text
 
     def test_retire_and_unretire(self, client, db_connection):
-        from asset_manager.repository import get_account
+        from sensibility.repository import get_account
 
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)

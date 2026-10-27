@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 from psycopg import Connection
 
-from asset_manager.invites import acceptable_invites
+from sensibility.invites import acceptable_invites
 
 from .wording import a_role, day_text
 

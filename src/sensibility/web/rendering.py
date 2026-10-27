@@ -9,7 +9,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-templates_path = resources.files("asset_manager.web").joinpath("templates")
+templates_path = resources.files("sensibility.web").joinpath("templates")
 templates = Jinja2Templates(directory=str(templates_path))
 
 # The one place the app's name lives for the pages. Its full name is

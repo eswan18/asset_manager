@@ -16,10 +16,10 @@ from psycopg import Connection
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
-from asset_manager import repository as repo
-from asset_manager.db import get_connection_context
-from asset_manager.models import User
-from asset_manager.users import record_login
+from sensibility import repository as repo
+from sensibility.db import get_connection_context
+from sensibility.models import User
+from sensibility.users import record_login
 
 # Session cookie configuration
 SESSION_COOKIE_NAME = "session"

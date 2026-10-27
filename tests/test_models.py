@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from asset_manager.models import Account, ProportionalFormula, Record, RecordType
+from sensibility.models import Account, ProportionalFormula, Record, RecordType
 
 
 def test_proportional_formula_defaults_and_json_round_trip():

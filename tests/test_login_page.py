@@ -27,7 +27,7 @@ def _text(html: str) -> str:
 
 
 def _use(monkeypatch, idp):
-    import asset_manager.web.app as app_module
+    import sensibility.web.app as app_module
 
     monkeypatch.setattr(
         app_module, "get_oauth_client", lambda: SimpleNamespace(idp=idp)
@@ -35,7 +35,7 @@ def _use(monkeypatch, idp):
 
 
 def _broken_idp(monkeypatch):
-    import asset_manager.web.app as app_module
+    import sensibility.web.app as app_module
 
     def broken():
         raise RuntimeError("IDP_URL environment variable is required")
@@ -274,7 +274,7 @@ class TestLogout:
     def test_only_the_two_known_trips_redirect(self):
         from starlette.requests import Request
 
-        from asset_manager.web import auth
+        from sensibility.web import auth
 
         forged = Request({"type": "http", "session": {auth.AFTER_IDP_LOGOUT: "//x"}})
         assert auth.after_idp_logout(forged) is None

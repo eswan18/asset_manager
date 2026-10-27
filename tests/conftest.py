@@ -107,8 +107,8 @@ def client(db_connection, db_url, monkeypatch):
 
     from fastapi.testclient import TestClient
 
-    from asset_manager.config import get_settings
-    from asset_manager.web.app import app
+    from sensibility.config import get_settings
+    from sensibility.web.app import app
 
     get_settings.cache_clear()
     with TestClient(app) as test_client:

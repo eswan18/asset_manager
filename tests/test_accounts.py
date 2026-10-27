@@ -6,7 +6,7 @@ from decimal import Decimal
 import psycopg
 import pytest
 
-from asset_manager.accounts import (
+from sensibility.accounts import (
     AccountError,
     create_account,
     parse_amount,
@@ -17,8 +17,8 @@ from asset_manager.accounts import (
     unretire_account,
     update_account,
 )
-from asset_manager.models import ProportionalFormula, RecordType
-from asset_manager.repository import get_account, get_all_records, upsert_amounts
+from sensibility.models import ProportionalFormula, RecordType
+from sensibility.repository import get_account, get_all_records, upsert_amounts
 from tests.support import WS
 
 TODAY = date(2026, 9, 6)

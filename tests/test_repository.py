@@ -4,13 +4,13 @@ from decimal import Decimal
 import psycopg
 import pytest
 
-from asset_manager.models import (
+from sensibility.models import (
     Account,
     AccountCategory,
     ProportionalFormula,
     RecordType,
 )
-from asset_manager.repository import (
+from sensibility.repository import (
     get_account,
     get_account_by_name,
     get_account_history,

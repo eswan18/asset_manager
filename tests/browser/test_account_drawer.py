@@ -10,7 +10,7 @@ from tests.web_support import PAGES
 pytestmark = [pytest.mark.browser, pytest.mark.db]
 
 ACCOUNTS = f"{PAGES}/accounts"
-STORAGE_KEY = "asset-manager:staged-edits"
+STORAGE_KEY = "sensibility:staged-edits"
 
 
 def test_drawer_takes_focus_and_the_page_behind_is_inert(open_page, seeded):
