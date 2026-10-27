@@ -95,6 +95,13 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
   to zoom (`dragmode: false`, fixed ranges), so a swipe over it scrolls the
   page; a tap still shows the hover label.
 - The account cards: rows at least 44px.
+- *As built:* the range toggle also spans the card (three equal segments).
+  Each bar sits directly above its own part of the key (Assets bar, Assets
+  key, Liabilities bar, Liabilities key), so the key's group titles are
+  hidden visually on phones (the bar's title stands for them; screen readers
+  still get them, the bars being `aria-hidden`). Both bars share one scale,
+  as the columns do. The column traces and their axis are removed from the
+  phone figure, not hidden, since an empty subplot still catches taps.
 
 ## Accounts
 
