@@ -149,9 +149,144 @@
         align-items: baseline;
     }
 
+    /* --- no snapshot yet (board Y) --- */
+
+    .welcome {
+        padding: 40px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+        gap: 40px;
+        align-items: center;
+    }
+
+    .welcome-text {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .welcome-head {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .welcome h1 {
+        font-family: var(--font-display);
+        font-size: 40px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+    }
+
+    .steps { list-style: none; }
+
+    .step {
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr);
+        gap: 14px;
+        padding: 16px 0;
+        border-top: 1px solid var(--rule);
+    }
+
+    .step-n {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--chip);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-display);
+        font-weight: 600;
+    }
+
+    .step.done .step-n {
+        background: var(--asset-tint);
+        color: var(--asset);
+    }
+
+    .step-body {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .step strong { font-weight: 600; }
+
+    .step-text, .viewer-note, .card-empty {
+        color: var(--muted);
+        font-size: 14px;
+    }
+
+    .step .btn {
+        min-height: 44px;
+        padding: 0 22px;
+        margin-top: 8px;
+    }
+
+    .placeholder-chart {
+        position: relative;
+        height: 340px;
+        border-radius: 16px;
+        background: var(--chip);
+        overflow: hidden;
+    }
+
+    .placeholder-chart svg {
+        position: absolute;
+        inset: 24px;
+        width: calc(100% - 48px);
+        height: calc(100% - 48px);
+    }
+
+    .placeholder-grid line {
+        stroke: var(--grid);
+        stroke-width: 1;
+        vector-effect: non-scaling-stroke;
+    }
+
+    .placeholder-line {
+        fill: none;
+        stroke: var(--rule-strong);
+        stroke-width: 3;
+    }
+
+    /* Where the line starts: 230 of the drawing's 300 units down. */
+    .placeholder-dot {
+        position: absolute;
+        left: 17px;
+        top: calc(24px + (100% - 48px) * 230 / 300 - 7px);
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--asset);
+    }
+
+    .placeholder-caption {
+        position: absolute;
+        left: 24px;
+        bottom: 20px;
+        font-size: 13px;
+        color: var(--muted);
+    }
+
+    .onboarding .card-head .total { color: var(--muted); }
+
+    .card-empty { padding: 12px 0 2px; font-size: 15px; }
+
+    .card-add {
+        align-self: flex-start;
+        margin-top: 8px;
+    }
+
     @media (max-width: 600px) {
         .overview { padding: 24px 20px; }
         .net-worth { font-size: 48px; }
+        .welcome { padding: 28px 20px; gap: 28px; }
+        .welcome h1 { font-size: 30px; }
+        .placeholder-chart { height: 220px; }
     }
 {% endblock %}
 
@@ -220,9 +355,66 @@
             {% endfor %}
         </div>
     </div>
-    {% else %}
-    <div class="no-data">
-        <p>No data yet. <a href="{{ base }}/accounts">Add accounts</a> and save a snapshot to see charts.</p>
+    {% elif steps %}
+    {#- No snapshot yet (board Y): the steps, a placeholder chart, and the
+        cards with any accounts already added. -#}
+    <div class="dashboard onboarding fade-in">
+        <section class="card welcome" aria-labelledby="welcome-heading">
+            <div class="welcome-text">
+                <div class="welcome-head">
+                    <span class="headline-label">{{ workspace.name }} is new</span>
+                    <h1 id="welcome-heading">Let's get your first net worth on the board.</h1>
+                </div>
+                <ol class="steps">
+                    {% for step in steps %}
+                    <li class="step{% if step.done %} done{% endif %}">
+                        <span class="step-n" aria-hidden="true">{% if step.done %}✓{% else %}{{ loop.index }}{% endif %}</span>
+                        <span class="step-body">
+                            <strong>{{ step.title }}</strong>
+                            <span class="step-text">{{ step.text }}</span>
+                            {% if step.action and can_edit %}
+                            <a class="btn btn-primary" href="{{ step.action[1] }}">{{ step.action[0] }}</a>
+                            {% endif %}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% if not can_edit %}
+                <p class="viewer-note">{% if has_accounts %}An editor hasn't entered any balances yet.{% else %}An editor hasn't added any accounts yet.{% endif %}</p>
+                {% endif %}
+            </div>
+            <div class="placeholder-chart" aria-hidden="true">
+                <svg viewBox="0 0 400 300" preserveAspectRatio="none">
+                    <g class="placeholder-grid"><line x1="0" y1="60" x2="400" y2="60"/><line x1="0" y1="140" x2="400" y2="140"/><line x1="0" y1="220" x2="400" y2="220"/></g>
+                    <path class="placeholder-line" d="M0 230 C 80 220, 140 200, 200 170 S 320 110, 400 80" stroke-dasharray="8 8" vector-effect="non-scaling-stroke"/>
+                </svg>
+                <span class="placeholder-dot"></span>
+                <span class="placeholder-caption">Your first snapshot starts the line.</span>
+            </div>
+        </section>
+
+        <div class="card-grid">
+            {% for card in cards %}
+            {% call ui.card(card.title, total=card.total, kind=card.kind) %}
+                {% for group in card.groups %}
+                {{ ui.group_head(group.label) }}
+                <div>
+                    {% for row in group.rows %}
+                    <div class="row account-row">
+                        <span class="account-name">{{ row.name }}{% if row.computed %} {{ ui.computed_tag(row.computed) }}{% endif %}</span>
+                        <span>{{ row.amount }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="card-empty">{{ card.empty }}</p>
+                {% if can_edit %}
+                <a class="btn btn-outline card-add" href="{{ card.add[1] }}">{{ card.add[0] }}</a>
+                {% endif %}
+                {% endfor %}
+            {% endcall %}
+            {% endfor %}
+        </div>
     </div>
     {% endif %}
 {% endblock %}

@@ -7,6 +7,7 @@ import os
 import time
 import urllib.request
 from typing import Annotated, Any
+from urllib.parse import urlencode, urlsplit
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import Depends
@@ -103,7 +104,18 @@ class LoginRequired(Exception):
 
 
 class EmailNotAllowed(Exception):
-    """Raised by handle_callback when ALLOWED_EMAILS or verification refuses the login."""
+    """Raised by handle_callback when ALLOWED_EMAILS refuses the login.
+
+    `email` is the one identity returned (None if it sent none), for the
+    page that tells the person which account was refused."""
+
+    def __init__(self, email: str | None, message: str):
+        super().__init__(message)
+        self.email = email
+
+
+class EmailUnverified(EmailNotAllowed):
+    """Raised by handle_callback for an allowed email identity has not verified."""
 
 
 def current_user(conn: Connection, session: dict[str, Any] | None) -> User | None:
@@ -221,13 +233,13 @@ async def handle_callback(request: Request, oauth: OAuth) -> RedirectResponse:
         user_info = await oauth.idp.userinfo(token=token)
 
     email = user_info.get("email")
-    if not is_email_allowed(email):
-        raise EmailNotAllowed(f"{email} is not in ALLOWED_EMAILS")
+    if not email or not is_email_allowed(email):
+        raise EmailNotAllowed(email, f"{email} is not in ALLOWED_EMAILS")
     # Identity lets unverified accounts log in. Without this, someone could
     # register an allowed person's email at identity before they do, and
     # later claim that person's pre-provisioned user or invites.
-    if not email or user_info.get("email_verified") is not True:
-        raise EmailNotAllowed(f"{email} is not verified at identity")
+    if user_info.get("email_verified") is not True:
+        raise EmailUnverified(email, f"{email} is not verified at identity")
     sub = user_info.get("sub")
     if not sub:
         raise RuntimeError("Identity returned no sub")
@@ -243,6 +255,41 @@ async def handle_callback(request: Request, oauth: OAuth) -> RedirectResponse:
     return create_session_response(
         "/", {"id": user.id, "sub": sub, "email": user.email, "name": user.name}
     )
+
+
+def idp_host(oauth: OAuth) -> str | None:
+    """The host people sign in at ("identity.ethanswan.com"), from the
+    browser-facing authorize endpoint; IDP_URL is the in-cluster address."""
+    endpoint = oauth.idp.server_metadata.get("authorization_endpoint") or ""
+    return urlsplit(endpoint).hostname
+
+
+# Set by /auth/switch for the trip through identity's logout, which comes
+# back to the callback with no code (the callback is the only redirect URI
+# identity has registered for this app).
+SWITCHING = "switching_account"
+
+
+def handle_switch(request: Request, oauth: OAuth) -> RedirectResponse:
+    """Log out here and at identity, then start a fresh login.
+
+    Logging out only here would not do: identity keeps its own session, so
+    the next login would come straight back as the same account. Identity's
+    end_session_endpoint (RP-initiated logout) ends that session, then
+    returns to the callback, which starts a new login. Without the endpoint,
+    go to /login.
+    """
+    end_session = oauth.idp.server_metadata.get("end_session_endpoint")
+    if not end_session:
+        return clear_session_response("/login")
+    request.session[SWITCHING] = True
+    query = urlencode(
+        {
+            "client_id": oauth.idp.client_id,
+            "post_logout_redirect_uri": str(request.url_for("auth_callback")),
+        }
+    )
+    return clear_session_response(f"{end_session}?{query}")
 
 
 def handle_logout() -> RedirectResponse:

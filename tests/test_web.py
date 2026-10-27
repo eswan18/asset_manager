@@ -137,12 +137,13 @@ class TestTheme:
             assert "color-scheme: light" in text, path
             assert "@media (prefers-color-scheme: dark)" in text, path
             assert "color-scheme: dark" in text, path
-        assert "@media (prefers-color-scheme: light)" in client.get("/login").text
+        login_page = client.get("/login").text
+        assert "color-scheme: light" in login_page
+        assert "color-scheme: dark" in login_page
 
     def test_templates_name_tokens_not_colors(self):
         """Page templates take their colors from base.html's tokens, so light
-        and dark stay in step. base.html defines them; login.html stands alone
-        until it is redesigned."""
+        and dark stay in step. base.html defines them."""
         import re
         from importlib import resources
 
@@ -150,7 +151,7 @@ class TestTheme:
         pages = [
             t
             for t in templates.iterdir()
-            if t.name.endswith(".html") and t.name not in ("base.html", "login.html")
+            if t.name.endswith(".html") and t.name != "base.html"
         ]
         assert len(pages) >= 4
         for page in pages:
@@ -185,15 +186,17 @@ class TestDashboard:
         login(client)
         response = client.get(PAGES)
         assert response.status_code == 200
-        assert "No data yet" in response.text
-        assert f'href="{PAGES}/accounts"' in response.text
+        assert "Let's get your first net worth on the board." in response.text
+        assert f'href="{PAGES}/accounts/new?type=asset"' in response.text
         assert "const figure" not in response.text
         assert "Net worth" not in response.text
 
     def test_accounts_but_no_snapshot_is_still_empty(self, client, db_connection):
         create_account(db_connection, WS, "Cash", RecordType.ASSET)
         login(client)
-        assert "No data yet" in client.get(PAGES).text
+        text = client.get(PAGES).text
+        assert "Let's get your first net worth on the board." in text
+        assert "const figure" not in text
 
     def test_renders_with_data(self, client, db_connection):
         savings = create_account(db_connection, WS, "Savings Account", RecordType.ASSET)

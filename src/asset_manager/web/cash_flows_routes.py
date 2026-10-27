@@ -203,9 +203,11 @@ def cash_flows_view(
     # when the page already shows a year.
     other = Period.MONTH if period == Period.YEAR else Period.YEAR
     estimates = sum(1 for f in flows if f.is_estimate)
+    over = bar_state == "over"
     return {
         "period": period.value,
         "empty": not flows,
+        "headline": f"{'Short' if over else 'Left over'} each {period.value}",
         "net": money(in_period(net, period), sign=True),
         "income": money(in_period(income, period)),
         "other": f"{money(in_period(net, other), cents=False)} a {other.value}",
@@ -215,6 +217,11 @@ def cash_flows_view(
         "bar_state": bar_state,
         "slices": slices,
         "over_by": money(in_period(-net, period)) if net < 0 else None,
+        # Over income (board AA): the bar is all expenses, and the marker is
+        # where income runs out on it, unrounded like the slices' widths;
+        # the share it is over by is of income, display-rounded.
+        "over_share": share_text(net) if over else None,
+        "marker": _width(income, -expenses) if over else None,
         "cards": [income_card, *expense_cards],
         # Each expense category's color on this page, by category id (None
         # for Uncategorized), so the drawers can match it.

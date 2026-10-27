@@ -36,6 +36,7 @@
             --estimate-bg: #FFF4E5;
             --estimate-fg: #8A4B0C;
             --danger: #B42318;
+            --danger-tint: #FDECEA;
             --bar-bg: #15171A;
             --bar-fg: #FFFFFF;
             --bar-muted: #B9BEC6;
@@ -74,6 +75,7 @@
                 --estimate-bg: #3A2A12;
                 --estimate-fg: #F5C27A;
                 --danger: #F97066;
+                --danger-tint: #3A1C1A;
                 --bar-bg: #2A2F37;
                 --bar-fg: #ECEEF1;
                 --bar-muted: #A9B0BA;
@@ -451,6 +453,36 @@
             color: var(--muted);
         }
 
+        /* An empty page: what goes here, and one button to add the first
+           (ui.empty_card). */
+        .empty-card {
+            padding: 40px;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .empty-card h1 {
+            font-family: var(--font-display);
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .empty-card p {
+            max-width: 560px;
+            color: var(--muted);
+        }
+
+        .empty-card .btn {
+            min-height: 44px;
+            padding: 0 22px;
+            margin-top: 8px;
+        }
+
+        @media (max-width: 600px) {
+            .empty-card { padding: 28px 24px; }
+        }
+
         /* Fade-in animation */
         @keyframes fadeUp {
             from { opacity: 0; transform: translateY(8px); }
@@ -649,6 +681,8 @@
     `content`. The page stays rendered but inert, so focus and the screen
     reader stay in the drawer, and the body stops scrolling. -#}
 <body{% if drawer_open %} class="drawer-open"{% endif %}>
+    {#- A page outside any workspace (login) empties this block: no shell. -#}
+    {% block shell_header %}
     <header class="shell-header"{% if drawer_open %} inert{% endif %}>
         <a class="wordmark" href="{{ base }}">{{ app_name }}</a>
         <nav class="main-nav" aria-label="Main">
@@ -676,6 +710,7 @@
             </details>
         </div>
     </header>
+    {% endblock %}
 
     <main class="container"{% if drawer_open %} inert{% endif %}>
         {% if error %}

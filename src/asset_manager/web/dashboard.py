@@ -259,3 +259,102 @@ def short_date(day: date, reference: date) -> str:
 def long_date(day: date) -> str:
     """ "Oct 24, 2026"."""
     return f"{day:%b} {day.day}, {day.year}"
+
+
+def getting_started(active_accounts: int, base: str) -> list[dict[str, Any]]:
+    """A new workspace's three steps (board Y), until its first snapshot.
+
+    With no active accounts, step 1 carries the button; once there are some,
+    step 1 is done and step 2's button goes to Accounts to enter balances.
+    `action` is a (label, href) pair, shown only to editors.
+    """
+    has_accounts = active_accounts > 0
+    noun = "account" if active_accounts == 1 else "accounts"
+    return [
+        {
+            "title": "Add your accounts",
+            "text": f"Done: {active_accounts} {noun} added. Add more any time."
+            if has_accounts
+            else "Checking, savings, retirement, your home, loans, cards. "
+            "Anything with a balance.",
+            "done": has_accounts,
+            "action": None
+            if has_accounts
+            else ("+ Add an account", f"{base}/accounts/new?type=asset"),
+        },
+        {
+            "title": "Enter today's balances",
+            "text": "Type each balance on Accounts and save. "
+            "That's your first snapshot.",
+            "done": False,
+            "action": ("Enter balances", f"{base}/accounts") if has_accounts else None,
+        },
+        {
+            "title": "Come back now and then",
+            "text": "Save again every week or month. "
+            "The chart grows with each snapshot.",
+            "done": False,
+            "action": None,
+        },
+    ]
+
+
+CARD_TITLES = {RecordType.ASSET: "Assets", RecordType.LIABILITY: "Liabilities"}
+
+
+def cards_view(records: list[Record], accounts: list[Account]) -> list[dict[str, Any]]:
+    """The Assets and Liabilities cards: each active account under its
+    category, with the latest snapshot's amount ("—" if it has none)."""
+    cards = account_cards(records, accounts)
+    return [
+        {
+            "title": title,
+            "kind": type.value,
+            "total": money(cards[type]["total"]),
+            "groups": [
+                {
+                    "label": g["label"],
+                    "total": money(g["total"]),
+                    "rows": [
+                        {
+                            "name": r["name"],
+                            "amount": "—"
+                            if r["amount"] is None
+                            else money(r["amount"]),
+                            "computed": r["computed"],
+                        }
+                        for r in g["rows"]
+                    ],
+                }
+                for g in cards[type]["groups"]
+            ],
+        }
+        for type, title in CARD_TITLES.items()
+    ]
+
+
+# A new workspace's empty cards (board Y): what goes there, and its button.
+EMPTY_CARDS = {
+    "asset": ("No assets yet.", "+ Add an asset"),
+    "liability": (
+        "No liabilities yet. That's fine; plenty of people have none.",
+        "+ Add a liability",
+    ),
+}
+
+
+def onboarding_context(accounts: list[Account], base: str) -> dict[str, Any]:
+    """Template values for a workspace with no snapshot yet: the steps, and
+    the cards listing any accounts already added, with no amounts."""
+    active = sum(1 for a in accounts if a.is_active)
+    cards = cards_view([], accounts)
+    for card in cards:
+        empty, add = EMPTY_CARDS[card["kind"]]
+        card["total"] = "—" if card["groups"] else money(Decimal(0))
+        card["empty"] = empty
+        card["add"] = (add, f"{base}/accounts/new?type={card['kind']}")
+    return {
+        "steps": getting_started(active, base),
+        "has_accounts": active > 0,
+        "cards": cards,
+    }

@@ -59,7 +59,14 @@ def add_user(conn, user: dict, role: str | None = None, workspace_id: int = WS) 
 
 # Routes reachable without a session. Every other route must refuse. The
 # docs routes are public too but are not in the schema, so not listed here.
-PUBLIC_PATHS = {"/login", "/auth/start", "/auth/callback", "/logout", "/health"}
+PUBLIC_PATHS = {
+    "/login",
+    "/auth/start",
+    "/auth/callback",
+    "/auth/switch",
+    "/logout",
+    "/health",
+}
 
 
 def protected_routes(fill: str = "1"):
@@ -91,10 +98,17 @@ def sweep(client):
 class FakeIdp:
     """Stands in for authlib's registered client in the callback route."""
 
+    client_id = "test-client"
+
     def __init__(self, token=None, error=None, userinfo=None):
         self.token = token
         self.error = error
         self.userinfo_data = userinfo
+        # What get_oauth() loads from identity's discovery document.
+        self.server_metadata = {
+            "authorization_endpoint": "https://identity.example.com/oauth/authorize",
+            "end_session_endpoint": "https://identity.example.com/oauth/logout",
+        }
 
     async def authorize_access_token(self, request):
         if self.error:

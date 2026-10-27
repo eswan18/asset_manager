@@ -203,14 +203,13 @@ class TestPageControls:
             "+ New category</a>" in html
         )
 
-    def test_the_empty_page_offers_both_directions(self, client, db_connection):
+    def test_the_empty_page_offers_one_button_income_first(self, client, db_connection):
+        # Board Y: one button; the drawer can switch the flow to an expense.
         login(client)
         html = client.get(PAGE).text
         assert f'href="{PAGE}/new?direction=income&amp;per=month">+ Add income' in html
-        assert (
-            f'href="{PAGE}/new?direction=expense&amp;per=month">+ Add expense' in html
-        )
-        assert f'href="{CATEGORIES}?per=month">Manage categories' in html
+        assert "direction=expense" not in html
+        assert "Manage categories" not in html
 
     def test_viewers_get_no_controls(self, client, db_connection, seed):
         add_user(db_connection, STRANGER, "viewer")
