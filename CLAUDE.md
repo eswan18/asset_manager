@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Asset Manager is a Python application for tracking financial assets and liabilities. Values are entered on the web dashboard's Accounts tab (or the JSON API) and saved as dated snapshots in PostgreSQL. Liabilities can be computed from other accounts by a formula. Data belongs to **workspaces**; users are members of workspaces with a role. Multi-user is the plan (open sign-up eventually); today `ALLOWED_EMAILS` gates who can log in.
+Sensibility Money (usually just "Sensibility"; formerly Asset Manager) is a Python application for tracking financial assets and liabilities. Values are entered on the web dashboard's Accounts tab (or the JSON API) and saved as dated snapshots in PostgreSQL. Liabilities can be computed from other accounts by a formula. Data belongs to **workspaces**; users are members of workspaces with a role. Multi-user is the plan (open sign-up eventually); today `ALLOWED_EMAILS` gates who can log in.
+
+The pages show the name from one constant, `rendering.APP_NAME` ("Sensibility"). The repo, the `asset_manager` package, the `asset-manager` CLI and the deployment (namespaces, image, secrets, OAuth client) still use the old name until a separate rename.
 
 ## Development Setup
 

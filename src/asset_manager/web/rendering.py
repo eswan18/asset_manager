@@ -12,8 +12,9 @@ from fastapi.templating import Jinja2Templates
 templates_path = resources.files("asset_manager.web").joinpath("templates")
 templates = Jinja2Templates(directory=str(templates_path))
 
-# The one place the app's name lives for the pages (a rename is pending).
-APP_NAME = "Asset Manager"
+# The one place the app's name lives for the pages. Its full name is
+# "Sensibility Money"; pages use the short form.
+APP_NAME = "Sensibility"
 
 
 def set_flash(request: Request, kind: str, text: str) -> None:
