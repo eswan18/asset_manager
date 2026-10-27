@@ -8,7 +8,15 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from tests.web_support import ACCOUNTS, STRANGER, USER, FakeIdp, claims
+from tests.web_support import (
+    ACCOUNTS,
+    PAGES,
+    STRANGER,
+    USER,
+    FakeIdp,
+    claims,
+    login,
+)
 
 END_SESSION = "https://identity.example.com/oauth/logout"
 
@@ -216,3 +224,84 @@ class TestSwitchAccount:
         assert response.status_code == 302
         assert response.headers["location"] == "/login"
         assert "Max-Age=0" in (_session_cookie(response) or "")
+
+
+@pytest.mark.db
+class TestLogout:
+    """Log out ends identity's session too, then lands on our login page."""
+
+    def test_logs_out_here_and_at_identity(self, client, monkeypatch):
+        _use(monkeypatch, FakeIdp())
+        response = client.get("/logout", follow_redirects=False)
+        assert response.status_code == 302
+        url = urlsplit(response.headers["location"])
+        assert f"{url.scheme}://{url.netloc}{url.path}" == END_SESSION
+        # The callback is the only return URL identity has registered.
+        assert parse_qs(url.query) == {
+            "client_id": ["test-client"],
+            "post_logout_redirect_uri": ["http://testserver/auth/callback"],
+        }
+        header = _session_cookie(response)
+        assert header is not None and "Max-Age=0" in header
+
+    def test_the_trip_back_lands_on_login_not_a_new_login(self, client, monkeypatch):
+        _use(monkeypatch, FakeIdp())
+        client.get("/logout", follow_redirects=False)
+        response = client.get("/auth/callback", follow_redirects=False)
+        assert (response.status_code, response.headers["location"]) == (
+            302,
+            "/login",
+        )
+        # Only once: a second bare callback is an ordinary (refused) login.
+        _use(monkeypatch, FakeIdp(token={}, userinfo={}))
+        assert client.get("/auth/callback", follow_redirects=False).status_code == 403
+
+    def test_a_code_after_logging_out_still_logs_in(self, client, monkeypatch):
+        _use(monkeypatch, FakeIdp(token={"userinfo": claims(USER)}))
+        client.get("/logout", follow_redirects=False)
+        response = client.get("/auth/callback?code=abc&state=s", follow_redirects=False)
+        assert response.headers["location"] == "/"
+        assert _session_cookie(response) is not None
+
+    def test_switch_after_logout_still_starts_a_login(self, client, monkeypatch):
+        """The last trip out decides where the trip back goes."""
+        _use(monkeypatch, FakeIdp())
+        client.get("/logout", follow_redirects=False)
+        client.get("/auth/switch", follow_redirects=False)
+        response = client.get("/auth/callback", follow_redirects=False)
+        assert response.headers["location"] == "/auth/start"
+
+    def test_only_the_two_known_trips_redirect(self):
+        from starlette.requests import Request
+
+        from asset_manager.web import auth
+
+        forged = Request({"type": "http", "session": {auth.AFTER_IDP_LOGOUT: "//x"}})
+        assert auth.after_idp_logout(forged) is None
+        for known in ("/login", "/auth/start"):
+            request = Request(
+                {"type": "http", "session": {auth.AFTER_IDP_LOGOUT: known}}
+            )
+            assert auth.after_idp_logout(request) == known
+            assert auth.AFTER_IDP_LOGOUT not in request.session
+
+    def test_without_an_end_session_endpoint_goes_to_login(self, client, monkeypatch):
+        idp = FakeIdp()
+        del idp.server_metadata["end_session_endpoint"]
+        _use(monkeypatch, idp)
+        response = client.get("/logout", follow_redirects=False)
+        assert response.headers["location"] == "/login"
+        assert "Max-Age=0" in (_session_cookie(response) or "")
+
+    def test_with_identity_unreachable_goes_to_login(self, client, monkeypatch):
+        _broken_idp(monkeypatch)
+        response = client.get("/logout", follow_redirects=False)
+        assert response.headers["location"] == "/login"
+        assert "Max-Age=0" in (_session_cookie(response) or "")
+
+    def test_the_user_menu_links_to_it(self, client):
+        login(client)
+        header = client.get(PAGES).text.split("<main")[0]
+        assert re.search(
+            r'<a href="/logout" class="btn btn-outline">Log out</a>', header
+        )

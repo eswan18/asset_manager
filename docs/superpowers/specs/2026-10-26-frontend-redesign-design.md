@@ -6,8 +6,9 @@ approved as mockups in light and dark. The workspace-in-URL and dark mode
 decisions are made, so building can start. The three pages and the account
 form are built, and so are the cash flow form, category management,
 workspace settings and the welcome page. Login, the empty states and
-expenses above income (boards X, Y, AA) are built too. The invite strip
-and the flash restyle (board Z) are designed and still to build.
+expenses above income (boards X, Y, AA) are built too, and so are the
+invite strip and the flash restyle (board Z). Every approved board is
+built.
 
 **Mockups:** [Design canvas](https://claude.ai/artifact/BMRjmDM7b239Ro2SbBtvsR)
 (private; share it from its Share menu). The chosen boards are **H**
@@ -15,7 +16,7 @@ and the flash restyle (board Z) are designed and still to build.
 over Accounts), **Cash flow form R** (drawer over Cash flows),
 **Categories T** (drawer over Cash flows), **Settings V** (workspace
 settings, two columns), **Welcome W** (no workspace yet), **Login X**,
-**Empty workspace Y** and **Expenses over income AA**. The other boards are the
+**Empty workspace Y**, **Invite strip Z** and **Expenses over income AA**. The other boards are the
 alternatives we rejected, kept for reference. Every number in the mockups is
 sample data.
 
@@ -108,7 +109,11 @@ way, in both themes.
   the right (`<select>` with a visible "Workspace" label), then a round gear
   button to the workspace's settings (ink-filled, `aria-current`, when on
   them), then the user menu: an avatar button opening your name and email,
-  **New workspace** (to `/welcome`) and **Log out**. Pages outside a
+  **New workspace** (to `/welcome`) and **Log out** (which ends identity's
+  session too; see Login). The settings button is a cog outline
+  (`currentColor`, `aria-hidden`).
+- **Invite strip and flashes** (board Z) sit at the top of the content,
+  strips first; see "Invite strip and flashes" below. Pages outside a
   workspace (welcome) show only the wordmark and the user menu.
 - **Workspace picker:** lists your live workspaces. Choosing one goes to the
   same page in that workspace. See "Workspace in the URL" below.
@@ -422,8 +427,8 @@ workspace" in the user menu leads for everyone.
 - **Start your own workspace:** Name and **Create workspace** (an outline
   button when there are invites, the primary one when there are none);
   creating goes into the new workspace.
-- The mockup's footnote about a strip on the dashboard is left out until
-  that strip exists.
+- The mockup's footnote about a strip on the dashboard is a note for the
+  canvas, not page text; the strip itself is board Z.
 
 ### Login: board **X** (built)
 
@@ -444,6 +449,15 @@ workspace" in the user menu leads for everyone.
   (its `end_session_endpoint`), returning to our callback, which starts a
   fresh login. Logging out only here would sign straight back in as the
   same account, since identity keeps its own session.
+- **Log out** (`/logout`): the same trip, but the callback sends it on to
+  `/login` rather than into a login, so logging out reads as logged out
+  and the next Log in asks identity which account. Both trips return to
+  our callback because it is the only redirect URI identity has
+  registered for us, and identity accepts a `post_logout_redirect_uri`
+  only on an exact match; a value in our signed session, read once and
+  only ever `/auth/start` or `/login`, says which trip it was. With no
+  `end_session_endpoint`, or identity unreachable, both clear our session
+  and go to `/login`.
 - `login.html` extends `base.html` with the `shell_header` block emptied.
 
 ### Empty states: board **Y** (built)
@@ -464,11 +478,32 @@ workspace" in the user menu leads for everyone.
   one button for editors (**+ Add an account**; **+ Add income**, since the
   drawer can switch it to an expense), or the viewer's line instead.
 
-## Still to build
+### Invite strip and flashes: board **Z** (built)
 
-1. **Invite strip and flash restyle** (board Z). The strip tells someone
-   already in a workspace they have a pending invite; today they find it
-   only on `/welcome`.
+- **Strip:** on every page with the shell, one per invite the viewer could
+  accept now (lapsed ones left out), newest first, above the page's
+  content: a mail icon in an `--asset-tint` circle, "**{inviter}** invited
+  you to **{workspace}** as an editor.", "Expires Nov 3" (viewer's zone),
+  **Decline** (outline) and **Join {workspace}** (primary), with a 4px
+  `--primary` inset bar on the left. Join posts to `/invites/{id}/accept`
+  and goes into that workspace with a flash. Decline posts to
+  `/invites/{id}/decline` with `next`, the page it was on (a refused POST's
+  re-render sends its page's GET path), and returns there with a flash;
+  `next` must be a path on this site (no `//`, backslash, scheme or
+  control characters), else Decline goes to `/welcome`.
+- **Not shown** on `/welcome` (it lists invites itself), on login (no
+  shell), or under an open drawer (the page is inert).
+- **Data:** one query per page (`acceptable_invites`, which joins the
+  sender's ownership and name), in `shell_context`.
+- **Flashes:** one at a time, under the strips. Success is `--asset-tint`
+  with an `--asset` check (`role="status"`); errors are `--danger-tint`
+  with `--danger` text and an alert icon (`role="alert"`). 14px radius, and
+  a × that a few lines of script remove (without JS the flash stays until
+  the next page). Under a drawer, the drawer shows the flash. The page's
+  `.error` (a load failure, the Accounts save error) takes the error look.
+- **Texts** say what happened: "Saved today's snapshot: 23 accounts, net
+  worth $357,918.", "Added Rent: $1,850.00 a month.", "Added Schwab to
+  assets."
 
 ## Decisions made
 

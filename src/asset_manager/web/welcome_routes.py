@@ -29,8 +29,9 @@ from asset_manager.workspaces import WorkspaceError, create_workspace
 from .access import page_prefix
 from .auth import CurrentUser
 from .rendering import render, set_flash
-from .settings_routes import a_role, day_text
+from .invite_strip import safe_next
 from .viewer_zone import zone_of
+from .wording import a_role, day_text
 
 WELCOME_PATH = "/welcome"
 
@@ -55,14 +56,12 @@ def _render(
     with get_connection_context() as conn:
         has_workspaces = bool(repo.get_memberships(conn, user["id"]))
         invites = []
-        for invite, workspace in acceptable_invites(conn, user["email"]):
-            sender = repo.get_user(conn, invite.invited_by)
-            who = (sender.name or sender.email) if sender else "Someone"
+        for invite, workspace, sender in acceptable_invites(conn, user["email"]):
             invites.append(
                 {
                     "id": invite.id,
                     "workspace": workspace.name,
-                    "line": f"{who} invited you as {a_role(invite.role)} · "
+                    "line": f"{sender} invited you as {a_role(invite.role)} · "
                     f"expires {day_text(invite.expires_at, zone)}",
                 }
             )
@@ -124,7 +123,14 @@ async def accept_route(request: Request, user: CurrentUser, invite_id: int):
 
 
 @router.post("/invites/{invite_id}/decline")
-async def decline_route(request: Request, user: CurrentUser, invite_id: int):
+async def decline_route(
+    request: Request,
+    user: CurrentUser,
+    invite_id: int,
+    next: Annotated[str, Form()] = "",
+):
+    """Back to `next` (the invite strip's page) if it is a path on this
+    site, else here."""
     try:
         with get_connection_context() as conn:
             decline_invite(conn, user["email"], invite_id)
@@ -136,4 +142,4 @@ async def decline_route(request: Request, user: CurrentUser, invite_id: int):
         raise _not_found() from None
     name = workspace.name if workspace else "the workspace"
     set_flash(request, "success", f"Declined the invite to {name}.")
-    return RedirectResponse(WELCOME_PATH, status_code=303)
+    return RedirectResponse(safe_next(next) or WELCOME_PATH, status_code=303)

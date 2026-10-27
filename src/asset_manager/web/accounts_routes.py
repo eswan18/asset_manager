@@ -229,7 +229,7 @@ def accounts_view(
 async def accounts_page(request: Request, access: ViewerAccess, as_of: Today):
     """Render the editable accounts page."""
     workspace = access.workspace
-    shell = shell_context(access, request.url.path)
+    shell = shell_context(request, access)
     try:
         with get_connection_context() as conn:
             accounts = get_accounts(conn, workspace.id)
@@ -263,19 +263,34 @@ class SnapshotPayload(BaseModel):
 
 @router.post("/snapshots")
 async def save_snapshot_route(
-    payload: SnapshotPayload, access: EditorAccess, as_of: Today
+    request: Request, payload: SnapshotPayload, access: EditorAccess, as_of: Today
 ) -> JSONResponse:
     """Write a complete snapshot for today, in the viewer's time zone, from
-    the page's staged values."""
+    the page's staged values. The page reloads after it, showing the flash."""
     workspace = access.workspace
     try:
         with get_connection_context() as conn:
             count = save_snapshot(
                 conn, workspace.id, payload.values, payload.cost_bases, as_of
             )
+            saved = get_latest_snapshot_records(conn, workspace.id)
     except AccountError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+    # Today's rows: the latest date, unless a save from a zone ahead of
+    # this one already wrote tomorrow's.
+    today_rows = [r for r in saved if r.date == as_of]
+    set_flash(request, "success", snapshot_saved_text(count, today_rows))
     return JSONResponse({"date": as_of.isoformat(), "count": count})
+
+
+def snapshot_saved_text(count: int, records: list[Record]) -> str:
+    """ "Saved today's snapshot: 23 accounts, net worth $357,918." """
+    net = sum(
+        (r.amount if r.type == RecordType.ASSET else -r.amount for r in records),
+        Decimal("0"),
+    )
+    accounts = "1 account" if count == 1 else f"{count} accounts"
+    return f"Saved today's snapshot: {accounts}, net worth {format_dollars(net)}."
 
 
 # --- account form ------------------------------------------------------------
@@ -446,7 +461,7 @@ def _render_form(
         request,
         "account_form.html",
         {
-            **shell_context(access, request.url.path),
+            **shell_context(request, access),
             **accounts_view(accounts, latest, today_for(request)),
             "drawer_open": True,
             "account": account,
@@ -526,7 +541,7 @@ async def create_account_route(
                 error=str(e),
                 status_code=400,
             )
-    set_flash(request, "success", f"Added {account.name}")
+    set_flash(request, "success", f"Added {account.name} to {account.type.value}s.")
     return RedirectResponse(_accounts_url(access), status_code=303)
 
 

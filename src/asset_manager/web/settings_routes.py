@@ -13,7 +13,6 @@ page: `?confirm=member-{user_id}`, `invite-{invite_id}`, `leave` or `delete`.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -21,7 +20,6 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from psycopg import Connection
 
 from asset_manager import repository as repo
-from asset_manager.clock import local_date
 from asset_manager.db import get_connection_context
 from asset_manager.invites import (
     INVITE_TTL,
@@ -51,6 +49,7 @@ from .access import (
 )
 from .rendering import render, set_flash
 from .viewer_zone import zone_of
+from .wording import a_role, day_text
 
 router = APIRouter(prefix="/workspaces/{workspace_id}")
 
@@ -58,17 +57,6 @@ ROLES = [Role.OWNER, Role.EDITOR, Role.VIEWER]
 
 
 # --- view helpers ----------------------------------------------------------
-
-
-def a_role(role: Role) -> str:
-    """ "an owner", "an editor", "a viewer"."""
-    return ("an " if role.value[0] in "aeiou" else "a ") + role.value
-
-
-def day_text(instant: datetime, zone: str) -> str:
-    """ "Oct 20": the day `instant` falls on in the viewer's zone."""
-    day = local_date(instant, zone)
-    return f"{day:%b} {day.day}"
 
 
 def display_name(member: Member) -> str:
@@ -179,7 +167,7 @@ def _render(
         {
             # The settings path, not the request's: a refused POST renders
             # here too, and the picker must link to settings elsewhere.
-            **shell_context(access, _settings_url(access)),
+            **shell_context(request, access, _settings_url(access)),
             **view,
             "active_tab": "settings",
             "errors": errors or {},

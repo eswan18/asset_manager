@@ -22,11 +22,11 @@ from .access import (
 from .accounts_routes import router as accounts_router
 from .api_routes import router as api_router
 from .auth import (
-    SWITCHING,
     CurrentUser,
     EmailNotAllowed,
     EmailUnverified,
     LoginRequired,
+    after_idp_logout,
     clear_session_response,
     get_oauth,
     get_secret_key,
@@ -141,7 +141,7 @@ async def dashboard(
 ):
     """Render the main dashboard. ?range= is 6m, 1y (the default) or all."""
     workspace_id = access.workspace.id
-    shell = shell_context(access, request.url.path)
+    shell = shell_context(request, access)
     selected = parse_range(range_key)
     page = {**shell, "active_tab": "dashboard", "has_data": False}
     try:
@@ -237,10 +237,11 @@ async def auth_start(request: Request):
 @app.get("/auth/callback")
 async def auth_callback(request: Request):
     """Handle the OAuth callback."""
-    # Back from identity's logout during /auth/switch: start a fresh login.
-    switching = request.session.pop(SWITCHING, False)
-    if switching and not {"code", "error"} & request.query_params.keys():
-        return RedirectResponse("/auth/start", status_code=302)
+    # Back from identity's logout (/logout or /auth/switch), with no code:
+    # on to our login page or a fresh login, whichever started the trip.
+    after = after_idp_logout(request)
+    if after and not {"code", "error"} & request.query_params.keys():
+        return RedirectResponse(after, status_code=302)
     oauth = get_oauth_client()
     try:
         return await handle_callback(request, oauth)
@@ -265,9 +266,14 @@ async def auth_switch(request: Request):
 
 
 @app.get("/logout")
-async def logout():
-    """Log out and clear the session."""
-    return handle_logout()
+async def logout(request: Request):
+    """Log out here and at identity, then land on the login page."""
+    try:
+        oauth = get_oauth_client()
+    except Exception:
+        logger.exception("Identity unavailable for logging out")
+        return clear_session_response("/login")
+    return handle_logout(request, oauth)
 
 
 @app.get("/health")
