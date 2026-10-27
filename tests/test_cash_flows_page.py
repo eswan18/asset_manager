@@ -237,6 +237,71 @@ def test_view_expenses_above_income():
     assert [s["weight"] for s in view["slices"]] == ["75.0000", "25.0000"]
 
 
+# Board AA's sample month: 4,200 income; 2,650 + 1,500 + 812.50 out.
+OVER_CATEGORIES = [
+    category(1, "Housing", 0),
+    category(2, "Childcare", 1),
+    category(3, "Food", 2),
+]
+OVER = [
+    flow("Part-time job", "4200", direction=INCOME),
+    flow("Rent", "2400", category_id=1),
+    flow("Utilities", "250", category_id=1),
+    flow("Daycare", "1500", category_id=2),
+    flow("Groceries", "812.50", category_id=3),
+]
+
+
+@pytest.mark.parametrize(
+    ("period", "headline", "net", "over_by", "other"),
+    [
+        (Period.DAY, "Short each day", "−$25.07", "$25.07", "−$9,150 a year"),
+        (Period.MONTH, "Short each month", "−$762.50", "$762.50", "−$9,150 a year"),
+        (Period.YEAR, "Short each year", "−$9,150.00", "$9,150.00", "−$763 a month"),
+    ],
+)
+def test_view_over_income_each_period(period, headline, net, over_by, other):
+    view = cash_flows_view(OVER, OVER_CATEGORIES, period)
+    assert view["bar_state"] == "over"
+    assert view["headline"] == headline
+    assert (view["net"], view["over_by"], view["other"]) == (net, over_by, other)
+    # The share of income it is over by, display-rounded: 762.50 / 4,200.
+    assert view["over_share"] == "18%"
+
+
+def test_view_over_income_marker_is_income_on_the_expense_scale():
+    view = cash_flows_view(OVER, OVER_CATEGORIES, Period.MONTH)
+    # 4,200 / 4,962.50 = 84.6347…%, unrounded to the bar's precision.
+    assert view["marker"] == "84.6348"
+    assert view["expenses"] == "$4,962.50"
+    assert view["income"] == "$4,200.00"
+    assert [s["weight"] for s in view["slices"]] == ["53.4005", "30.2267", "16.3728"]
+    # Cards keep "of income", so they can add past 100%.
+    assert [c["note"] for c in view["cards"]] == [
+        "All income",
+        "63% of income",
+        "36% of income",
+        "19% of income",
+    ]
+
+
+def test_view_over_income_by_a_hair():
+    flows = [flow("Pay", "3000", direction=INCOME), flow("Rent", "3001")]
+    view = cash_flows_view(flows, [], Period.MONTH)
+    assert view["over_by"] == "$1.00"
+    assert view["over_share"] == "<1%"
+    assert view["marker"] == "99.9667"
+
+
+def test_view_not_over_has_no_marker():
+    view = cash_flows_view(FLOWS, CATEGORIES, Period.DAY)
+    assert view["headline"] == "Left over each day"
+    assert (view["marker"], view["over_share"], view["over_by"]) == (None, None, None)
+    no_income = cash_flows_view([flow("Rent", "10")], [], Period.MONTH)
+    assert no_income["headline"] == "Left over each month"
+    assert (no_income["marker"], no_income["over_share"]) == (None, None)
+
+
 def test_view_expenses_equal_to_income_has_no_left_over_slice():
     flows = [flow("Pay", "100", direction=INCOME), flow("Rent", "100")]
     view = cash_flows_view(flows, [], Period.MONTH)
@@ -381,12 +446,35 @@ class TestCashFlowsPage:
     def test_expenses_above_income(self, client, db_connection):
         create_cash_flow(db_connection, WS, flow("Job", "1500", direction=INCOME))
         create_cash_flow(db_connection, WS, flow("Rent", "1400"))
-        create_cash_flow(db_connection, WS, flow("Food", "200"))
+        create_cash_flow(db_connection, WS, flow("Food", "200", is_estimate=True))
         login(client)
-        text = _text(client.get(PAGE).text)
-        assert "Expenses exceed income by $100.00" in text
-        assert "Left over $" not in text
-        assert "Expenses $1,600.00 · 107%" in text
+        html = client.get(PAGE).text
+        text = _text(html)
+        assert "Short each month −$100.00" in text
+        assert re.search(r'<span class="headline-figure short">−\$100\.00</span>', html)
+        assert (
+            "Expenses $1,600.00 vs income $1,500.00 · −$1,200 a year · ≈ 1 estimate "
+            in text
+        )
+        assert "Expenses exceed income by $100.00 (7%)" in text
+        assert "Left over" not in text
+        # The marker sits at income's share of expenses: 1,500 / 1,600.
+        assert html.count("--marker: 93.7500%") == 2
+        assert "▲ Income runs out" in text
+        assert "Past income $100.00" in text
+        # The key gives amounts; shares of income are on the cards.
+        assert "Uncategorized $1,600.00 Past income" in text
+        assert "107% of income" in text
+
+    def test_expenses_above_income_per_year(self, client, db_connection):
+        create_cash_flow(db_connection, WS, flow("Job", "1500", direction=INCOME))
+        create_cash_flow(db_connection, WS, flow("Rent", "1600"))
+        login(client)
+        text = _text(client.get(f"{PAGE}?per=year").text)
+        assert "Short each year −$1,200.00" in text
+        assert "· −$100 a month" in text
+        assert "Expenses exceed income by $1,200.00 (7%)" in text
+        assert "Past income $1,200.00" in text
 
     # The editing controls (row links, + Add, categories) are tested with
     # their drawers, in test_cash_flow_drawers.py.

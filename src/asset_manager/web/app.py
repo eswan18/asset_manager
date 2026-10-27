@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from asset_manager.db import get_connection_context
+from asset_manager.models import Role
 from asset_manager.repository import get_accounts, get_all_records
 
 from .access import (
@@ -21,32 +22,38 @@ from .access import (
 from .accounts_routes import router as accounts_router
 from .api_routes import router as api_router
 from .auth import (
+    SWITCHING,
     CurrentUser,
     EmailNotAllowed,
+    EmailUnverified,
     LoginRequired,
+    clear_session_response,
     get_oauth,
     get_secret_key,
     handle_callback,
     handle_login,
     handle_logout,
+    handle_switch,
+    idp_host,
 )
 from .cash_flows_routes import router as cash_flows_router
 from .charts import COLUMN_LABELS, build_figure
 from .dashboard import (
     RANGES,
-    account_cards,
+    cards_view,
     change_since,
     daily_totals,
     filter_range,
     latest_category_totals,
     long_date,
     money,
+    onboarding_context,
     parse_range,
     short_date,
     signed_money,
     signed_percent,
 )
-from .rendering import render, templates
+from .rendering import render
 from .settings_routes import router as settings_router
 from .welcome_routes import WELCOME_PATH
 from .welcome_routes import router as welcome_router
@@ -152,7 +159,15 @@ async def dashboard(
             },
         )
     if not records:
-        return render(request, "dashboard.html", page)
+        return render(
+            request,
+            "dashboard.html",
+            {
+                **page,
+                **onboarding_context(accounts, shell["base"]),
+                "can_edit": access.role.allows(Role.EDITOR),
+            },
+        )
     return render(
         request,
         "dashboard.html",
@@ -166,7 +181,6 @@ def dashboard_context(records, accounts, selected: str, base: str) -> dict:
     latest = points[-1]
     categories = latest_category_totals(records, accounts)
     change = change_since(points)
-    cards = account_cards(records, accounts)
     return {
         "has_data": True,
         "net_worth": money(latest.net_worth),
@@ -196,38 +210,21 @@ def dashboard_context(records, accounts, selected: str, base: str) -> dict:
             for type, title in COLUMN_LABELS.items()
             if categories[type]
         ],
-        "cards": [
-            {
-                "title": title,
-                "kind": type.value,
-                "total": money(cards[type]["total"]),
-                "groups": [
-                    {
-                        "label": g["label"],
-                        "total": money(g["total"]),
-                        "rows": [
-                            {
-                                "name": r["name"],
-                                "amount": "—"
-                                if r["amount"] is None
-                                else money(r["amount"]),
-                                "computed": r["computed"],
-                            }
-                            for r in g["rows"]
-                        ],
-                    }
-                    for g in cards[type]["groups"]
-                ],
-            }
-            for type, title in COLUMN_LABELS.items()
-        ],
+        "cards": cards_view(records, accounts),
     }
 
 
 @app.get("/login", response_class=HTMLResponse)
 async def login(request: Request):
-    """Show the login page."""
-    return templates.TemplateResponse(request, "login.html")
+    """Show the login page (board X)."""
+    try:
+        host = idp_host(get_oauth_client())
+    except Exception:
+        # Identity unreachable or unconfigured: the page still renders, with
+        # a generic footnote; Log in itself will report the problem.
+        logger.debug("No identity host for the login page", exc_info=True)
+        host = None
+    return render(request, "login.html", {"state": "login", "idp_host": host})
 
 
 @app.get("/auth/start")
@@ -240,17 +237,31 @@ async def auth_start(request: Request):
 @app.get("/auth/callback")
 async def auth_callback(request: Request):
     """Handle the OAuth callback."""
+    # Back from identity's logout during /auth/switch: start a fresh login.
+    switching = request.session.pop(SWITCHING, False)
+    if switching and not {"code", "error"} & request.query_params.keys():
+        return RedirectResponse("/auth/start", status_code=302)
     oauth = get_oauth_client()
     try:
         return await handle_callback(request, oauth)
     except EmailNotAllowed as exc:
         logger.warning("Login refused: %s", exc)
-        return HTMLResponse(
-            "Your account is not authorized to use this app.", status_code=403
-        )
+        state = "unverified" if isinstance(exc, EmailUnverified) else "not_allowed"
+        return render(request, "login.html", {"state": state, "email": exc.email}, 403)
     except Exception as e:
         logger.exception("OAuth callback failed: %s", e)
         return HTMLResponse("Authentication failed. Please try again.", status_code=400)
+
+
+@app.get("/auth/switch")
+async def auth_switch(request: Request):
+    """Log in with a different account: log out here and at identity."""
+    try:
+        oauth = get_oauth_client()
+    except Exception:
+        logger.exception("Identity unavailable for switching accounts")
+        return clear_session_response("/login")
+    return handle_switch(request, oauth)
 
 
 @app.get("/logout")

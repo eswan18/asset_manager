@@ -131,9 +131,57 @@
         color: var(--muted);
     }
 
-    .bar-note.over {
+    /* --- expenses above income (board AA) --- */
+
+    .headline-figure.short { color: var(--danger); }
+
+    .where-head .aside.over {
         color: var(--danger);
         font-weight: 500;
+    }
+
+    .over-bar { position: relative; }
+
+    .past-income {
+        position: absolute;
+        top: -6px;
+        bottom: -6px;
+        left: var(--marker);
+        right: 0;
+        border-radius: 0 12px 12px 0;
+        box-shadow: inset 0 0 0 2px var(--danger);
+        background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--danger) 35%, transparent) 6px 8px);
+    }
+
+    .marker-line {
+        position: absolute;
+        top: -10px;
+        bottom: -10px;
+        left: var(--marker);
+        width: 2px;
+        margin-left: -1px;
+        background: var(--ink);
+    }
+
+    /* Centered under the marker, but kept inside the bar's width. */
+    .marker-label {
+        position: relative;
+        height: 18px;
+        font-size: 13px;
+    }
+
+    .marker-label span {
+        position: absolute;
+        left: clamp(64px, var(--marker), calc(100% - 64px));
+        transform: translateX(-50%);
+        color: var(--ink);
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .swatch-past {
+        box-shadow: inset 0 0 0 1.5px var(--danger);
+        background: repeating-linear-gradient(135deg, transparent 0 2px, var(--danger) 2px 3px);
     }
 
     .flow-grid {
@@ -243,11 +291,6 @@
 
     .new-category:hover { color: var(--ink); }
 
-    .no-data .flows-actions {
-        justify-content: center;
-        margin-top: 20px;
-    }
-
     @media (max-width: 600px) {
         .flows-top { padding: 24px; }
         .headline-figure { font-size: 48px; }
@@ -258,23 +301,24 @@
 {% if view %}
 <div class="flows fade-in">
     {% if view.empty %}
-    <section class="card no-data">
-        <p>No cash flows yet. Recurring income and expenses will show here once they are added.</p>
-        {% if can_edit %}
-        <div class="flows-actions">
-            <a class="btn btn-outline" href="{{ base }}/cash-flow-categories?per={{ period }}">Manage categories</a>
-            <a class="btn btn-primary" href="{{ base }}/cash-flows/new?direction=income&amp;per={{ period }}">+ Add income</a>
-            <a class="btn btn-primary" href="{{ base }}/cash-flows/new?direction=expense&amp;per={{ period }}">+ Add expense</a>
-        </div>
-        {% endif %}
-    </section>
+    {{ ui.empty_card(
+        "No cash flows yet",
+        "Cash flows are what comes in and goes out on a schedule. Pay, rent, groceries, subscriptions: add your income first, then your expenses, and this page shows where the money goes each month.",
+        action=("+ Add income", base ~ "/cash-flows/new?direction=income&per=" ~ period) if can_edit else none,
+        viewer_note="An editor hasn't added any cash flows yet.",
+    ) }}
     {% else %}
     <section class="card flows-top">
         <div class="flows-head">
             <div class="headline">
-                <span class="headline-label">Left over each {{ view.period }}</span>
+                <span class="headline-label">{{ view.headline }}</span>
+                {% if view.bar_state == "over" %}
+                <span class="headline-figure short">{{ view.net }}</span>
+                <span class="headline-sub">Expenses <strong>{{ view.expenses }}</strong> vs income <strong>{{ view.income }}</strong> · {{ view.other }}{% if view.estimates %} · ≈ {{ view.estimates }} estimate{{ "s" if view.estimates != 1 }}{% endif %}</span>
+                {% else %}
                 <span class="headline-figure">{{ view.net }}</span>
                 <span class="headline-sub">of <strong>{{ view.income }}</strong> income · {{ view.other }}{% if view.estimates %} · ≈ {{ view.estimates }} estimate{{ "s" if view.estimates != 1 }}{% endif %}</span>
+                {% endif %}
             </div>
             <div class="flows-actions">
                 {{ ui.toggle("Show amounts per", periods) }}
@@ -288,20 +332,40 @@
         <div class="where">
             <div class="where-head">
                 <span class="title">Where income goes</span>
+                {% if view.bar_state == "over" %}
+                <span class="aside over">Expenses exceed income by {{ view.over_by }} ({{ view.over_share }})</span>
+                {% else %}
                 <span class="aside">Expenses {{ view.expenses }}{% if view.expenses_share %} · {{ view.expenses_share }}{% endif %}</span>
+                {% endif %}
             </div>
             {% if view.bar_state == "no_income" %}
             <div class="bar bar-empty"></div>
             <p class="bar-note">No income yet. Add an income cash flow to see where it goes.</p>
+            {% elif view.bar_state == "over" %}
+            {#- 100% is expenses; the marker is where income runs out, and the
+                part past it is hatched. --marker is unrounded. -#}
+            <div class="over-bar" style="--marker: {{ view.marker }}%;">
+                <div class="bar" role="img" aria-label="Expenses of {{ view.expenses }} each {{ view.period }}: {% for s in view.slices %}{{ s.label }} {{ s.amount }}, {% endfor %}against {{ view.income }} income, which runs out before the last {{ view.over_by }}">
+                    {% for s in view.slices %}
+                    <span style="flex-grow: {{ s.weight }}; background: {{ s.color }};"></span>
+                    {% endfor %}
+                </div>
+                <span class="past-income" aria-hidden="true"></span>
+                <span class="marker-line" aria-hidden="true"></span>
+            </div>
+            <div class="marker-label" style="--marker: {{ view.marker }}%;" aria-hidden="true"><span>▲ Income runs out</span></div>
+            <ul class="bar-key">
+                {% for s in view.slices %}
+                <li><span class="swatch" style="background: {{ s.color }};"></span>{{ s.label }} <strong>{{ s.amount }}</strong></li>
+                {% endfor %}
+                <li><span class="swatch swatch-past"></span>Past income <strong>{{ view.over_by }}</strong></li>
+            </ul>
             {% else %}
             <div class="bar" role="img" aria-label="Of {{ view.income }} income each {{ view.period }}: {% for s in view.slices %}{{ s.label }} {{ s.share }}{{ ", " if not loop.last }}{% endfor %}">
                 {% for s in view.slices %}
                 <span style="flex-grow: {{ s.weight }}; background: {{ s.color }};"></span>
                 {% endfor %}
             </div>
-            {% if view.over_by %}
-            <p class="bar-note over">Expenses exceed income by {{ view.over_by }}</p>
-            {% endif %}
             <ul class="bar-key">
                 {% for s in view.slices %}
                 <li><span class="swatch" style="background: {{ s.color }};"></span>{{ s.label }} <strong>{{ s.amount }}</strong> {{ s.share }}</li>

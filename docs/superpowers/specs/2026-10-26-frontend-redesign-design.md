@@ -5,15 +5,17 @@
 approved as mockups in light and dark. The workspace-in-URL and dark mode
 decisions are made, so building can start. The three pages and the account
 form are built, and so are the cash flow form, category management,
-workspace settings and the welcome page. The other smaller screens are
-still to be designed.
+workspace settings and the welcome page. Login, the empty states and
+expenses above income (boards X, Y, AA) are built too. The invite strip
+and the flash restyle (board Z) are designed and still to build.
 
 **Mockups:** [Design canvas](https://claude.ai/artifact/BMRjmDM7b239Ro2SbBtvsR)
 (private; share it from its Share menu). The chosen boards are **H**
 (dashboard), **Accounts I**, **Cash flows N**, **Account form Q** (drawer
 over Accounts), **Cash flow form R** (drawer over Cash flows),
 **Categories T** (drawer over Cash flows), **Settings V** (workspace
-settings, two columns) and **Welcome W** (no workspace yet). The other boards are the
+settings, two columns), **Welcome W** (no workspace yet), **Login X**,
+**Empty workspace Y** and **Expenses over income AA**. The other boards are the
 alternatives we rejected, kept for reference. Every number in the mockups is
 sample data.
 
@@ -60,7 +62,8 @@ design system.
 | `--liability-4` | `#F3C79E` | `#5E3A20` | |
 | `--leftover` | `#DCE6F8` | `#2C3B5C` | "Left over" slice on Cash flows |
 | `--estimate-bg` / `--estimate-fg` | `#FFF4E5` / `#8A4B0C` | `#3A2A12` / `#F5C27A` | `≈` estimate tag |
-| `--danger` | `#B42318` | `#F97066` | Delete |
+| `--danger` | `#B42318` | `#F97066` | Delete, short each month |
+| `--danger-tint` | `#FDECEA` | `#3A1C1A` | Behind danger text ("Access is invite-only for now.") |
 | `--bar-bg` / `--bar-fg` | `#15171A` / `#FFFFFF` | `#2A2F37` / `#ECEEF1` | Sticky save bar |
 | `--bar-muted` / `--bar-border` | `#B9BEC6` / `#15171A` | `#A9B0BA` / `#454B55` | Save bar secondary text, its border and the Discard outline |
 | `--shadow` | `rgba(0,0,0,.06)` | `rgba(0,0,0,.4)` | Nav, picker and toggle shadows |
@@ -253,14 +256,28 @@ backend task, not part of this design.
   values.
 - Income with no flows: show the bar empty with a prompt to add income,
   never a divide-by-zero.
-- Expenses above income: the bar is 100% expenses, with an overflow note
-  ("Expenses exceed income by $X"). This still needs a mockup.
+- Expenses above income: board **AA**, below.
 
 **Editing** (built): each row links to its drawer (board R, below); each
 card has a **+ Add** that starts a flow in that card (the Income card's is
 income); the head has **Manage categories** and **+ Add cash flow**; the
 dashed **+ New category** card opens the categories drawer (board T) with
 focus in its add field. Viewers see the page with none of these.
+
+### Expenses above income: board **AA** (built)
+
+- **Headline:** "Short each month" (day / month / year with the toggle), the
+  negative net in `--danger`, and "Expenses $X vs income $Y · −$Z a year".
+- **Bar:** 100% is total expenses. A vertical ink marker sits at income's
+  share of expenses with "▲ Income runs out" under it (kept inside the bar's
+  width on phones); the part past it is hatched in `--danger`
+  (`repeating-linear-gradient` over `color-mix`). The key gives each slice's
+  amount (no shares) and a "Past income $X" entry.
+- **Header line:** "Expenses exceed income by $X (N%)", N% of income.
+- **Cards** keep "N% of income", so they can add past 100%.
+- **Data:** `cash_flows_view` adds `headline`, `marker` (unrounded, like the
+  slices' widths) and `over_share` (display-rounded); `over_by` was there.
+  Zero income with expenses is still the "no income" state.
 
 ### Cash flow form: board **Cash flow form R** (drawer over Cash flows)
 
@@ -408,16 +425,50 @@ workspace" in the user menu leads for everyone.
 - The mockup's footnote about a strip on the dashboard is left out until
   that strip exists.
 
-## Still to design
+### Login: board **X** (built)
 
-These can be designed on the canvas while the pages above are built:
+- **Logged out** (`/login`): a centered card, no shell. The wordmark
+  (`APP_NAME`), "What you own, what you owe.", a one-line pitch, **Log in**,
+  and "You'll sign in with your {identity host} account and come straight
+  back." The host comes from identity's discovery document; if identity is
+  unreachable the footnote drops it.
+- **Email not allowed** (the callback, **403**): "This account isn't on the
+  list yet", the email, "Ask the person who invited you to check the
+  address, or log in with a different account.", an "Access is invite-only
+  for now." note on `--danger-tint`, and **Log in with a different
+  account**.
+- **Email not verified** (403, same page): "Verify your email first", the
+  email, open the verification link and log in again; **Log in again** and
+  **Log in with a different account**.
+- **Switching accounts** (`/auth/switch`): RP-initiated logout at identity
+  (its `end_session_endpoint`), returning to our callback, which starts a
+  fresh login. Logging out only here would sign straight back in as the
+  same account, since identity keeps its own session.
+- `login.html` extends `base.html` with the `shell_header` block emptied.
 
-1. **New invites for existing members:** the strip above the dashboard (or
-   an entry in the workspace menu) that tells someone already in a workspace
-   they have a pending invite. Today they find it only on `/welcome`.
-2. **Login**, **empty states** (a new workspace, no snapshots, no cash
-   flows), and error and flash messages.
-3. **Expenses above income** on Cash flows.
+### Empty states: board **Y** (built)
+
+- **New workspace dashboard:** a top card with the eyebrow "{Workspace} is
+  new", "Let's get your first net worth on the board.", and three numbered
+  steps (add your accounts; enter today's balances; come back now and then);
+  beside it a placeholder chart (dashed line and a dot, `aria-hidden`).
+  Below, empty Assets and Liabilities cards with **+ Add an asset** / **+ Add
+  a liability**.
+- **Accounts but no snapshot yet:** step 1 shows done ("Done: 3 accounts
+  added."), and step 2 carries the button, **Enter balances**, to Accounts.
+  The cards list the accounts with "—" for amounts; an empty type keeps its
+  add button. The first snapshot ends the onboarding.
+- **Viewers** get no buttons, and a line under the steps: "An editor hasn't
+  added any accounts yet." (or "…entered any balances yet.").
+- **Accounts and Cash flows, empty:** one card saying what goes there, and
+  one button for editors (**+ Add an account**; **+ Add income**, since the
+  drawer can switch it to an expense), or the viewer's line instead.
+
+## Still to build
+
+1. **Invite strip and flash restyle** (board Z). The strip tells someone
+   already in a workspace they have a pending invite; today they find it
+   only on `/welcome`.
 
 ## Decisions made
 

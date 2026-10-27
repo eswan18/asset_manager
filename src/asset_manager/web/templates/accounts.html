@@ -336,9 +336,12 @@
         </div>
     </div>
     {% elif not error %}
-    <div class="no-data">
-        <p>No accounts yet. <a href="{{ base }}/accounts/new?type=asset">Add an asset</a> to get started.</p>
-    </div>
+    {{ ui.empty_card(
+        "No accounts yet",
+        "Accounts are anything with a balance: checking, savings, retirement, your home, loans, cards. Add one, then enter its balance here and save to take a snapshot.",
+        action=("+ Add an account", base ~ "/accounts/new?type=asset") if role.allows("editor") else none,
+        viewer_note="An editor hasn't added any accounts yet.",
+    ) }}
     {% endif %}
 {% endblock %}
 

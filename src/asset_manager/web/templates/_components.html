@@ -50,3 +50,18 @@
     {% endfor %}
 </div>
 {%- endmacro %}
+
+{#- An empty page's card: what goes here, then one button to add the first
+    (`action` is a (label, href) pair), or for a viewer, who can add
+    nothing, `viewer_note` in its place. -#}
+{% macro empty_card(title, text, action=none, viewer_note=none) -%}
+<section class="card empty-card fade-in">
+    <h1>{{ title }}</h1>
+    <p>{{ text }}</p>
+    {% if action %}
+    <a class="btn btn-primary" href="{{ action[1] }}">{{ action[0] }}</a>
+    {% elif viewer_note %}
+    <p class="empty-viewer">{{ viewer_note }}</p>
+    {% endif %}
+</section>
+{%- endmacro %}
