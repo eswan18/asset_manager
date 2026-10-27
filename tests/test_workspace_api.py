@@ -5,10 +5,10 @@ from decimal import Decimal
 
 import pytest
 
-from asset_manager import repository as repo
-from asset_manager.accounts import create_account
-from asset_manager.models import RecordType, Role
-from asset_manager.workspaces import create_workspace
+from sensibility import repository as repo
+from sensibility.accounts import create_account
+from sensibility.models import RecordType, Role
+from sensibility.workspaces import create_workspace
 from tests.support import USER_ID, WS
 from tests.web_support import (
     PAGES,
@@ -402,7 +402,7 @@ class TestLogin:
     def _use(self, monkeypatch, idp):
         from types import SimpleNamespace
 
-        import asset_manager.web.app as app_module
+        import sensibility.web.app as app_module
 
         monkeypatch.setattr(
             app_module, "get_oauth_client", lambda: SimpleNamespace(idp=idp)

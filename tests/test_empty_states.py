@@ -8,11 +8,11 @@ from decimal import Decimal
 
 import pytest
 
-from asset_manager.accounts import create_account, retire_account
-from asset_manager.cashflows import create_category as create_flow_category
-from asset_manager.models import RecordType
-from asset_manager.repository import upsert_amounts
-from asset_manager.web.dashboard import getting_started
+from sensibility.accounts import create_account, retire_account
+from sensibility.cashflows import create_category as create_flow_category
+from sensibility.models import RecordType
+from sensibility.repository import upsert_amounts
+from sensibility.web.dashboard import getting_started
 from tests.support import WS
 from tests.web_support import PAGES, STRANGER, add_user, login, session_for
 
@@ -174,7 +174,7 @@ class TestAccountsButNoSnapshot:
         assert "Net worth $5" in text
 
     def test_database_error_shows_only_the_message(self, client, monkeypatch):
-        import asset_manager.web.app as app_module
+        import sensibility.web.app as app_module
 
         login(client)
 

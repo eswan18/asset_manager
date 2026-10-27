@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Sensibility Money (usually just "Sensibility"; formerly Asset Manager) is a Python application for tracking financial assets and liabilities. Values are entered on the web dashboard's Accounts tab (or the JSON API) and saved as dated snapshots in PostgreSQL. Liabilities can be computed from other accounts by a formula. Data belongs to **workspaces**; users are members of workspaces with a role. Multi-user is the plan (open sign-up eventually); today `ALLOWED_EMAILS` gates who can log in.
 
-The pages show the name from one constant, `rendering.APP_NAME` ("Sensibility"). The deployment is named `sensibility` too (namespaces `sensibility-{prod,staging}`, image `containers/sensibility`, trigger `sensibility-build`, secrets `sensibility_{env}_*`; moved from asset-manager in Oct 2026). The `asset_manager` Python package and the `asset-manager` CLI keep the old name until a separate rename.
+The pages show the name from one constant, `rendering.APP_NAME` ("Sensibility"). The deployment is named `sensibility` too (namespaces `sensibility-{prod,staging}`, image `containers/sensibility`, trigger `sensibility-build`, secrets `sensibility_{env}_*`; moved from asset-manager in Oct 2026), and so are the Python package (`sensibility`, formerly `asset_manager`) and the CLI (`sensibility`, formerly `asset-manager`).
 
 Prod is served at `https://sensibility.money` (it replaced `assets.ethanswan.com`, deleted in Oct 2026) through the Cloudflare tunnel; staging at `https://staging.sensibility.money`, tailnet-only, through the shared ingress-nginx (`k8s/staging/nginx-ingress.yaml`; it replaced `assets-staging.tailc06f30.ts.net`, a Tailscale ingress, in Oct 2026). The GitHub repo is `eswan18/sensibility`.
 
@@ -66,24 +66,24 @@ uv run dotenv -f .env.dev run dbmate status
 ### CLI Commands
 ```bash
 # Generate interactive HTML report
-ENV=dev uv run asset-manager report --workspace 1
-ENV=dev uv run asset-manager report --workspace 1 --output report.html --no-open
+ENV=dev uv run sensibility report --workspace 1
+ENV=dev uv run sensibility report --workspace 1 --output report.html --no-open
 
 # Run web dashboard locally
-ENV=dev uv run asset-manager serve
-ENV=dev uv run asset-manager serve --port 8080
+ENV=dev uv run sensibility serve
+ENV=dev uv run sensibility serve --port 8080
 
 # Show version
-uv run asset-manager version
+uv run sensibility version
 
 # Or use python -m invocation
-ENV=dev uv run python -m asset_manager report --workspace 1
+ENV=dev uv run python -m sensibility report --workspace 1
 ```
 
 ### Development Commands
 - **Run tests**: `uv run pytest` (browser tests excluded; `uv run pytest -m browser` runs them, after a one-time `uv run playwright install chromium`)
-- **Run tests with coverage**: `uv run pytest --cov=asset_manager`
-- **Type checking**: `uv run ty check src/asset_manager`
+- **Run tests with coverage**: `uv run pytest --cov=sensibility`
+- **Type checking**: `uv run ty check src/sensibility`
 - **Linting**: `uv run ruff check src tests`
 - **Code formatting**: `uv run ruff format src tests`
 
@@ -92,9 +92,9 @@ ENV=dev uv run python -m asset_manager report --workspace 1
 ### Project Structure
 
 ```
-asset_manager/
+sensibility/
 ├── src/
-│   └── asset_manager/
+│   └── sensibility/
 │       ├── __init__.py         # Package version
 │       ├── __main__.py         # python -m support
 │       ├── cli.py              # Typer CLI application

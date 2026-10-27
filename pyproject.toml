@@ -1,7 +1,7 @@
 [tool.pytest.ini_options]
 minversion = "4.0"
 # Browser tests need Chromium installed; run them with `uv run pytest -m browser`.
-addopts = "--cov=asset_manager -m 'not browser'"
+addopts = "--cov=sensibility -m 'not browser'"
 filterwarnings = ["error"]
 markers = [
     "db: marks tests as database tests (require testcontainers)",
@@ -14,7 +14,7 @@ markers = [
 select = ["E4", "E7", "E9", "F"]
 
 [project]
-name = "asset_manager"
+name = "sensibility"
 version = "0.3.0"
 description = "Track personal financial assets and liabilities"
 authors = [{name = "Ethan Swan", email = "ethanpswan@gmail.com"}]
@@ -39,15 +39,15 @@ dependencies = [
 ]
 
 [project.scripts]
-asset-manager = "asset_manager.cli:main"
-app = "asset_manager.web.app:app"
+sensibility = "sensibility.cli:main"
+app = "sensibility.web.app:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/asset_manager"]
+packages = ["src/sensibility"]
 
 [dependency-groups]
 dev = [

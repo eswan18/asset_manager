@@ -1,6 +1,6 @@
 # Sensibility Money
 
-[![CI Status](https://github.com/eswan18/asset_manager/workflows/Continuous%20Integration/badge.svg)](https://github.com/eswan18/asset_manager/actions)
+[![CI Status](https://github.com/eswan18/sensibility/workflows/Continuous%20Integration/badge.svg)](https://github.com/eswan18/sensibility/actions)
 
 Sensibility (in full, Sensibility Money) is a Python application for tracking personal financial assets and liabilities. Values are entered on the web dashboard's Accounts tab and saved as dated snapshots in PostgreSQL. Liabilities such as deferred tax can be computed from other accounts by a formula.
 
@@ -54,16 +54,16 @@ Run the dashboard (below), open **Accounts**, type current amounts, and click **
 
 Create an interactive HTML report with Plotly charts:
 ```bash
-ENV=dev uv run asset-manager report --workspace 1       # Opens in browser
-ENV=dev uv run asset-manager report --workspace 1 --output report.html --no-open
+ENV=dev uv run sensibility report --workspace 1       # Opens in browser
+ENV=dev uv run sensibility report --workspace 1 --output report.html --no-open
 ```
 
 ### Run Web Dashboard
 
 Start the local development server:
 ```bash
-ENV=dev uv run asset-manager serve
-ENV=dev uv run asset-manager serve --port 8080
+ENV=dev uv run sensibility serve
+ENV=dev uv run sensibility serve --port 8080
 ```
 
 The dashboard requires OAuth configuration (IDP_URL, CLIENT_ID, CLIENT_SECRET, SECRET_KEY).
@@ -72,16 +72,16 @@ The dashboard requires OAuth configuration (IDP_URL, CLIENT_ID, CLIENT_SECRET, S
 
 ```bash
 # Show help
-uv run asset-manager --help
+uv run sensibility --help
 
 # Generate interactive HTML report
-ENV=dev uv run asset-manager report --workspace 1
+ENV=dev uv run sensibility report --workspace 1
 
 # Run web dashboard locally
-ENV=dev uv run asset-manager serve
+ENV=dev uv run sensibility serve
 
 # Show version
-uv run asset-manager version
+uv run sensibility version
 ```
 
 ### Database Migrations
@@ -107,10 +107,10 @@ uv run dotenv -f .env.dev run dbmate status
 uv run pytest
 
 # Run tests with coverage
-uv run pytest --cov=asset_manager
+uv run pytest --cov=sensibility
 
 # Type checking
-uv run ty check src/asset_manager
+uv run ty check src/sensibility
 
 # Linting
 uv run ruff check src tests

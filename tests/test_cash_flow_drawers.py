@@ -11,11 +11,11 @@ from decimal import Decimal
 
 import pytest
 
-from asset_manager import repository as repo
-from asset_manager.cashflows import create_cash_flow, create_category
-from asset_manager.models import CashFlow, CashFlowDirection, FrequencyUnit
-from asset_manager.web.cash_flows_routes import form_rates
-from asset_manager.workspaces import create_workspace
+from sensibility import repository as repo
+from sensibility.cashflows import create_cash_flow, create_category
+from sensibility.models import CashFlow, CashFlowDirection, FrequencyUnit
+from sensibility.web.cash_flows_routes import form_rates
+from sensibility.workspaces import create_workspace
 from tests.support import USER_ID, WS
 from tests.web_support import PAGES, STRANGER, add_user, login, session_for
 

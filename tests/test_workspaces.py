@@ -6,9 +6,9 @@ import time
 import psycopg
 import pytest
 
-from asset_manager import repository as repo
-from asset_manager.models import Role
-from asset_manager.workspaces import (
+from sensibility import repository as repo
+from sensibility.models import Role
+from sensibility.workspaces import (
     WorkspaceError,
     change_role,
     create_workspace,
@@ -69,8 +69,8 @@ class TestSoftDelete:
     def test_deleted_workspace_is_gone_for_members_but_its_data_stays(
         self, db_connection
     ):
-        from asset_manager.accounts import create_account
-        from asset_manager.models import RecordType
+        from sensibility.accounts import create_account
+        from sensibility.models import RecordType
 
         cash = create_account(db_connection, WS, "Cash", RecordType.ASSET)
         delete_workspace(db_connection, WS)

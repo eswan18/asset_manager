@@ -7,9 +7,9 @@ from decimal import Decimal
 import pytest
 from playwright.sync_api import Page, expect
 
-from asset_manager.cashflows import create_cash_flow, create_category
-from asset_manager.models import CashFlow, CashFlowDirection, FrequencyUnit
-from asset_manager.web.cash_flows_routes import form_rates
+from sensibility.cashflows import create_cash_flow, create_category
+from sensibility.models import CashFlow, CashFlowDirection, FrequencyUnit
+from sensibility.web.cash_flows_routes import form_rates
 from tests.support import WS
 from tests.web_support import PAGES
 

@@ -1,4 +1,4 @@
-"""CLI for asset_manager using Typer."""
+"""CLI for sensibility using Typer."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .report import generate_report
 from .repository import get_all_records
 
 app = typer.Typer(
-    name="asset-manager",
+    name="sensibility",
     help="Track personal financial assets and liabilities.",
     no_args_is_help=True,
 )
@@ -68,7 +68,7 @@ def serve(
 
     typer.echo(f"Starting dashboard at http://{host}:{port}")
     uvicorn.run(
-        "asset_manager.web.app:app",
+        "sensibility.web.app:app",
         host=host,
         port=port,
         reload=True,
@@ -78,7 +78,7 @@ def serve(
 @app.command()
 def version() -> None:
     """Show the version and exit."""
-    typer.echo(f"asset-manager {__version__}")
+    typer.echo(f"sensibility {__version__}")
 
 
 def main() -> None:

@@ -16,7 +16,7 @@ from urllib.parse import unquote
 
 from fastapi import Depends, Header, HTTPException, Request
 
-from asset_manager.clock import is_known_zone, today, zone_for
+from sensibility.clock import is_known_zone, today, zone_for
 
 TZ_COOKIE = "tz"
 TZ_HEADER = "X-Timezone"

@@ -2,8 +2,8 @@
 
 from datetime import date, datetime, timezone
 
-from asset_manager.clock import default_timezone, local_date, today
-from asset_manager.config import get_settings
+from sensibility.clock import default_timezone, local_date, today
+from sensibility.config import get_settings
 
 
 def test_local_date_before_midnight_utc_is_still_yesterday_in_chicago():

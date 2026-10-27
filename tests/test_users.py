@@ -2,8 +2,8 @@
 
 import pytest
 
-from asset_manager.repository import get_user
-from asset_manager.users import record_login
+from sensibility.repository import get_user
+from sensibility.users import record_login
 
 
 def _preprovision(conn, email: str, *, is_admin: bool = False) -> int:

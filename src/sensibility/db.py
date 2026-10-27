@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import psycopg
 from psycopg import Connection
 
-from asset_manager.config import get_settings
+from sensibility.config import get_settings
 
 
 def get_connection() -> Connection:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from asset_manager.clock import local_date
-from asset_manager.models import Role
+from sensibility.clock import local_date
+from sensibility.models import Role
 
 
 def a_role(role: Role) -> str:

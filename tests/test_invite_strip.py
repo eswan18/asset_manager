@@ -11,13 +11,13 @@ from html import unescape
 
 import pytest
 
-from asset_manager import repository as repo
-from asset_manager.accounts import create_account
-from asset_manager.clock import local_date
-from asset_manager.invites import create_invite
-from asset_manager.models import ProportionalFormula, RecordType, Role
-from asset_manager.web.invite_strip import safe_next
-from asset_manager.workspaces import create_workspace
+from sensibility import repository as repo
+from sensibility.accounts import create_account
+from sensibility.clock import local_date
+from sensibility.invites import create_invite
+from sensibility.models import ProportionalFormula, RecordType, Role
+from sensibility.web.invite_strip import safe_next
+from sensibility.workspaces import create_workspace
 from tests.support import USER_ID, WS
 from tests.web_support import PAGES, STRANGER, TZ, USER, add_user, login, session_for
 

@@ -14,7 +14,7 @@ from tests.web_support import PAGES, TZ
 pytestmark = [pytest.mark.browser, pytest.mark.db]
 
 ACCOUNTS = f"{PAGES}/accounts"
-STORAGE_KEY = "asset-manager:staged-edits"
+STORAGE_KEY = "sensibility:staged-edits"
 
 
 def amount(page: Page, account) -> object:

@@ -2,8 +2,8 @@
 
 from typer.testing import CliRunner
 
-from asset_manager import __version__
-from asset_manager.cli import app
+from sensibility import __version__
+from sensibility.cli import app
 
 runner = CliRunner()
 

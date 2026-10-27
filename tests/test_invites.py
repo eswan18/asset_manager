@@ -5,8 +5,8 @@ from datetime import timedelta
 import psycopg
 import pytest
 
-from asset_manager import repository as repo
-from asset_manager.invites import (
+from sensibility import repository as repo
+from sensibility.invites import (
     INVITE_TTL,
     InviteError,
     InviteNotFound,
@@ -15,8 +15,8 @@ from asset_manager.invites import (
     decline_invite,
     revoke_invite,
 )
-from asset_manager.models import Role
-from asset_manager.workspaces import create_workspace, delete_workspace
+from sensibility.models import Role
+from sensibility.workspaces import create_workspace, delete_workspace
 from tests.support import USER_ID, WS
 
 FRIEND = "friend@example.com"
@@ -172,7 +172,7 @@ class TestRevoke:
 class TestSenderMustStillBeOwner:
     @pytest.mark.parametrize("change", ["demoted", "removed"])
     def test_an_ex_owners_invites_cannot_be_accepted(self, db_connection, change):
-        from asset_manager.workspaces import change_role, remove_member
+        from sensibility.workspaces import change_role, remove_member
 
         co_owner = _add_user(db_connection, "co@example.com")
         repo.add_member(db_connection, WS, co_owner, Role.OWNER)

@@ -9,9 +9,9 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from asset_manager.db import get_connection_context
-from asset_manager.models import Role
-from asset_manager.repository import get_accounts, get_all_records
+from sensibility.db import get_connection_context
+from sensibility.models import Role
+from sensibility.repository import get_accounts, get_all_records
 
 from .access import (
     ViewerAccess,

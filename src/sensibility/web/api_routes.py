@@ -14,9 +14,9 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from asset_manager import repository as repo
-from asset_manager.accounts import AccountError, save_snapshot
-from asset_manager.cashflows import (
+from sensibility import repository as repo
+from sensibility.accounts import AccountError, save_snapshot
+from sensibility.cashflows import (
     CashFlowError,
     create_cash_flow,
     create_category,
@@ -28,8 +28,8 @@ from asset_manager.cashflows import (
     update_cash_flow,
     update_category,
 )
-from asset_manager.db import get_connection_context
-from asset_manager.invites import (
+from sensibility.db import get_connection_context
+from sensibility.invites import (
     InviteError,
     InviteNotFound,
     accept_invite,
@@ -37,7 +37,7 @@ from asset_manager.invites import (
     decline_invite,
     revoke_invite,
 )
-from asset_manager.models import (
+from sensibility.models import (
     Account,
     CashFlow,
     CashFlowCategory,
@@ -48,8 +48,8 @@ from asset_manager.models import (
     Role,
     Workspace,
 )
-from asset_manager.repository import get_accounts, get_latest_snapshot_records
-from asset_manager.workspaces import (
+from sensibility.repository import get_accounts, get_latest_snapshot_records
+from sensibility.workspaces import (
     WorkspaceError,
     change_role,
     create_workspace,

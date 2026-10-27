@@ -14,7 +14,7 @@ from typing import Any, LiteralString
 from psycopg import Connection, Cursor
 from psycopg.types.json import Jsonb
 
-from asset_manager.models import (
+from sensibility.models import (
     Account,
     CashFlow,
     CashFlowCategory,

@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from psycopg import Connection
 from pydantic import BaseModel, Field
 
-from asset_manager.accounts import (
+from sensibility.accounts import (
     AccountError,
     create_account,
     parse_amount,
@@ -23,16 +23,16 @@ from asset_manager.accounts import (
     unretire_account,
     update_account,
 )
-from asset_manager.db import get_connection_context
-from asset_manager.formulas import quantize_cents
-from asset_manager.models import (
+from sensibility.db import get_connection_context
+from sensibility.formulas import quantize_cents
+from sensibility.models import (
     Account,
     AccountCategory,
     ProportionalFormula,
     Record,
     RecordType,
 )
-from asset_manager.repository import (
+from sensibility.repository import (
     get_account,
     get_account_history,
     get_accounts,

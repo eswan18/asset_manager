@@ -8,9 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from asset_manager.invites import create_invite
-from asset_manager.models import Role
-from asset_manager.workspaces import create_workspace
+from sensibility.invites import create_invite
+from sensibility.models import Role
+from sensibility.workspaces import create_workspace
 
 from tests.browser.mobile import PHONE_WIDTHS, assert_fits_phone
 from tests.support import USER_ID, WS
@@ -155,7 +155,7 @@ class TestWelcome:
 def _refused_login_html(client, monkeypatch, info: dict) -> str:
     """The real 403 page from the in-process app: the browser's server is a
     subprocess, so its identity provider cannot be faked there."""
-    import asset_manager.web.app as app_module
+    import sensibility.web.app as app_module
 
     monkeypatch.setattr(
         app_module,

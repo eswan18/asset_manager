@@ -7,8 +7,8 @@ from decimal import Decimal
 import pytest
 from playwright.sync_api import Page
 
-from asset_manager.cashflows import create_cash_flow, create_category
-from asset_manager.models import CashFlow, CashFlowDirection, FrequencyUnit
+from sensibility.cashflows import create_cash_flow, create_category
+from sensibility.models import CashFlow, CashFlowDirection, FrequencyUnit
 from tests.browser.mobile import PHONE_WIDTHS, assert_fits_phone
 from tests.support import USER_ID, WS
 from tests.web_support import PAGES

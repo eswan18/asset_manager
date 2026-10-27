@@ -5,15 +5,15 @@ from decimal import Decimal
 
 import pytest
 
-from asset_manager.models import (
+from sensibility.models import (
     Account,
     AccountCategory,
     ProportionalFormula,
     Record,
     RecordType,
 )
-from asset_manager.web.charts import build_figure
-from asset_manager.web.dashboard import (
+from sensibility.web.charts import build_figure
+from sensibility.web.dashboard import (
     Point,
     BarSegment,
     CategoryTotal,

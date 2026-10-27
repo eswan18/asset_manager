@@ -7,8 +7,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from asset_manager.formulas import MissingValueError, compute_snapshot, quantize_cents
-from asset_manager.models import Account, ProportionalFormula, RecordType
+from sensibility.formulas import MissingValueError, compute_snapshot, quantize_cents
+from sensibility.models import Account, ProportionalFormula, RecordType
 
 AS_OF = date(2026, 9, 6)
 

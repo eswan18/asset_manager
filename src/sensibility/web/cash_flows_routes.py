@@ -17,9 +17,9 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from psycopg import Connection
 
-from asset_manager import repository as repo
-from asset_manager.accounts import MAX_AMOUNT
-from asset_manager.cashflows import (
+from sensibility import repository as repo
+from sensibility.accounts import MAX_AMOUNT
+from sensibility.cashflows import (
     MAX_EVERY,
     CashFlowError,
     CategoryTotal,
@@ -40,9 +40,9 @@ from asset_manager.cashflows import (
     update_cash_flow,
     update_category,
 )
-from asset_manager.db import get_connection_context
-from asset_manager.formulas import quantize_cents
-from asset_manager.models import (
+from sensibility.db import get_connection_context
+from sensibility.formulas import quantize_cents
+from sensibility.models import (
     CashFlow,
     CashFlowCategory,
     CashFlowDirection,

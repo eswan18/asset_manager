@@ -22,9 +22,9 @@ import pytest
 from itsdangerous import URLSafeTimedSerializer
 from playwright.sync_api import Browser, BrowserContext, Error, Page
 
-from asset_manager.accounts import create_account
-from asset_manager.models import ProportionalFormula, RecordType
-from asset_manager.repository import upsert_amounts
+from sensibility.accounts import create_account
+from sensibility.models import ProportionalFormula, RecordType
+from sensibility.repository import upsert_amounts
 from tests.support import SEED_USER, WS
 from tests.web_support import SECRET, TZ, USER
 
@@ -52,7 +52,7 @@ def server_url(db_url, _run_migrations, tmp_path_factory) -> Iterator[str]:
     with log.open("w") as out:
         # Run from an empty directory so no .env.dev is picked up.
         proc = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "asset_manager.web.app:app"]
+            [sys.executable, "-m", "uvicorn", "sensibility.web.app:app"]
             + ["--host", "127.0.0.1", "--port", str(port)],
             cwd=log.parent,
             env=env,

@@ -15,7 +15,7 @@ import json
 from datetime import timedelta
 from typing import Any
 
-from asset_manager.models import RecordType
+from sensibility.models import RecordType
 
 from .dashboard import CategoryTotal, Point
 
