@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/eswan18/asset_manager
+    repoURL: https://github.com/eswan18/sensibility
     targetRevision: main
     path: k8s/staging
   destination:
@@ -28,7 +28,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/eswan18/asset_manager
+    repoURL: https://github.com/eswan18/sensibility
     targetRevision: main
     path: k8s/prod
   destination:

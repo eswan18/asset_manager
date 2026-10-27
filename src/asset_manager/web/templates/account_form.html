@@ -168,6 +168,35 @@
         color: var(--muted);
     }
 
+    /* --- phones --- */
+
+    @media (max-width: 600px) {
+        /* 16px, so iOS does not zoom in on focus. */
+        #account-form .field input,
+        #account-form .field select {
+            font-size: 16px;
+        }
+
+        .pill {
+            max-width: 100%;
+            padding-block: 6px;
+        }
+
+        /* The computed-value line wraps rather than clipping. */
+        .formula-preview {
+            flex-wrap: wrap;
+        }
+
+        .formula-preview span {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .drawer-retire .btn {
+            min-height: 44px;
+        }
+    }
+
 {% endblock %}
 
 {% block drawer %}

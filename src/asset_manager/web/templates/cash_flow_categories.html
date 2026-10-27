@@ -127,7 +127,9 @@
         justify-content: center;
     }
 
-    .cat-delete:hover { color: var(--danger); }
+    @media (hover: hover) {
+        .cat-delete:hover { color: var(--danger); }
+    }
 
     .cat-move button:focus-visible { outline: none; }
 
@@ -184,6 +186,33 @@
         align-self: center;
         font-size: 14px;
         color: var(--muted);
+    }
+
+    /* --- phones (docs/superpowers/specs/2026-10-26-mobile-design.md) --- */
+    @media (max-width: 600px) {
+        .cat-row { gap: 6px; }
+
+        .cat-rename input,
+        .cat-add input {
+            min-height: 44px;
+            font-size: 16px;
+        }
+
+        .cat-meta { font-size: 12px; }
+
+        /* Keep and Delete category share the row. */
+        .cat-confirm { padding: 14px; }
+        .cat-confirm-actions { flex-wrap: nowrap; }
+        .cat-confirm-actions > * { flex: 1 1 auto; }
+        .cat-confirm-actions .btn {
+            width: 100%;
+            min-height: 44px;
+            padding: 0 16px;
+            white-space: nowrap;
+        }
+
+        .cat-add input { flex: 1 1 0; }
+        .cat-add .btn { flex: none; padding: 0 18px; }
     }
 {% endblock %}
 

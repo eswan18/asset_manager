@@ -170,8 +170,36 @@
         padding: 0 12px;
     }
 
+    /* --- phones (docs/superpowers/specs/2026-10-26-mobile-design.md) --- */
     @media (max-width: 600px) {
-        .frequency { grid-template-columns: 1.2fr auto 0.7fr 1fr; gap: 8px; }
+        .segmented label { min-height: 44px; }
+
+        .field input,
+        .field select,
+        .field textarea { font-size: 16px; }
+
+        /* The unit and the count keep their width (all of "month" shows);
+           the amount takes what is left. */
+        .frequency {
+            grid-template-columns: minmax(0, 1fr) auto 46px 84px;
+            gap: 8px;
+        }
+        .frequency input,
+        .frequency select { padding: 0 10px; }
+        .frequency select { padding-right: 4px; }
+
+        /* Three cells in one row. Each column starts from its amount's
+           width, so a year's six figures stay on one line; only a huge
+           amount wraps. */
+        .rates { grid-template-columns: repeat(3, auto); }
+        .rates div { padding: 10px 8px; }
+        .rates strong {
+            font-size: 14px;
+            letter-spacing: -0.01em;
+        }
+        .rates .rate-month strong { font-size: 16px; }
+
+        .estimate-check { min-height: 44px; }
     }
 {% endblock %}
 
