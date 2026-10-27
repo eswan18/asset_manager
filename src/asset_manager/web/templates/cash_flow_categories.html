@@ -35,23 +35,39 @@
         border-bottom: 1px solid var(--rule);
     }
 
+    /* Each arrow is a 44px square touch target around a small 40×26 chip.
+       The up chip sits at the bottom of its target and the down chip at
+       the top, so the pair reads as before (two chips, 2px apart) while
+       the targets reach out into the row's padding, edge to edge. */
     .cat-move {
         display: flex;
         flex-direction: column;
-        gap: 2px;
+        margin: -10px 0;
     }
 
     .cat-move button {
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--ink);
+        display: flex;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .cat-move button[value="up"] { align-items: flex-end; padding-bottom: 1px; }
+    .cat-move button[value="down"] { align-items: flex-start; padding-top: 1px; }
+
+    .cat-chip {
         width: 40px;
         height: 26px;
-        border: 0;
         border-radius: 6px;
         background: var(--chip);
-        color: var(--ink);
         display: flex;
         align-items: center;
         justify-content: center;
-        cursor: pointer;
     }
 
     .cat-move button:disabled {
@@ -113,7 +129,9 @@
 
     .cat-delete:hover { color: var(--danger); }
 
-    .cat-move button:focus-visible,
+    .cat-move button:focus-visible { outline: none; }
+
+    .cat-move button:focus-visible .cat-chip,
     .cat-rename input:focus-visible,
     .cat-add input:focus-visible,
     .cat-delete:focus-visible {
@@ -205,8 +223,8 @@
             {% else %}
             <li class="cat-row">
                 <div class="cat-move">
-                    <button type="submit" form="move-{{ row.id }}" name="direction" value="up" aria-label="Move {{ row.name }} up"{% if row.first %} disabled{% endif %}><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 7.5L6 4l3.5 3.5"/></svg></button>
-                    <button type="submit" form="move-{{ row.id }}" name="direction" value="down" aria-label="Move {{ row.name }} down"{% if row.last %} disabled{% endif %}><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg></button>
+                    <button type="submit" form="move-{{ row.id }}" name="direction" value="up" aria-label="Move {{ row.name }} up"{% if row.first %} disabled{% endif %}><span class="cat-chip"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 7.5L6 4l3.5 3.5"/></svg></span></button>
+                    <button type="submit" form="move-{{ row.id }}" name="direction" value="down" aria-label="Move {{ row.name }} down"{% if row.last %} disabled{% endif %}><span class="cat-chip"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg></span></button>
                 </div>
                 <div class="cat-main">
                     <form class="cat-rename" method="post" action="{{ base }}/cash-flow-categories/{{ row.id }}?per={{ period }}">

@@ -94,6 +94,13 @@ class TestPageSave:
         assert response.json()["date"] == expected.isoformat()
         assert [r.date for r in get_all_records(db_connection, WS)] == [expected]
 
+    def test_cookie_as_the_browser_writes_it(self, client, cash, at):
+        # base.html stores encodeURIComponent(zone): the slash is %2F.
+        at(NOW)
+        login(client)
+        client.cookies.set("tz", "America%2FLos_Angeles")
+        assert save_page(client, cash).json()["date"] == LA_DAY.isoformat()
+
     def test_invalid_cookie_falls_back_to_the_default(self, client, cash, at):
         at(EVENING)
         login(client)

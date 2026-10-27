@@ -1,9 +1,11 @@
 [tool.pytest.ini_options]
 minversion = "4.0"
-addopts = "--cov=asset_manager"
+# Browser tests need Chromium installed; run them with `uv run pytest -m browser`.
+addopts = "--cov=asset_manager -m 'not browser'"
 filterwarnings = ["error"]
 markers = [
     "db: marks tests as database tests (require testcontainers)",
+    "browser: real-browser tests (Playwright Chromium); excluded by default",
 ]
 
 [tool.ruff.lint]
@@ -54,6 +56,7 @@ dev = [
     "ipython>=9.17.1",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "pytest-playwright>=0.10.0",
     "ruff>=0.17.2",
     "testcontainers[postgres]>=4.15.0",
     "ty>=0.0.91",

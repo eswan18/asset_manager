@@ -52,3 +52,44 @@ jobs:
       - name: Run pytest with coverage
         run:
           CI=true uv run pytest --cov=asset_manager
+  browser:
+    # Its own job, in parallel with Test All, so it adds to a PR's wall-clock
+    # time only when it is the slowest job.
+    name: Browser Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Install Package and Dependencies
+        run:
+          uv sync
+      - name: Install dbmate
+        run: |
+          sudo curl -fsSL https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 -o /usr/local/bin/dbmate
+          sudo chmod +x /usr/local/bin/dbmate
+      - name: Get Playwright version
+        id: playwright
+        run: echo "version=$(uv run python -c 'from importlib.metadata import version; print(version("playwright"))')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: uv run playwright install --with-deps chromium
+      - name: Install Chromium system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: uv run playwright install-deps chromium
+      - name: Run browser tests
+        run:
+          CI=true uv run pytest -m browser --no-cov

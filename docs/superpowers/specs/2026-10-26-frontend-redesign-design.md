@@ -91,6 +91,9 @@ be told apart also differ in lightness.
   radius.
 - Every touch target is at least 44px. Inputs are at least 40px tall, inside
   rows at least 52px tall.
+  A control may look smaller than its target: the category move arrows
+  are 40×26 chips, each inside a 44×44 button that reaches into the row's
+  padding.
 
 ### Light and dark
 
