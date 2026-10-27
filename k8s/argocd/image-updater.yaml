@@ -4,7 +4,6 @@ metadata:
   name: sensibility-staging
   namespace: argocd
 spec:
-  namespace: argocd
   writeBackConfig:
     method: argocd
   applicationRefs:
