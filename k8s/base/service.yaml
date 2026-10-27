@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: asset-manager
+  name: sensibility
 spec:
   selector:
-    app: asset-manager
+    app: sensibility
   ports:
     - port: 80
       targetPort: 8000

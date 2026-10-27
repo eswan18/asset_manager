@@ -13,7 +13,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: asset-manager-staging-ingress
+  name: sensibility-staging-ingress
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-dns01
 spec:
@@ -26,7 +26,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: asset-manager
+                name: sensibility
                 port:
                   number: 80
   tls:

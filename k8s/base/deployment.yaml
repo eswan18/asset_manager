@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: asset-manager
+  name: sensibility
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: asset-manager
+      app: sensibility
   template:
     metadata:
       labels:
-        app: asset-manager
+        app: sensibility
     spec:
       topologySpreadConstraints:
         - maxSkew: 1
@@ -18,15 +18,15 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app: asset-manager
+              app: sensibility
       tolerations:
         - key: cloud.google.com/gke-spot
           operator: Equal
           value: "true"
           effect: NoSchedule
       containers:
-        - name: asset-manager
-          image: us-central1-docker.pkg.dev/ethans-services/containers/asset-manager:latest
+        - name: sensibility
+          image: us-central1-docker.pkg.dev/ethans-services/containers/sensibility:latest
           ports:
             - containerPort: 8000
           readinessProbe:

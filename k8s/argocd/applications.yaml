@@ -1,11 +1,8 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: asset-manager-staging
+  name: sensibility-staging
   namespace: argocd
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: asset-manager=us-central1-docker.pkg.dev/ethans-services/containers/asset-manager
-    argocd-image-updater.argoproj.io/asset-manager.update-strategy: newest-build
 spec:
   project: default
   source:
@@ -14,7 +11,7 @@ spec:
     path: k8s/staging
   destination:
     server: https://kubernetes.default.svc
-    namespace: asset-manager-staging
+    namespace: sensibility-staging
   syncPolicy:
     automated:
       prune: true
@@ -23,7 +20,7 @@ spec:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: asset-manager-prod
+  name: sensibility-prod
   namespace: argocd
 spec:
   project: default
@@ -33,7 +30,7 @@ spec:
     path: k8s/prod
   destination:
     server: https://kubernetes.default.svc
-    namespace: asset-manager-prod
+    namespace: sensibility-prod
   syncPolicy:
     automated:
       prune: true

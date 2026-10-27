@@ -1,17 +1,17 @@
 apiVersion: argocd-image-updater.argoproj.io/v1alpha1
 kind: ImageUpdater
 metadata:
-  name: asset-manager-staging
+  name: sensibility-staging
   namespace: argocd
 spec:
   namespace: argocd
   writeBackConfig:
     method: argocd
   applicationRefs:
-    - namePattern: asset-manager-staging
+    - namePattern: sensibility-staging
       images:
-        - alias: asset-manager
-          imageName: us-central1-docker.pkg.dev/ethans-services/containers/asset-manager
+        - alias: sensibility
+          imageName: us-central1-docker.pkg.dev/ethans-services/containers/sensibility
           commonUpdateSettings:
             updateStrategy: newest-build
             allowTags: "regexp:^[a-f0-9]{7,}$"
