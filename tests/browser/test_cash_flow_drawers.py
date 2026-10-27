@@ -280,6 +280,10 @@ def test_categories_drawer_escape(posts):
 def test_move_arrows_are_44px_targets(posts, db_connection, width):
     page, _ = posts
     page.set_viewport_size({"width": width, "height": 900})
+    # On a phone the drawer slides up; measure once it has arrived.
+    page.wait_for_function(
+        "document.getAnimations().every(a => a.playState === 'finished')"
+    )
     boxes = [b.bounding_box() for b in page.locator(".cat-move button").all()]
     assert boxes
     for box in boxes:

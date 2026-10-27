@@ -101,16 +101,28 @@ OpenPage = Callable[..., Page]
 def open_page(browser: Browser, server_url: str, db_connection) -> Iterator[OpenPage]:
     """Open a logged-in page at `path`, in a fresh context (own cookies and
     sessionStorage) with the given time zone. db_connection seeds and cleans
-    the database around the test. Any uncaught JavaScript error fails it."""
+    the database around the test. Any uncaught JavaScript error fails it.
+
+    `phone=390` opens it as a phone of that width instead of a 1280px desktop:
+    touch, a mobile viewport, 2x pixels (see tests/browser/mobile.py)."""
     contexts: list[BrowserContext] = []
     errors: list[str] = []
 
-    def open_(path: str, *, timezone_id: str = TZ, user: dict = USER) -> Page:
+    def open_(
+        path: str, *, timezone_id: str = TZ, user: dict = USER, phone: int | None = None
+    ) -> Page:
+        screen = (
+            {
+                "viewport": {"width": phone, "height": 844},
+                "is_mobile": True,
+                "has_touch": True,
+                "device_scale_factor": 2,
+            }
+            if phone
+            else {"viewport": {"width": 1280, "height": 900}}
+        )
         context = browser.new_context(
-            base_url=server_url,
-            timezone_id=timezone_id,
-            locale="en-US",
-            viewport={"width": 1280, "height": 900},
+            base_url=server_url, timezone_id=timezone_id, locale="en-US", **screen
         )
         context.set_default_timeout(5000)
         context.add_cookies(
