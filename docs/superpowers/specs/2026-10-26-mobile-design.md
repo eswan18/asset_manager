@@ -69,9 +69,11 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
 - **Account menu (phones).** The panel opens as a full-width card under the
   top bar (left and right at the gutter), its buttons 44px tall.
 - `main` pads its bottom by `--tabbar-h` so the last card clears the bar.
-- **While a field in the page has focus** (the keyboard is up), the tab bar
-  is hidden and `--tabbar-h` is `0px`, so anything at
-  `bottom: var(--tabbar-h)` (the save bar) sits right on the keyboard.
+- The tab bar **stays put while a field has focus**. (The first build hid it
+  then, to rest the save bar on the keyboard. But the tap that blurs the
+  field brought the bar back and moved the save bar under the finger, so
+  Discard and Save missed; and the keyboard covers fixed bars on iOS and
+  Android anyway.)
 - **Invite strip and flash (phones).** The strip's text sits above its
   buttons, which share the row equally. The flash's × is a 44px target.
 - **Shared controls on phones:** `.btn` at least 44px tall; `.toggle`
@@ -155,7 +157,7 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
 - Behavior tests for what phones do differently: the tab bar shows and
   marks the current page, the account menu opens on screen, the chart drops
   its columns and re-lays when the width changes, the save bar sits above the
-  tab bar, the tab bar hides while a field is focused.
+  tab bar, the tab bar stays put while a field is focused.
 - The desktop browser tests keep passing unchanged.
 
 ## Workstreams

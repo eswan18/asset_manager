@@ -390,10 +390,12 @@ class TestCashFlowsPage:
 
     def test_nav_marks_cash_flows_current(self, client, db_connection):
         login(client)
-        html = client.get(PAGE).text
+        # The tab icons (phones only) aside.
+        icons = re.compile(r'<svg class="tab-icon".*?</svg>', re.S)
+        html = icons.sub("", client.get(PAGE).text)
         assert f'<a href="{PAGE}" aria-current="page">Cash flows</a>' in html
         assert f'<a href="{PAGES}/accounts">Accounts</a>' in html
-        accounts = client.get(f"{PAGES}/accounts").text
+        accounts = icons.sub("", client.get(f"{PAGES}/accounts").text)
         assert f'<a href="{PAGE}">Cash flows</a>' in accounts
 
     @pytest.mark.parametrize(
