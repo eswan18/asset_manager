@@ -102,10 +102,16 @@ at `bottom: var(--tabbar-h)`** (the Accounts save bar).
   decimal, at least 44px tall, including the cost basis field on computed
   accounts. The account name link is a 44px-tall target.
 - "Show retired" is a 44px label.
-- The card head (title, + Add, total) stays on one line at 320px.
-- **Save bar:** fixed at `bottom: var(--tabbar-h)` with the bottom safe area,
+- The card head (title, + Add, total) stays on one line at 320px. (As
+  built: + Add shows as a round 44px "+", its accessible name unchanged;
+  "+ Add" in text did not fit beside "Liabilities" and a seven-figure total.)
+- **Save bar:** at `bottom: var(--tabbar-h)` with the bottom safe area,
   full width less the gutters. Two lines: the count and the net worth on the
-  first, Discard and Save snapshot sharing the second.
+  first, Discard and Save snapshot sharing the second. (As built: *sticky*,
+  as on desktop, rather than fixed: it behaves as fixed while scrolling, and
+  at the end of the page rests in flow under the last card, so nothing needs
+  padding to clear it. The change in net worth sits under the net worth, and
+  below 360px the "Net worth" label is visually hidden.)
 - The account drawer: field pairs stay two columns down to 320px; the formula
   input chips wrap, each a 44px label; the computed-value line wraps instead
   of clipping.
