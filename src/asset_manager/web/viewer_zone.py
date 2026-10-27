@@ -29,6 +29,12 @@ def _today(request: Request, explicit: str | None) -> date:
     return today(zone_for(explicit, request.cookies.get(TZ_COOKIE)))
 
 
+def zone_of(request: Request) -> str:
+    """The viewer's zone, for showing dates (the browser's cookie, else the
+    default). Pages only: it ignores the API's header."""
+    return zone_for(None, request.cookies.get(TZ_COOKIE))
+
+
 def today_for(request: Request) -> date:
     """Today for this request, for code that has the request but is not a
     route (helpers shared by several routes)."""

@@ -208,8 +208,8 @@ class TestRoles:
             (method, path)
             for method, path in protected_routes()
             if method != "GET"
-            and path != "/api/workspaces"
-            and not path.startswith("/api/invites/")
+            and path not in ("/api/workspaces", "/workspaces")
+            and not path.startswith(("/api/invites/", "/invites/"))
         } | {
             ("GET", f"{PAGES}/accounts/new"),
             ("GET", f"{PAGES}/cash-flows/new"),
@@ -253,6 +253,14 @@ class TestRoles:
             ("POST", f"/api/workspaces/{WS}/invites"),
             ("GET", f"/api/workspaces/{WS}/invites"),
             ("DELETE", f"/api/workspaces/{WS}/invites/1"),
+            # The settings page's writes: the same owner-only routes. (The
+            # sweep's user 1 is the owner, so .../remove is not leaving.)
+            ("POST", f"{PAGES}/settings"),
+            ("POST", f"{PAGES}/delete"),
+            ("POST", f"{PAGES}/members/{USER_ID}"),
+            ("POST", f"{PAGES}/members/{USER_ID}/remove"),
+            ("POST", f"{PAGES}/invites"),
+            ("POST", f"{PAGES}/invites/1/revoke"),
         }
         workspace = repo.get_workspace(db_connection, WS)
         assert workspace is not None and workspace.deleted_at is None
@@ -335,7 +343,9 @@ class TestWorkspaceEndpoints:
         assert client.get(ACCOUNTS).status_code == 404
         assert client.get("/api/me").json()["workspaces"] == []
         assert client.get(f"{PAGES}/accounts").status_code == 404
-        assert client.get("/accounts").status_code == 403  # no workspace left
+        # No workspace left: bare paths go to the welcome page.
+        bare = client.get("/accounts", follow_redirects=False)
+        assert bare.headers["location"] == "/welcome"
         session_for(client, STRANGER)
         assert client.get(ACCOUNTS).status_code == 404
         assert repo.get_accounts(db_connection, WS) != []
@@ -433,7 +443,8 @@ class TestLogin:
             STRANGER["email"],
             [],
         )
-        assert client.get("/accounts").status_code == 403
+        bare = client.get("/accounts", follow_redirects=False)
+        assert bare.headers["location"] == "/welcome"
         assert client.get(f"{PAGES}/accounts").status_code == 404
 
     def test_a_preprovisioned_admin_is_claimed_on_first_login(
