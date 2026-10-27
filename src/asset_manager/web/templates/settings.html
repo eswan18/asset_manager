@@ -146,11 +146,6 @@
 
     .invite-form input { padding: 0 12px; }
 
-    @media (max-width: 520px) {
-        .invite-form { grid-template-columns: minmax(0, 1fr) auto; }
-        .invite-form input { grid-column: 1 / -1; }
-    }
-
     .people-list { list-style: none; }
 
     .people-list > .confirm { margin: 8px 0; }
@@ -267,13 +262,50 @@
         color: var(--muted);
     }
 
+    /* Phones: one column (from 860px); fields at 16px so iOS does not zoom;
+       every control 44px. A person's role and × sit together under the
+       name and email, and long names and emails wrap. */
     @media (max-width: 600px) {
-        .outline-card { padding: 20px; }
-        .person { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; }
-        .person > :nth-child(3) { grid-column: 2; justify-self: start; }
-        .person-role { padding: 0; }
+        .settings-grid .card,
+        .outline-card { padding: 20px 16px; }
+        .outline-item .btn { min-height: 44px; }
+
+        .general-form .field input,
+        .invite-form input,
+        .invite-form select,
+        .person select { font-size: 16px; }
+
+        .invite-form { grid-template-columns: minmax(0, 1fr) auto; }
+        .invite-form input { grid-column: 1 / -1; }
+
+        .person {
+            grid-template-columns: 40px auto 44px minmax(0, 1fr);
+            gap: 8px 12px;
+            padding: 12px 0;
+        }
+        .person > .avatar { align-self: start; }
+        .person-main { grid-column: 2 / -1; }
+        .person > :nth-child(3) { grid-column: 2; grid-row: 2; }
         .person > .person-remove,
-        .person > .person-gap { grid-column: 3; grid-row: 1; }
+        .person > .person-gap { grid-column: 3; grid-row: 2; }
+        .person-role { padding: 0; }
+        .person select { min-height: 44px; }
+        .person-sub {
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        .settings-grid .confirm { padding: 14px 12px; }
+        .settings-grid .confirm > span { overflow-wrap: anywhere; }
+        /* The two buttons share the row, each as wide as it needs and
+           then growing equally; on a very narrow card they stack. */
+        .settings-grid .confirm-actions > * { flex: 1 1 auto; }
+        .settings-grid .confirm-actions .btn {
+            min-height: 44px;
+            padding: 0 16px;
+            white-space: nowrap;
+        }
+        .settings-grid .confirm-actions form .btn { width: 100%; }
     }
 {% endblock %}
 

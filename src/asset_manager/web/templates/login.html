@@ -76,7 +76,13 @@
 
     @media (max-width: 600px) {
         .login-page { padding-top: 16px; align-items: flex-start; }
-        .login-card { padding: 32px 24px; }
+        .login-card { padding: 32px 16px; }
+        /* "Log in with a different account" fits one line at 320px, and
+           wraps centered if a larger text size makes it not. */
+        .login-card .btn {
+            padding: 6px 12px;
+            text-align: center;
+        }
     }
 {% endblock %}
 
