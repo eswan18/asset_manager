@@ -703,6 +703,36 @@ def get_pending_invites_for_email(
     return [(_invite_from_row(row[:10]), _workspace_from_row(row[10:])) for row in rows]
 
 
+def get_acceptable_invites_for_email(
+    conn: Connection, email: str
+) -> list[tuple[Invite, Workspace, str]]:
+    """The pending invites for this email whose sender is still an owner of
+    the (live) workspace, each with the sender's name (or email), oldest
+    first. One query: the shell runs it on every page."""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT {_INVITE_COLUMNS}, {_WORKSPACE_COLUMNS},
+                   COALESCE(NULLIF(u.name, ''), u.email)
+            FROM workspace_invites i
+            JOIN workspaces w ON w.id = i.workspace_id
+            JOIN workspace_members m
+              ON m.workspace_id = i.workspace_id AND m.user_id = i.invited_by
+            JOIN users u ON u.id = i.invited_by
+            WHERE i.email = %s AND w.deleted_at IS NULL AND m.role = 'owner'
+              AND i.accepted_at IS NULL AND i.declined_at IS NULL
+              AND i.revoked_at IS NULL AND i.expires_at > now()
+            ORDER BY i.created_at, i.id
+            """,
+            (email,),
+        )
+        rows = cur.fetchall()
+    return [
+        (_invite_from_row(row[:10]), _workspace_from_row(row[10:14]), row[14])
+        for row in rows
+    ]
+
+
 def set_invite_accepted(conn: Connection, invite_id: int, user_id: int) -> None:
     with conn.cursor() as cur:
         cur.execute(

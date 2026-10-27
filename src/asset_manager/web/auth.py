@@ -264,25 +264,33 @@ def idp_host(oauth: OAuth) -> str | None:
     return urlsplit(endpoint).hostname
 
 
-# Set by /auth/switch for the trip through identity's logout, which comes
-# back to the callback with no code (the callback is the only redirect URI
-# identity has registered for this app).
-SWITCHING = "switching_account"
+# Where the callback sends the trip back from identity's logout, which
+# arrives with no code: the callback is the only redirect URI identity has
+# registered for this app, so it is the only post_logout_redirect_uri it
+# accepts. Set in the (signed) OAuth session just before leaving.
+AFTER_IDP_LOGOUT = "after_idp_logout"
+LOGIN_PAGE = "/login"  # Log out: land on our login page
+START_LOGIN = "/auth/start"  # Switch account: straight into a fresh login
+_AFTER_LOGOUT = {LOGIN_PAGE, START_LOGIN}
 
 
-def handle_switch(request: Request, oauth: OAuth) -> RedirectResponse:
-    """Log out here and at identity, then start a fresh login.
+def after_idp_logout(request: Request) -> str | None:
+    """Where a trip back from identity's logout goes, once: the pending
+    destination, cleared as it is read. None when there is none."""
+    after = request.session.pop(AFTER_IDP_LOGOUT, None)
+    return after if after in _AFTER_LOGOUT else None
 
-    Logging out only here would not do: identity keeps its own session, so
-    the next login would come straight back as the same account. Identity's
-    end_session_endpoint (RP-initiated logout) ends that session, then
-    returns to the callback, which starts a new login. Without the endpoint,
-    go to /login.
-    """
+
+def _end_identity_session(
+    request: Request, oauth: OAuth, then: str
+) -> RedirectResponse:
+    """Clear our session, then end identity's (RP-initiated logout at its
+    end_session_endpoint), which returns to the callback; the callback then
+    goes to `then`. Without the endpoint, clear ours and go to /login."""
     end_session = oauth.idp.server_metadata.get("end_session_endpoint")
     if not end_session:
-        return clear_session_response("/login")
-    request.session[SWITCHING] = True
+        return clear_session_response(LOGIN_PAGE)
+    request.session[AFTER_IDP_LOGOUT] = then
     query = urlencode(
         {
             "client_id": oauth.idp.client_id,
@@ -292,8 +300,20 @@ def handle_switch(request: Request, oauth: OAuth) -> RedirectResponse:
     return clear_session_response(f"{end_session}?{query}")
 
 
-def handle_logout() -> RedirectResponse:
-    """Clear the session and redirect to home."""
-    # For now, just clear local session
-    # Could also redirect to IDP logout endpoint
-    return clear_session_response("/")
+def handle_switch(request: Request, oauth: OAuth) -> RedirectResponse:
+    """Log out here and at identity, then start a fresh login.
+
+    Logging out only here would not do: identity keeps its own session, so
+    the next login would come straight back as the same account.
+    """
+    return _end_identity_session(request, oauth, START_LOGIN)
+
+
+def handle_logout(request: Request, oauth: OAuth) -> RedirectResponse:
+    """Log out here and at identity, then show our login page.
+
+    Like switching, but the trip back stops at /login rather than starting
+    a login, so logging out reads as logged out and the next Log in asks
+    identity for an account instead of silently reusing the last one.
+    """
+    return _end_identity_session(request, oauth, LOGIN_PAGE)

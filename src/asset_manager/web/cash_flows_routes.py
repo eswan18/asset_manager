@@ -244,14 +244,16 @@ def _categories_url(access: WorkspaceAccess, period: Period, extra: str = "") ->
     return f"{prefix}/cash-flow-categories?per={period.value}{extra}"
 
 
-def _page_context(access: WorkspaceAccess, period: Period) -> dict[str, Any]:
+def _page_context(
+    request: Request, access: WorkspaceAccess, period: Period
+) -> dict[str, Any]:
     """What every render of cash_flows.html needs besides the view: the
     shell, and the period toggle. The toggle always links to the page
     itself, so it works the same under a drawer or after a failed save."""
     page = f"{page_prefix(access.workspace.id)}/cash-flows"
     return {
         # The page's path, not a drawer's: the picker maps to Cash flows.
-        **shell_context(access, page),
+        **shell_context(request, access, page),
         "active_tab": "cash_flows",
         "can_edit": access.role.allows(Role.EDITOR),
         "period": period.value,
@@ -265,7 +267,7 @@ def _page_context(access: WorkspaceAccess, period: Period) -> dict[str, Any]:
 async def cash_flows_page(request: Request, access: ViewerAccess, per: str = ""):
     """Render the Cash flows page. `per` is day, month (the default) or year."""
     period = parse_period(per)
-    context = _page_context(access, period)
+    context = _page_context(request, access, period)
     try:
         with get_connection_context() as conn:
             flows = repo.get_cash_flows(conn, access.workspace.id)
@@ -289,13 +291,13 @@ async def cash_flows_page(request: Request, access: ViewerAccess, per: str = "")
 
 
 def _drawer_context(
-    access: WorkspaceAccess, conn: Connection, period: Period
+    request: Request, access: WorkspaceAccess, conn: Connection, period: Period
 ) -> tuple[dict[str, Any], list[CashFlow], list[CashFlowCategory]]:
     """The page under a drawer, rendered as it is on its own."""
     flows = repo.get_cash_flows(conn, access.workspace.id)
     categories = repo.get_cash_flow_categories(conn, access.workspace.id)
     context = {
-        **_page_context(access, period),
+        **_page_context(request, access, period),
         "view": cash_flows_view(flows, categories, period),
         "drawer_open": True,
         "close_href": _page_url(access, period),
@@ -437,7 +439,7 @@ def _render_flow_form(
     status_code: int = 200,
 ) -> HTMLResponse:
     """The cash flow form: a drawer over the Cash flows page."""
-    context, _, categories = _drawer_context(access, conn, period)
+    context, _, categories = _drawer_context(request, access, conn, period)
     colors = context["view"]["colors"]
     return render(
         request,
@@ -555,8 +557,15 @@ async def create_cash_flow_route(
                 error=str(e),
                 status_code=400,
             )
-    set_flash(request, "success", f"Added {flow.name}")
+    set_flash(request, "success", _saved_text("Added", flow))
     return RedirectResponse(_page_url(access, period), status_code=303)
+
+
+def _saved_text(verb: str, flow: CashFlow) -> str:
+    """ "Added Rent: $1,850.00 a month." (the month, whatever the page's
+    period, so the message reads the same everywhere)."""
+    monthly = Decimal(rates(abs(per_year(flow)))["per_month"])
+    return f"{verb} {flow.name}: {money(monthly)} a month."
 
 
 def _get_flow(conn: Connection, access: WorkspaceAccess, flow_id: int) -> CashFlow:
@@ -614,7 +623,7 @@ async def update_cash_flow_route(
                 error=str(e),
                 status_code=400,
             )
-    set_flash(request, "success", f"Saved {updated.name}")
+    set_flash(request, "success", _saved_text("Saved", updated))
     return RedirectResponse(_page_url(access, period), status_code=303)
 
 
@@ -698,7 +707,7 @@ def _render_categories(
 ) -> HTMLResponse:
     """The categories drawer. `confirm` asks about deleting that category
     in its row; `renamed` keeps a failed rename's text in its row."""
-    context, flows, categories = _drawer_context(access, conn, period)
+    context, flows, categories = _drawer_context(request, access, conn, period)
     rows = category_rows(flows, categories, context["view"]["colors"], period)
     for row in rows:
         if renamed is not None and row["id"] == renamed[0]:
