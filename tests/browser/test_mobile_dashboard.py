@@ -153,8 +153,30 @@ def test_the_phone_chart_does_not_drag_and_a_tap_shows_the_values(open_page, see
     plot = page.locator("#net-worth-chart .nsewdrag[data-subplot=xy]")
     box = plot.bounding_box()
     assert box
-    plot.tap(position={"x": box["width"] - 4, "y": box["height"] / 2})
-    page.locator("#net-worth-chart .hoverlayer").get_by_text("$").first.wait_for()
+    # Record every label the hover layer shows: a later synthetic mouse
+    # event may clear it again before the test could look.
+    page.evaluate(
+        """() => {
+        window.hoverTexts = [];
+        const layer = document.querySelector('#net-worth-chart .hoverlayer');
+        new MutationObserver(() => {
+            if (layer.textContent) window.hoverTexts.push(layer.textContent);
+        }).observe(layer, { childList: true, subtree: true, characterData: true });
+    }"""
+    )
+    # Right on the snapshot's date, wherever the axis puts it.
+    x = page.evaluate(
+        """() => {
+        const el = document.getElementById('net-worth-chart');
+        const ax = el._fullLayout.xaxis;
+        return ax.l2p(ax.d2l(el.data[0].x[0]));
+    }"""
+    )
+    plot.tap(position={"x": x, "y": box["height"] / 2})
+    shown = page.wait_for_function(
+        "window.hoverTexts.find(t => t.includes('Net worth'))"
+    ).json_value()
+    assert "Assets" in shown and "Liabilities" in shown and "$" in shown
 
 
 def test_the_chart_relays_when_the_width_crosses_the_breakpoint(open_page, seeded):
