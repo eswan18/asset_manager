@@ -12,6 +12,7 @@ are only the light theme's, so the figure is readable if no script runs.
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from typing import Any
 
 from asset_manager.models import RecordType
@@ -25,6 +26,9 @@ DIVIDER_X = 0.83
 # On a phone the columns need a larger share to stay legible.
 NARROW = {"lines": [0.0, 0.62], "columns": [0.72, 1.0], "divider": 0.67}
 NARROW_BELOW_PX = 600
+# With one snapshot, Plotly zooms the date axis down to milliseconds; show
+# the month before it instead, with the point at the right edge (by the columns).
+LONE_POINT_DAYS = 30
 
 # Light-theme fallbacks; the page re-colors from the tokens.
 LIGHT = {
@@ -98,6 +102,15 @@ def build_figure(
             )
 
     axis_font = {"color": LIGHT["var(--muted)"], "size": 12}
+    lone_range = {}
+    if len(points) == 1:
+        day = points[0].date
+        lone_range = {
+            "range": [
+                (day - timedelta(days=LONE_POINT_DAYS)).isoformat(),
+                (day + timedelta(days=1)).isoformat(),
+            ]
+        }
     fig.update_layout(
         template="none",
         height=320,
@@ -122,6 +135,7 @@ def build_figure(
             "tickfont": axis_font,
             "ticks": "",
             "fixedrange": True,
+            **lone_range,
         },
         xaxis2={
             "domain": COLUMNS_DOMAIN,

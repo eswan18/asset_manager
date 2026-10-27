@@ -512,6 +512,14 @@ class TestFigure:
             "lines"
         }
 
+    def test_a_single_point_sits_at_the_end_of_a_month_wide_axis(self):
+        # Left alone, Plotly zooms one date into milliseconds of axis.
+        xaxis = self.figure(points=[pt(LATEST, "1")])["layout"]["xaxis"]
+        start, end = (date.fromisoformat(d[:10]) for d in xaxis["range"])
+        assert end == LATEST + timedelta(days=1)
+        assert start == LATEST - timedelta(days=30)
+        assert "range" not in self.figure()["layout"]["xaxis"]
+
     def test_no_categories_means_no_columns(self):
         fig = self.figure(categories={A: [], L: []})
         assert [t["type"] for t in fig["data"]] == ["scatter"] * 3
