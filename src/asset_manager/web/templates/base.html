@@ -833,14 +833,10 @@
             :root { --gutter: 16px; }
             /* The tab bar's height, where there is one. */
             :root:has(.main-nav) { --tabbar-h: calc(56px + env(safe-area-inset-bottom, 0px)); }
-            /* A field in the page has focus, so the keyboard is up: no tab bar,
-               and whatever sits at bottom: var(--tabbar-h) rests on the keyboard. */
-            :root:has(main :is(input:not([type=checkbox], [type=radio], [type=hidden], [type=submit], [type=button], [type=reset]), select, textarea):focus) {
-                --tabbar-h: 0px;
-            }
-            :root:has(main :is(input:not([type=checkbox], [type=radio], [type=hidden], [type=submit], [type=button], [type=reset]), select, textarea):focus) .main-nav {
-                display: none;
-            }
+            /* The bar stays put while a field has focus. Hiding it then moved
+               whatever sits above it (the save bar) on the tap that blurs
+               the field, so that tap landed on the wrong control; and the
+               keyboard covers the bar anyway. */
 
             /* Top bar: the workspace as the title, then the gear and the avatar. */
             .shell-header {

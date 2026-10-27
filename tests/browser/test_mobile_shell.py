@@ -166,15 +166,15 @@ def test_account_menu_opens_on_screen(open_page, seeded, width):
     assert not page.locator(".user-menu-panel").is_visible()
 
 
-def test_a_focused_field_hides_the_tab_bar(open_page, seeded):
+def test_a_focused_field_leaves_the_tab_bar_in_place(open_page, seeded):
+    # Moving the bar on focus moves the save bar above it, so the tap that
+    # blurs the field would land where a button used to be.
     page = open_page(f"{PAGES}/accounts", phone=390)
-    assert tabbar_h(page).startswith("calc(56px")
-    assert page.locator("nav.main-nav").is_visible()
+    nav = page.locator("nav.main-nav")
+    before = nav.bounding_box()
     page.locator("main input.money-input").first.focus()
-    assert tabbar_h(page) == "0px"
-    assert not page.locator("nav.main-nav").is_visible()
-    page.locator("main input.money-input").first.blur()
-    assert page.locator("nav.main-nav").is_visible()
+    assert tabbar_h(page).startswith("calc(56px")
+    assert nav.is_visible() and nav.bounding_box() == before
 
 
 def test_all_fields_are_16px_on_phones(open_page, seeded):
