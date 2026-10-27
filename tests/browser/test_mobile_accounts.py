@@ -1,8 +1,7 @@
 """The Accounts page and the account drawer on a phone
 (docs/superpowers/specs/2026-10-26-mobile-design.md, "Accounts").
 
-Every state is checked at 320px and 390px with assert_fits_phone. The header
-is the shell's, so its controls are left out of the tap-target check here.
+Every state is checked at 320px and 390px with assert_fits_phone.
 """
 
 from datetime import date
@@ -19,16 +18,6 @@ from tests.web_support import PAGES
 pytestmark = [pytest.mark.browser, pytest.mark.db]
 
 ACCOUNTS = f"{PAGES}/accounts"
-# The shell (header) is another stream's; this file checks the page.
-SHELL = ("header *",)
-
-
-def fits(page: Page) -> None:
-    """assert_fits_phone for the page's own content. The header's workspace
-    select is the shell's (it goes to 16px with the shell's phone layout), so
-    it is set to 16px here rather than failing every Accounts test on it."""
-    page.add_style_tag(content="header select { font-size: 16px !important; }")
-    assert_fits_phone(page, allow_small=SHELL)
 
 
 @pytest.fixture
@@ -71,10 +60,10 @@ def box(page: Page, selector: str) -> dict:
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
 def test_the_page_fits(open_page, with_retired, width):
     page = open_page(ACCOUNTS, phone=width)
-    fits(page)
+    assert_fits_phone(page)
     page.locator("#show-retired").check()
     expect(page.locator(".retired-row").first).to_be_visible()
-    fits(page)
+    assert_fits_phone(page)
 
 
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
@@ -87,7 +76,7 @@ def test_the_page_fits_with_staged_edits(open_page, seeded, width):
     page.locator("main h1").click()  # blur, so the field formats itself
     expect(page.locator("#dirty-status")).to_have_text("2 unsaved changes")
     expect(page.locator("#net-change")).to_be_visible()
-    fits(page)
+    assert_fits_phone(page)
 
     # Two lines: the count and the net worth share the first, the buttons
     # share the second, equally.
@@ -107,14 +96,14 @@ def test_the_page_fits_for_a_viewer(open_page, seeded, db_connection, width):
     db_connection.commit()
     page = open_page(ACCOUNTS, phone=width)
     expect(page.locator(".account-row").first).to_be_visible()
-    fits(page)
+    assert_fits_phone(page)
 
 
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
 def test_the_empty_page_fits(open_page, db_connection, width):
     page = open_page(ACCOUNTS, phone=width)
     expect(page.locator(".empty-card")).to_be_visible()
-    fits(page)
+    assert_fits_phone(page)
 
 
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
@@ -231,7 +220,7 @@ def test_every_drawer_state_fits(open_page, with_retired, width, state):
         expect(page.locator(".drawer-retire button")).to_have_count(0)
     # Everything in the drawer body, scrolled through, fits.
     page.locator(".drawer-body").evaluate("e => e.scrollTo(0, e.scrollHeight)")
-    fits(page)
+    assert_fits_phone(page)
 
 
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
@@ -259,4 +248,4 @@ def test_the_computed_drawer_wraps_rather_than_clipping(open_page, seeded, width
         return e.scrollWidth <= e.clientWidth
             && [...e.children].every(c => c.getBoundingClientRect().right <= r.right + 0.5); }"""
     )
-    fits(page)
+    assert_fits_phone(page)

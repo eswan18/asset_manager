@@ -19,15 +19,6 @@ FLOWS = f"{PAGES}/cash-flows"
 CATEGORIES = f"{PAGES}/cash-flow-categories"
 
 
-def page_fits(page: Page) -> None:
-    """assert_fits_phone for what this page puts in main. The header is the
-    shell's, checked by test_mobile_shell.py; allow_small would cover its
-    targets but not its 15px workspace select, so it is taken out of the
-    layout here. (Under a drawer the header is inert and skipped anyway.)"""
-    page.add_style_tag(content="header.shell-header { display: none !important; }")
-    assert_fits_phone(page)
-
-
 def flow(name, amount, every, unit, direction="expense", **extra) -> CashFlow:
     return CashFlow(
         name=name,
@@ -122,7 +113,7 @@ def check_one_row(page: Page, selector: str) -> None:
 @pytest.mark.parametrize("per", ["day", "month", "year"])
 def test_the_page_fits_in_every_period(open_page, household, width, per):
     page = open_page(f"{FLOWS}?per={per}", phone=width)
-    page_fits(page)
+    assert_fits_phone(page)
     # The period toggle spans the card in three equal segments.
     card = page.locator(".flows-top").bounding_box()
     toggle = page.locator(".flows-actions .toggle").bounding_box()
@@ -150,7 +141,7 @@ def test_the_two_buttons_share_a_row_at_390(open_page, household):
 def test_expenses_above_income_fits(open_page, over, width):
     page = open_page(FLOWS, phone=width)
     assert page.locator(".headline-figure.short").is_visible()
-    page_fits(page)
+    assert_fits_phone(page)
     # "▲ Income runs out" stays inside the card.
     card = page.locator(".flows-top").bounding_box()
     label = page.locator(".marker-label span").bounding_box()
@@ -170,14 +161,14 @@ def test_the_viewer_page_fits(open_page, household, db_connection, width):
     db_connection.commit()
     page = open_page(FLOWS, phone=width)
     assert page.locator("a.flow-row").count() == 0
-    page_fits(page)
+    assert_fits_phone(page)
 
 
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
 def test_the_empty_page_fits(open_page, db_connection, width):
     page = open_page(FLOWS, phone=width)
     assert page.locator(".empty-card").is_visible()
-    page_fits(page)
+    assert_fits_phone(page)
 
 
 # --- the cash flow drawer ---
