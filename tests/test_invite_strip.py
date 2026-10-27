@@ -328,7 +328,7 @@ class TestFlash:
         script = html.split("</style>")[1]
         assert "querySelectorAll('.flash-dismiss')" in script
         assert "button.closest('.flash').remove();" in script
-        styles = html.split("Legacy aliases")[1].split("</style>")[0]
+        styles = html.split("</style>")[0]
         rules = re.findall(r"\.(?:flash|error)[^{]*\{[^}]*\}", styles)
         assert rules
         for rule in rules:

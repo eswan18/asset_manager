@@ -54,6 +54,19 @@
         white-space: nowrap;
     }
 
+    /* On a phone, title, + Add and a cents total only just miss one line;
+       tighten them so they fit instead of wrapping the pair underneath. */
+    @media (max-width: 480px) {
+        .card-head h2,
+        .card-head .total {
+            font-size: 18px;
+        }
+
+        .card-head .btn {
+            padding-inline: 12px;
+        }
+    }
+
     /* --- rows --- */
 
     .account-row .row-main {

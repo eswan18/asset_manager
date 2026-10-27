@@ -86,7 +86,7 @@ class TestLoginPage:
         html = client.get("/login").text
         # base.html's tokens, in both themes; none of the old palette.
         assert "--surface: #FFFFFF" in html and "color-scheme: dark" in html
-        assert "accent-gold" not in html.split("Legacy aliases")[0]
+        assert "accent-gold" not in html
         assert "DM Serif" not in html
         # No shell: no nav, no workspace picker, no user menu.
         assert "main-nav" not in html.split("</style>")[1]
