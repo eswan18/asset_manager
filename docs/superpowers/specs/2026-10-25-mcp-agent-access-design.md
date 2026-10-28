@@ -1,8 +1,8 @@
 # Agent Access: MCP Server with OAuth via identity
 
-**Date:** 2026-10-25
-**Status:** Parked. Researched and agreed in outline; not started. Blocked on
-renaming the app.
+**Date:** 2026-10-25 (tools settled 2026-10-27)
+**Status:** Unblocked: the app is now **Sensibility**, at `sensibility.money`.
+Researched and agreed in outline, tools settled (see *Tools*); not started.
 
 ## Goal
 
@@ -16,22 +16,22 @@ login-as-you scheme. **Chosen: (b).** It is what Claude's connectors expect, it
 scales to many apps on one identity provider, and nothing to copy or rotate by
 hand.
 
-## Blocker: pick the name first
+## Name and host (settled)
 
-"Asset Manager" is likely to be renamed. The MCP URL (for example
-`https://<host>/mcp`) is the OAuth **resource**: it is the audience in every
-token, it is stored in every connector a user adds, and identity shows it on
-the consent screen. Scope names (`<app>:read`) end up in tokens and saved
-grants. Renaming after people connect breaks every connection, so the name
-(and host) is settled before this work starts.
+The MCP URL is the OAuth **resource**: the audience in every token, stored in
+every connector a user adds, and shown on identity's consent screen. Scope
+names end up in tokens and saved grants. Renaming after people connect would
+break every connection, so this waited for the rename, which finished in Oct
+2026 (domain, repo, cluster, package; nothing kept the old name).
 
-A rename is otherwise ordinary, and haruspex's Sept 2026 rename is the
-template: repo, Python package and CLI, namespaces, SAs, secrets, image repo,
-Cloud Build trigger, bifrost registry, identity client and redirect URIs,
-hostnames (`assets.ethanswan.com`, `assets-staging.tailc06f30.ts.net`), the
-`asset-events-{env}` topic, and the fleet CLAUDE.md. User-visible names (name,
-domain, MCP URL, scopes) must change; internal ones may stay as deliberate
-holdouts, as haruspex did. The database needs nothing.
+- MCP URL (the resource and the exact `aud`): **`https://sensibility.money/mcp`**;
+  staging `https://staging.sensibility.money/mcp`.
+- Scopes: **`sensibility:read`** and **`sensibility:write`**.
+- identity's login clients are "Sensibility" and "Sensibility - Staging", with
+  audiences `https://sensibility.money` and `https://staging.sensibility.money`.
+  Nothing checks those today (the app reads `/oauth/userinfo`; identity
+  validates with no expected audience), and MCP tokens take their audience
+  from `resource` instead.
 
 ## Roles of each piece
 
@@ -125,23 +125,77 @@ From Claude's connector authentication docs:
    `aud == <exact MCP URL>` and scopes. Users are created on first MCP request
    through `record_login`, requiring `email_verified` and `ALLOWED_EMAILS`,
    exactly as browser login does.
-10. Scopes: `<app>:read` and `<app>:write`, capped by workspace role.
+10. Scopes: `sensibility:read` and `sensibility:write`, capped by workspace role.
 11. The same verifier accepts bearer tokens on `/api/`, so scripts can use it.
-12. Tools, few and task-shaped (Anthropic's "Writing tools for agents"):
-    `list_workspaces`, `get_balances`, `update_balances` (partial snapshot with
-    carry-forward), `list_cash_flows`, `upsert_cash_flow`. Prefixed names,
-    names rather than bare ids in results, concise output, actionable errors,
-    destructive tools annotated. Any multi-step state goes back to the agent
-    as an explicit handle; nothing held server-side.
+12. The eight tools under *Tools*, all in the first version.
 13. Test with Claude Code first (loopback redirects), then claude.ai.
 
 ### footstrike-api
 
 14. Same pattern as this app.
 
+## Tools
+
+Eight, task-shaped (Anthropic's "Writing tools for agents"), each calling the
+service layer the JSON API and pages use. Read tools need `sensibility:read`
+and a viewer role; write tools `sensibility:write` and an editor role.
+
+| Tool | Does |
+|---|---|
+| `list_workspaces` | Your workspaces: name, your role, latest snapshot date, net worth |
+| `get_balances` | The latest snapshot: net worth, its change over ~30 days (as the dashboard computes it), days since the last save, and every active account by category with its amount; computed accounts show their formula |
+| `get_history` | Net worth, assets and liabilities over time, optionally per named account (below) |
+| `get_cash_flows` | Per `day`, `month` or `year` (default month): income, expenses by category with each flow, the amount left over, and each category's share of income |
+| `update_balances` | Today's snapshot from `{account name: amount}` (below) |
+| `save_cash_flow` | Create or update a cash flow, matched by name: amount, direction, every N unit, category, note, estimate. An unknown category is created, and the result says so |
+| `delete_cash_flow` | Delete a cash flow by name. Annotated destructive |
+| `save_account` | Create or update an account (name, type, category, or a computed formula over named input accounts), or retire or unretire it. The service's rules apply: a retire blocked by a computed account's inputs fails with that reason; a non-zero last value comes back as a warning |
+
+Left out on purpose: members, invites, workspace settings and deletion,
+category rename and reorder, the HTML report. Rare, administrative, and with
+a large blast radius; the UI keeps them.
+
+**`update_balances`.** `balances: {account name: amount}`, optional
+`cost_bases: {account name: amount}`, `preview`, `overwrite`, `timezone`.
+Omitted plain accounts carry forward from the latest snapshot and computed
+ones recompute (`save_snapshot` with `carry_forward=True`). The result gives
+the new net worth and change, and each account's source (`updated`,
+`carried_forward`, `computed`).
+- `preview: true` computes all of that and saves nothing, so the agent can
+  show "net worth would go from $X to $Y" before you approve.
+- **A second save on the same day fails** unless `overwrite: true`. The error
+  says when today's earlier snapshot was saved and what it holds, so the
+  agent can ask. `preview` works either way.
+- A computed account named in `balances` fails with what to set instead (its
+  inputs, or its cost basis).
+
+**`get_history`.** `start` and `end` (dates; default one year before the
+latest snapshot, to the latest), `interval` (`snapshot`, `month`, `quarter`,
+`year`; default `month`), `accounts` (names, optional). One row per period,
+from the **last snapshot in it** (the period-end value), carrying the period
+(`2026-09`), the date of the snapshot used, net worth, assets, liabilities,
+and an amount per named account. `snapshot` returns every snapshot. Ranges
+count from the latest snapshot, not today, as the dashboard does; a period
+with no snapshot is left out; a retired account's series ends at its last
+save.
+
+**Conventions for every tool.**
+- Accounts, flows and categories are referred to **by name**, never by id,
+  matched case-insensitively. An unknown or ambiguous name fails with the
+  candidates ("No account 'Chase'. Did you mean 'Chase Sapphire Reserve'?").
+- `workspace` (a name) is optional when you belong to exactly one; otherwise
+  the error lists them.
+- Writes return the outcome in the read tools' shape, so no follow-up read.
+- Money is a decimal string with two places (`"12400.00"`). Results are
+  structured (an output schema), with a short text summary beside them.
+- "Today" is the day in the optional `timezone` (IANA), else `TIMEZONE`, as
+  the API's `X-Timezone` works; there is no browser cookie here.
+- Errors say what to do. Tool annotations: reads `readOnlyHint`;
+  `delete_cash_flow` `destructiveHint`; nothing is held server-side between
+  calls.
+
 ## Open questions
 
-- The new name and host.
 - Scope granularity: per-app `read`/`write` only, or finer?
 - Whether identity's consent should be remembered per (client, resource).
 - Rate limiting and audit logging of agent writes.
