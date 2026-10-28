@@ -6,3 +6,7 @@ data:
   ENV: "prod"
   IDP_URL: "http://identity.identity-prod.svc.cluster.local"
   ALLOWED_EMAILS: "ethanpswan@gmail.com"
+  # /mcp: the OAuth resource (the exact `aud`), and identity's external
+  # issuer (its JWT_ISSUER); keys come from IDP_URL, the in-cluster address.
+  MCP_RESOURCE_URL: "https://sensibility.money/mcp"
+  IDP_ISSUER: "https://identity.ethanswan.com"

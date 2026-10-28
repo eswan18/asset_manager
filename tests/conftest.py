@@ -114,3 +114,16 @@ def client(db_connection, db_url, monkeypatch):
     with TestClient(app) as test_client:
         yield test_client
     get_settings.cache_clear()
+
+
+@pytest.fixture
+def mcp_env(monkeypatch):
+    """Configure /mcp for tests: our resource and issuer, and identity's
+    keys replaced by the test key (tests/mcp_support.py mints tokens)."""
+    from sensibility.mcp import tokens
+    from tests.mcp_support import IDP_URL, ISSUER, RESOURCE, StaticKeys
+
+    monkeypatch.setenv("MCP_RESOURCE_URL", RESOURCE)
+    monkeypatch.setenv("IDP_ISSUER", ISSUER)
+    monkeypatch.setenv("IDP_URL", IDP_URL)
+    monkeypatch.setattr(tokens, "key_source", lambda config: StaticKeys())

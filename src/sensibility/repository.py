@@ -160,6 +160,22 @@ def upsert_amounts(
     return len(amounts)
 
 
+def get_snapshot_saved_at(
+    conn: Connection, workspace_id: int, on: date
+) -> datetime | None:
+    """When this workspace's snapshot for `on` was saved (its newest row's
+    created_at), or None if there is none. A same-day save that replaces
+    rows keeps their created_at, so this is when the date was first saved,
+    or when an account was last added to it."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT MAX(created_at) FROM snapshots WHERE workspace_id = %s AND date = %s",
+            (workspace_id, on),
+        )
+        row = cur.fetchone()
+    return row[0] if row else None
+
+
 # --- accounts --------------------------------------------------------------
 
 
@@ -388,6 +404,12 @@ def _one_user(cur: Cursor) -> User | None:
 def get_user(conn: Connection, user_id: int) -> User | None:
     with conn.cursor() as cur:
         cur.execute(f"SELECT {_USER_COLUMNS} FROM users WHERE id = %s", (user_id,))
+        return _one_user(cur)
+
+
+def get_user_by_sub(conn: Connection, idp_sub: str) -> User | None:
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT {_USER_COLUMNS} FROM users WHERE idp_sub = %s", (idp_sub,))
         return _one_user(cur)
 
 
