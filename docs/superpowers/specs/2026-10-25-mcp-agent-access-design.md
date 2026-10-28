@@ -1,8 +1,10 @@
 # Agent Access: MCP Server with OAuth via identity
 
 **Date:** 2026-10-25 (tools settled 2026-10-27)
-**Status:** Unblocked: the app is now **Sensibility**, at `sensibility.money`.
-Researched and agreed in outline, tools settled (see *Tools*); not started.
+**Status:** This app's side (items 8-10 and 12) is built: `/mcp` with
+identity-verified tokens and the eight tools (`src/sensibility/mcp/`; see
+CLAUDE.md, *MCP*). Item 11 (bearer tokens on `/api/`) is not. End to end with
+Claude waits on identity's resource indicators and CIMD (its phases 1-2).
 
 ## Goal
 
@@ -129,6 +131,14 @@ From Claude's connector authentication docs:
 11. The same verifier accepts bearer tokens on `/api/`, so scripts can use it.
 12. The eight tools under *Tools*, all in the first version.
 13. Test with Claude Code first (loopback redirects), then claude.ai.
+
+As built (2026-10-27): not the SDK's `TokenVerifier`/`AuthSettings`. Its
+middleware's 401 carries no `scope`, it has no per-tool scopes, and it knows
+nothing of our users, so a gate in front of the SDK verifies the token,
+maps `sub` to the user (403 if refused), and answers a `tools/call` of a
+write tool with a read-only token with the step-up 403 by reading the
+JSON-RPC body. The protected resource metadata is our own route, since the
+SDK's models would add a trailing slash to the path-less issuer.
 
 ### footstrike-api
 

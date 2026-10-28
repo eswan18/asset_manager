@@ -58,7 +58,8 @@ def add_user(conn, user: dict, role: str | None = None, workspace_id: int = WS) 
 
 
 # Routes reachable without a session. Every other route must refuse. The
-# docs routes are public too but are not in the schema, so not listed here.
+# docs routes are public too but are not in the schema, so not listed here;
+# nor is /mcp, which takes bearer tokens, not sessions (test_mcp_http.py).
 PUBLIC_PATHS = {
     "/login",
     "/auth/start",
@@ -66,6 +67,7 @@ PUBLIC_PATHS = {
     "/auth/switch",
     "/logout",
     "/health",
+    "/.well-known/oauth-protected-resource/mcp",
 }
 
 

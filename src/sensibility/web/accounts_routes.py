@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sensibility.accounts import (
     AccountError,
     create_account,
-    parse_amount,
+    parse_formula,
     retire_account,
     retire_blocker,
     retire_warning,
@@ -340,16 +340,7 @@ def _parse_category(category: str) -> AccountCategory | None:
 def _parse_formula(
     computed: bool, rate_percent: str, cost_basis: str
 ) -> ProportionalFormula | None:
-    if not computed:
-        return None
-    try:
-        rate = (Decimal(rate_percent.strip()) / 100).quantize(Decimal("0.000001"))
-    except InvalidOperation:
-        raise AccountError("Rate must be a number, e.g. 15 for 15%") from None
-    if not rate.is_finite() or rate < 0:
-        raise AccountError("Rate must be zero or more")
-    basis = parse_amount(cost_basis) if cost_basis.strip() else Decimal("0")
-    return ProportionalFormula(rate=rate, cost_basis=basis)
+    return parse_formula(rate_percent, cost_basis) if computed else None
 
 
 def history_rows(records: list[Record]) -> list[dict[str, str]]:

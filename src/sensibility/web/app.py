@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.routing import Route
 
 from sensibility.db import get_connection_context
+from sensibility.mcp.gate import gate as mcp_gate
+from sensibility.mcp.gate import protected_resource_metadata
+from sensibility.mcp.server import running as mcp_running
+from sensibility.mcp.tokens import mcp_config
 from sensibility.models import Role
 from sensibility.repository import get_accounts, get_all_records
 
@@ -61,9 +68,16 @@ from .welcome_routes import router as welcome_router
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+    async with mcp_running():
+        yield
+
+
 # /docs, /redoc and /openapi.json are public: the repo is public, so the
 # schema reveals nothing, and every route behind it requires a session.
-app = FastAPI(title="Asset Dashboard")
+app = FastAPI(title="Asset Dashboard", lifespan=lifespan)
 
 # Session middleware for OAuth state and flash messages
 app.add_middleware(
@@ -78,6 +92,22 @@ app.include_router(cash_flows_router)
 app.include_router(settings_router)
 app.include_router(welcome_router)
 app.include_router(api_router)
+
+# The MCP endpoint (sensibility.mcp): bearer tokens from identity, not the
+# session. The gate answers every method itself, 401s included, so the
+# session's LoginRequired handling never sees it. Not in the OpenAPI schema.
+# Bearer tokens are not accepted on /api/ yet (MCP spec, plan item 11).
+app.router.routes.append(Route("/mcp", endpoint=mcp_gate, include_in_schema=False))
+
+
+@app.get("/.well-known/oauth-protected-resource/mcp")
+async def mcp_resource_metadata() -> JSONResponse:
+    """RFC 9728 protected resource metadata for /mcp. Public."""
+    config = mcp_config()
+    if config is None:
+        return JSONResponse({"error": "MCP is not configured here"}, status_code=503)
+    return JSONResponse(protected_resource_metadata(config))
+
 
 # OAuth client (lazy initialization)
 _oauth = None

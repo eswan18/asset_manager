@@ -10,11 +10,11 @@ from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from psycopg import Connection
+from psycopg import Connection, Rollback
 
 from . import repository as repo
 from .formulas import MissingValueError, compute_snapshot, quantize_cents
-from .models import Account, AccountCategory, Formula, RecordType
+from .models import Account, AccountCategory, Formula, ProportionalFormula, RecordType
 
 
 class AccountError(ValueError):
@@ -49,6 +49,19 @@ def parse_amount(text: str) -> Decimal:
         raise AccountError(f"{text.strip()!r} is not a number") from None
     _check_magnitude(text.strip(), result)
     return result
+
+
+def parse_formula(rate_percent: str, cost_basis: str) -> ProportionalFormula:
+    """A proportional formula from a rate in percent ("15" for 15%) and a
+    cost basis in parse_amount's forms (blank for zero)."""
+    try:
+        rate = (Decimal(rate_percent.strip()) / 100).quantize(Decimal("0.000001"))
+    except InvalidOperation:
+        raise AccountError("Rate must be a number, e.g. 15 for 15%") from None
+    if not rate.is_finite() or rate < 0:
+        raise AccountError("Rate must be zero or more")
+    basis = parse_amount(cost_basis) if cost_basis.strip() else Decimal("0")
+    return ProportionalFormula(rate=rate, cost_basis=basis)
 
 
 def _clean_name(name: str) -> str:
@@ -267,6 +280,43 @@ def save_snapshot(
     from the latest snapshot. `cost_bases` updates the formula document of
     computed accounts before evaluation. All or nothing.
     """
+    amounts = _snapshot(
+        conn, workspace_id, values, cost_bases, as_of, carry_forward, write=True
+    )
+    return len(amounts)
+
+
+def preview_snapshot(
+    conn: Connection,
+    workspace_id: int,
+    values: dict[int, Decimal],
+    cost_bases: dict[int, Decimal],
+    as_of: date,
+    *,
+    carry_forward: bool = False,
+) -> dict[int, Decimal]:
+    """What save_snapshot would write, by account id, writing nothing.
+
+    The same checks and evaluation run (cost bases included), inside a
+    transaction that is rolled back, so a preview fails exactly where the
+    save would.
+    """
+    return _snapshot(
+        conn, workspace_id, values, cost_bases, as_of, carry_forward, write=False
+    )
+
+
+def _snapshot(
+    conn: Connection,
+    workspace_id: int,
+    values: dict[int, Decimal],
+    cost_bases: dict[int, Decimal],
+    as_of: date,
+    carry_forward: bool,
+    *,
+    write: bool,
+) -> dict[int, Decimal]:
+    amounts: dict[int, Decimal] = {}
     try:
         with conn.transaction():
             accounts = repo.get_accounts(conn, workspace_id, include_retired=False)
@@ -329,14 +379,19 @@ def save_snapshot(
                 values = {**latest, **values}
 
             amounts = compute_snapshot(list(by_id.values()), values, as_of)
-            count = repo.upsert_amounts(conn, workspace_id, as_of, amounts)
+            repo.upsert_amounts(conn, workspace_id, as_of, amounts)
+            if not write:
+                # Undo the cost bases and rows written above; the block
+                # swallows Rollback, and `amounts` is already set.
+                raise Rollback()
         # `conn.transaction()` only issues a real COMMIT if the connection
         # was idle when the block was entered; on a connection with an
         # already-open transaction (e.g. after a prior SELECT) it uses a
         # savepoint instead, and the outer transaction is never committed.
         # This commit is a no-op when the block above already committed.
-        conn.commit()
-        return count
+        if write:
+            conn.commit()
+        return amounts
     except (MissingValueError, InvalidOperation) as e:
         message = (
             str(e) if isinstance(e, MissingValueError) else "An amount is out of range"
