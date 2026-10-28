@@ -13,12 +13,8 @@ from sensibility.models import (
     CashFlowDirection,
     FrequencyUnit,
 )
-from sensibility.web.cash_flows_routes import (
-    EXPENSE_RAMP,
-    cash_flows_view,
-    expense_colors,
-    money,
-)
+from sensibility.web.cash_flows_model import EXPENSE_RAMP, expense_colors
+from sensibility.web.cash_flows_routes import cash_flows_view, money
 from sensibility.workspaces import create_workspace
 from tests.support import USER_ID, WS
 from tests.web_support import PAGES, login

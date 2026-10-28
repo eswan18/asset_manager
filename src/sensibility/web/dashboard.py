@@ -233,6 +233,7 @@ def account_cards(
         for category in order:
             rows = [
                 {
+                    "id": a.id,
                     "name": a.name,
                     "amount": amounts.get(a.id),
                     "computed": computed_label(a),

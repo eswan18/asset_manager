@@ -97,8 +97,11 @@ def skip_db_tests_in_ci(request):
 
 @pytest.fixture
 def client(db_connection, db_url, monkeypatch):
-    """A TestClient wired to the test container. db_connection handles cleanup."""
-    from tests.web_support import SECRET
+    """A TestClient wired to the test container. db_connection handles cleanup.
+
+    It sends the API's CSRF header (web/csrf.py) on every request, as the SPA
+    does on every mutation; test_csrf.py takes it off to check the refusal."""
+    from tests.web_support import API_HEADERS, SECRET
 
     monkeypatch.setenv("SECRET_KEY", SECRET)
     monkeypatch.setenv("DATABASE_URL", db_url)
@@ -111,7 +114,7 @@ def client(db_connection, db_url, monkeypatch):
     from sensibility.web.app import app
 
     get_settings.cache_clear()
-    with TestClient(app) as test_client:
+    with TestClient(app, headers=API_HEADERS) as test_client:
         yield test_client
     get_settings.cache_clear()
 

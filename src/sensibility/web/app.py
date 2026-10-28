@@ -27,7 +27,11 @@ from .access import (
     shell_context,
 )
 from .accounts_routes import router as accounts_router
+from .api_accounts import router as api_accounts_router
+from .api_dashboard import router as api_dashboard_router
+from .api_cash_flows import router as api_cash_flows_router
 from .api_routes import router as api_router
+from .api_settings import router as api_settings_router
 from .auth import (
     CurrentUser,
     EmailNotAllowed,
@@ -44,6 +48,7 @@ from .auth import (
     idp_host,
 )
 from .cash_flows_routes import router as cash_flows_router
+from .csrf import RequireApiHeader
 from .charts import COLUMN_LABELS, build_figure
 from .dashboard import (
     RANGES,
@@ -63,6 +68,7 @@ from .dashboard import (
 )
 from .rendering import render
 from .settings_routes import router as settings_router
+from .spa import router as spa_router
 from .welcome_routes import WELCOME_PATH
 from .welcome_routes import router as welcome_router
 
@@ -87,11 +93,20 @@ app.add_middleware(
     max_age=600,  # 10 minutes for OAuth flow
 )
 
+# Mutating /api/ requests must carry X-Requested-With: sensibility (web/csrf.py).
+app.add_middleware(RequireApiHeader)
+
 app.include_router(accounts_router)
 app.include_router(cash_flows_router)
 app.include_router(settings_router)
 app.include_router(welcome_router)
 app.include_router(api_router)
+app.include_router(api_dashboard_router)
+app.include_router(api_accounts_router)
+app.include_router(api_cash_flows_router)
+app.include_router(api_settings_router)
+# The React app under /app (web/spa.py); public, like /login.
+app.include_router(spa_router)
 
 # The MCP endpoint (sensibility.mcp): bearer tokens from identity, not the
 # session. The gate answers every method itself, 401s included, so the

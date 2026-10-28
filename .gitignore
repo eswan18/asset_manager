@@ -10,3 +10,7 @@ token.pickle
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# The React app (frontend/): dependencies and build output
+frontend/node_modules/
+frontend/dist/

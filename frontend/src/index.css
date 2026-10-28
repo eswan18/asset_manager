@@ -1,0 +1,138 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/tokens.css";
+
+/* One breakpoint (docs/superpowers/specs/2026-10-26-mobile-design.md): a
+   phone is max-width 600px. `phone:` styles a phone, `desk:` everything
+   wider. Tailwind's own breakpoints are removed so nothing else creeps in.
+   `hover:` already applies only under (hover: hover) in Tailwind 4. */
+@custom-variant phone (@media (max-width: 600px));
+@custom-variant desk (@media (min-width: 601px));
+
+@theme {
+  --breakpoint-*: initial;
+
+  /* Only the design tokens are colors: no Tailwind palette (bg-red-500 does
+     not exist). transparent and current still work. */
+  --color-*: initial;
+
+  --font-*: initial;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+
+  --radius-card: 20px;
+  --radius-input: 10px;
+}
+
+/* Each token as a Tailwind color under its own name: bg-surface, text-ink,
+   text-muted, border-rule-strong, text-asset, bg-liability-2, … ("bg" is the
+   page background: bg-bg). Opacity modifiers work (bg-danger/10). */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-grid: var(--grid);
+  --color-chip: var(--chip);
+  --color-input: var(--input);
+  --color-asset: var(--asset);
+  --color-asset-2: var(--asset-2);
+  --color-asset-tint: var(--asset-tint);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-liability: var(--liability);
+  --color-liability-2: var(--liability-2);
+  --color-liability-3: var(--liability-3);
+  --color-liability-4: var(--liability-4);
+  --color-leftover: var(--leftover);
+  --color-estimate-bg: var(--estimate-bg);
+  --color-estimate-fg: var(--estimate-fg);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-bar-bg: var(--bar-bg);
+  --color-bar-fg: var(--bar-fg);
+  --color-bar-muted: var(--bar-muted);
+  --color-bar-border: var(--bar-border);
+  --color-shadow: var(--shadow);
+  --color-scrim: var(--scrim);
+
+  /* A card head's rule (Card kind="asset" | "liability" sets --section). */
+  --color-section: var(--section, var(--ink));
+
+  --spacing-gutter: var(--gutter);
+  --spacing-tabbar: var(--tabbar-h);
+
+  /* base.html's shadows, in the --shadow token (Tailwind's own are gone). */
+  --shadow-*: initial;
+  --shadow-pill: 0 1px 2px var(--shadow);
+  --shadow-menu: 0 8px 24px var(--shadow);
+  --shadow-drawer: -12px 0 32px var(--shadow);
+}
+
+@layer base {
+  body {
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    background-color: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    color: var(--asset);
+  }
+
+  /* Shared controls on phones: 16px fields (iOS zooms below 16). */
+  @media (max-width: 600px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+}
+
+/* The page's fade-in (base.html's .fade-in). */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility fade-in {
+  animation: fade-up 0.4s ease-out both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/* A drawer slides in from the right; on phones, up from the bottom. One
+   animation whose start comes from --drawer-from, so crossing 600px does not
+   replay it. */
+@keyframes drawer-in {
+  from {
+    transform: var(--drawer-from, translateX(24px));
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@utility drawer-in {
+  animation: drawer-in 0.2s ease-out both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}

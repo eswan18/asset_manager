@@ -34,6 +34,9 @@ SCREENS = {
     f"{W}/settings": "/workspaces/{ws}/settings",
     "/welcome": "/welcome",
     "/login": "/login",
+    # The React app (web/spa.py): its own routes are swept in test_spa_shell.py.
+    "/app": "/app",
+    "/app/{path}": "/app/workspaces/{ws}/accounts",
 }
 
 
@@ -78,6 +81,9 @@ def ids(db_connection, seeded) -> dict:
 @pytest.mark.parametrize("route", sorted(SCREENS))
 def test_the_screen_fits(open_page, ids, route, width):
     page = open_page(SCREENS[route].format(**ids), phone=width)
+    if route.startswith("/app"):
+        # The SPA renders after its first API call.
+        page.locator("main h2").first.wait_for()
     # A drawer slides up on a phone; measure once it has settled.
     page.wait_for_function(
         "document.getAnimations().every(a => a.playState === 'finished')"
