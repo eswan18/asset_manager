@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.routing import Route
 
+from sensibility.db import close_pools
 from sensibility.mcp.gate import gate as mcp_gate
 from sensibility.mcp.gate import protected_resource_metadata
 from sensibility.mcp.server import running as mcp_running
@@ -45,7 +46,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     async with mcp_running():
-        yield
+        try:
+            yield
+        finally:
+            close_pools()
 
 
 # /docs, /redoc and /openapi.json are public: the repo is public, so the

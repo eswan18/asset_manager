@@ -29,6 +29,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "mcp==2.3.0",
     "plotly>=7.1.0",
+    "psycopg-pool>=3.3",
     "psycopg[binary]>=3.3.6",
     "pydantic>=2.14.1",
     "pydantic-settings>=2.16.1",
