@@ -69,22 +69,35 @@ def db_connection(db_url, _run_migrations):
     yield conn
 
     # Clean up: roll back anything left open, then truncate every table
-    conn.rollback()
-    _truncate(conn)
-    conn.close()
+    try:
+        conn.rollback()
+        _truncate(conn)
+    finally:
+        conn.close()
 
 
-def _truncate(conn) -> None:
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            TRUNCATE TABLE snapshots, formula_inputs, accounts,
-                           cash_flows, cash_flow_categories, workspace_invites,
-                           workspace_members, workspaces, users
-            RESTART IDENTITY CASCADE
-            """
-        )
-    conn.commit()
+def _truncate(conn, attempts: int = 5) -> None:
+    """Empty every table. A browser test's server can still be answering the
+    page's last request, and Postgres may then pick the TRUNCATE as a
+    deadlock's victim; that is retried, as Postgres expects."""
+    for attempt in range(attempts):
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    TRUNCATE TABLE snapshots, formula_inputs, accounts,
+                                   cash_flows, cash_flow_categories,
+                                   workspace_invites, workspace_members,
+                                   workspaces, users
+                    RESTART IDENTITY CASCADE
+                    """
+                )
+            conn.commit()
+            return
+        except psycopg.errors.DeadlockDetected:
+            conn.rollback()
+            if attempt == attempts - 1:
+                raise
 
 
 @pytest.fixture(autouse=True)
