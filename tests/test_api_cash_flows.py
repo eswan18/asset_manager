@@ -1,8 +1,8 @@
 """The Cash flows page's JSON: the overview and moving a category.
 
-The overview is the page's own figures unformatted, so the first tests
-format it the way the page does and compare with `cash_flows_view` over
-many shapes of data; the rest go through HTTP against the container.
+The first tests check the overview against the service's math
+(cashflows.py) for many shapes of data, with hand-worked figures in
+test_cash_flows_model.py; the rest go through HTTP against the container.
 """
 
 from decimal import Decimal
@@ -10,7 +10,14 @@ from decimal import Decimal
 import pytest
 
 from sensibility import repository as repo
-from sensibility.cashflows import Period, create_cash_flow, create_category
+from sensibility.cashflows import (
+    Period,
+    category_totals,
+    create_cash_flow,
+    create_category,
+    in_period,
+    totals,
+)
 from sensibility.models import (
     CashFlow,
     CashFlowCategory,
@@ -19,12 +26,6 @@ from sensibility.models import (
     Role,
 )
 from sensibility.web.api_cash_flows import CashFlowsOverview, cash_flows_overview
-from sensibility.web.cash_flows_routes import (
-    _PER_SUFFIX,
-    cash_flows_view,
-    category_rows,
-    money,
-)
 from sensibility.workspaces import create_workspace
 from tests.support import WS
 from tests.web_support import STRANGER, add_user, login, session_for
@@ -99,120 +100,64 @@ DATASETS = {
 }
 
 
-def D(text: str) -> Decimal:
-    return Decimal(text)
+def cents(amount: Decimal) -> str:
+    return str(abs(amount).quantize(Decimal("0.01")))
 
 
-def as_page(o: CashFlowsOverview) -> dict:
-    """The overview, formatted the way the page formats its figures."""
-    return {
-        "period": o.period.value,
-        "empty": o.empty,
-        "headline": f"{'Short' if o.short else 'Left over'} each {o.period.value}",
-        "net": money(D(o.net), sign=True),
-        "income": money(D(o.income)),
-        "other": f"{money(D(o.other_net), cents=False)} a {o.other_period.value}",
-        "estimates": o.estimates,
-        "expenses": money(D(o.expenses)),
-        "expenses_share": o.expenses_share,
-        "bar_state": o.bar_state.value,
-        "slices": [
-            {
-                "label": s.label,
-                "color": s.color,
-                "weight": s.weight,
-                "amount": money(D(s.amount)),
-                "share": s.share,
-            }
-            for s in o.slices
-        ],
-        "over_by": None if o.over_by is None else money(D(o.over_by)),
-        "over_share": o.over_share,
-        "marker": o.marker,
-        "cards": [
-            {
-                "name": c.name,
-                "color": c.color,
-                "total": money(D(c.total)),
-                "share": c.share,
-                "rows": [
-                    {
-                        "id": f.id,
-                        "name": f.name,
-                        "estimate": f.is_estimate,
-                        "amount": money(D(f.amount)),
-                        "every": f.every_text,
-                        "value": money(D(f.per_period)),
-                    }
-                    for f in c.flows
-                ],
-            }
-            for c in o.cards
-        ],
-    }
-
-
-def page_part(view: dict) -> dict:
-    """The page's view, limited to what the overview carries."""
-    keys = as_page(cash_flows_overview([], [], Period.MONTH, can_edit=False)).keys()
-    part = {k: view[k] for k in keys if k != "cards"}
-    part["cards"] = []
-    for card in view["cards"]:
-        note = card["note"]
-        part["cards"].append(
-            {
-                "name": card["name"],
-                "color": card["color"],
-                "total": card["total"],
-                "share": note.removesuffix(" of income")
-                if note.endswith(" of income")
-                else None,
-                "rows": card["rows"],
-            }
-        )
-    return part
-
-
-# --- the overview matches the page --------------------------------------------
+# --- the overview follows the service's math -------------------------------------
+# Hand-worked figures are in test_cash_flows_model.py; these hold for every
+# shape of data and every period.
 
 
 @pytest.mark.parametrize("period", list(Period))
 @pytest.mark.parametrize("name", list(DATASETS))
-def test_overview_is_the_pages_figures(name, period):
+def test_totals_and_cards_are_the_services(name, period):
     flows, cats = DATASETS[name]
-    overview = cash_flows_overview(flows, cats, period, can_edit=True)
-    view = cash_flows_view(flows, cats, period)
+    o = cash_flows_overview(flows, cats, period, can_edit=True)
+    sums = totals(flows)
 
-    assert as_page(overview) == page_part(view)
-
-
-@pytest.mark.parametrize("period", list(Period))
-@pytest.mark.parametrize("name", list(DATASETS))
-def test_category_rows_match_both_drawers(name, period):
-    flows, cats = DATASETS[name]
-    overview = cash_flows_overview(flows, cats, period, can_edit=True)
-    view = cash_flows_view(flows, cats, period)
-    rows = category_rows(flows, cats, view["colors"], period)
-    suffix = _PER_SUFFIX[period]
-
-    assert [(c.id, c.name, c.color, c.flow_count) for c in overview.categories] == [
-        (r["id"], r["name"], r["color"], r["count"]) for r in rows
+    assert o.income == cents(Decimal(sums["income"][f"per_{period.value}"]))
+    assert o.expenses == cents(Decimal(sums["expenses"][f"per_{period.value}"]))
+    assert Decimal(o.net) == Decimal(sums["net"][f"per_{period.value}"])
+    groups = [g for g in category_totals(flows, cats) if g.flows]
+    assert [(c.name, c.total) for c in o.cards[1:]] == [
+        (g.name, cents(in_period(g.yearly, period))) for g in groups
     ]
-    for out, row in zip(overview.categories, rows):
-        parts = []
-        if out.expenses is not None:
-            parts.append(money(D(out.expenses)) + suffix)
-        if out.income is not None:
-            parts.append("income " + money(D(out.income)) + suffix)
-        for part in parts:
-            assert part in row["meta"]
-    # The cash flow drawer's colors: the page's expense color, else the
-    # ramp's first, exactly as its category options.
-    colors = view["colors"]
-    assert {c.id: c.expense_color for c in overview.categories} == {
-        c.id: colors.get(c.id, "var(--liability)") for c in cats
-    }
-    assert overview.uncategorized_color == colors.get(None, "var(--liability)")
+    assert [c.flow_count for c in o.categories] == [
+        sum(1 for f in flows if f.category_id == c.id) for c in cats_in_order(cats)
+    ]
+
+
+@pytest.mark.parametrize("period", list(Period))
+@pytest.mark.parametrize("name", list(DATASETS))
+def test_colors_agree_between_the_page_and_the_drawers(name, period):
+    flows, cats = DATASETS[name]
+    o = cash_flows_overview(flows, cats, period, can_edit=True)
+    card_colors = {c.category_id: c.color for c in o.cards[1:]}
+
+    for c in o.categories:
+        # An expense put in it takes its card's color, else the ramp's first.
+        assert c.expense_color == card_colors.get(c.id, "var(--liability)")
+        holds_income = any(
+            f.category_id == c.id and f.direction == INCOME for f in flows
+        )
+        assert c.color == card_colors.get(
+            c.id, "var(--asset)" if holds_income else "var(--rule-strong)"
+        )
+    assert o.uncategorized_color == card_colors.get(None, "var(--liability)")
+    for s in o.slices:
+        expected = "var(--leftover)" if s.left_over else card_colors[s.category_id]
+        assert s.color == expected
+    if o.bar_state.value != "no_income" and o.slices:
+        assert sum(Decimal(s.weight) for s in o.slices) == pytest.approx(
+            Decimal(100), abs=Decimal("0.001")
+        )
+    if o.bar_state.value == "over":
+        assert o.over_by == o.net.removeprefix("-")
+
+
+def cats_in_order(cats):
+    return sorted(cats, key=lambda c: (c.position, c.id))
 
 
 def test_normal_month_in_detail():
@@ -304,7 +249,7 @@ def seeded(db_connection):
 
 @pytest.mark.db
 class TestOverviewEndpoint:
-    def test_matches_the_page_for_each_period(self, client, db_connection, seeded):
+    def test_serves_the_overview_for_each_period(self, client, db_connection, seeded):
         login(client)
         flows = repo.get_cash_flows(db_connection, WS)
         cats = repo.get_cash_flow_categories(db_connection, WS)
@@ -313,7 +258,13 @@ class TestOverviewEndpoint:
             assert response.status_code == 200
             body = CashFlowsOverview.model_validate(response.json())
             assert body.period == period and body.can_edit is True
-            assert as_page(body) == page_part(cash_flows_view(flows, cats, period))
+            assert response.json() == cash_flows_overview(
+                flows, cats, period, can_edit=True
+            ).model_dump(mode="json")
+        # And by hand: test_cash_flows_model.py's figures, from the database.
+        day = client.get(OVERVIEW, params={"per": "day"}).json()
+        year = client.get(OVERVIEW, params={"per": "year"}).json()
+        assert (day["net"], year["net"]) == ("39.96", "14585.71")
 
     def test_month_figures(self, client, seeded):
         login(client)

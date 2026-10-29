@@ -775,6 +775,14 @@ describe("settings, as the owner", () => {
     expect(document.querySelector("[data-slot=confirm]")).toBeNull();
     expect(screen.queryByText("Leave Household?")).toBeNull();
   });
+
+  it("ignores a confirm on the only owner's own row", async () => {
+    api();
+    renderRoute(`${PAGE}?confirm=member-1`);
+    await heading();
+    expect(document.querySelector("[data-slot=confirm]")).toBeNull();
+    expect(screen.queryByText("Leave Household?")).toBeNull();
+  });
 });
 
 describe.each(["editor", "viewer"] as const)("settings, as %s", (role) => {
@@ -828,6 +836,15 @@ describe.each(["editor", "viewer"] as const)("settings, as %s", (role) => {
     await heading();
     expect(
       within(leaveOrDelete()).getByRole("button", { name: "Leave workspace" }),
+    ).toBeInTheDocument();
+  });
+
+  it("asks before leaving from your own row", async () => {
+    setup();
+    renderRoute(`${PAGE}?confirm=member-2`);
+    await heading();
+    expect(
+      within(people()).getByRole("button", { name: "Leave workspace" }),
     ).toBeInTheDocument();
   });
 

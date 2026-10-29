@@ -1,8 +1,8 @@
-/** The Cash flows page's pure pieces, in TypeScript: its money text
- * (`money` in web/cash_flows_routes.py), the cash flow drawer's rates strip
- * (its inline script's exact BigInt-cents arithmetic, which `form_rates`
- * checks on the server), the drawer's form parsing (`_parse_form`'s
- * messages), and the categories drawer's meta line (`category_rows`). */
+/** The Cash flows page's pure pieces: its money text, the cash flow
+ * drawer's rates strip (exact BigInt-cents arithmetic, which
+ * tests/browser/test_spa_cash_flows.py checks against the service's
+ * `rates()`), the drawer's form parsing, and the categories drawer's meta
+ * line. Ported from the Jinja page's view code, which went at the cutover. */
 
 export type Period = "day" | "month" | "year";
 export type Direction = "income" | "expense";

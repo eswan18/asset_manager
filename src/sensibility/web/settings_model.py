@@ -1,9 +1,8 @@
 """What the settings page knows about a workspace's people, as data.
 
-`settings_routes.settings_view` turns this into the page's text, and
-`api_settings` serves it as JSON, so the page and the API apply the same
-rules: who may leave (not the last owner), whose row can be removed, and
-which pending invites have lapsed because their sender is no longer an owner.
+`api_settings` serves it as JSON for the React app's settings page: who may
+leave (not the last owner), whose row can be removed, and which pending
+invites have lapsed because their sender is no longer an owner.
 """
 
 from __future__ import annotations

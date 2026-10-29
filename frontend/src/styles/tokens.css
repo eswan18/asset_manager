@@ -1,6 +1,6 @@
 /* Design tokens: docs/superpowers/specs/2026-10-26-frontend-redesign-design.md.
-   The same names and values as base.html's :root (tests/test_spa.py checks
-   they stay in step until the Jinja pages go). Components name tokens, never
+   The same names and values as base.html's :root, which login.html uses
+   (tests/test_spa.py checks they stay in step). Components name tokens, never
    colors: index.css exposes each as a Tailwind color (bg-surface, text-ink,
    border-rule-strong, …). Light is the default; dark follows the system. The
    font and radius tokens live in index.css's @theme, which emits them under

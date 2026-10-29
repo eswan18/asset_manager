@@ -7,8 +7,8 @@ a cross-site form cannot set a header, and a cross-site fetch cannot send a
 custom one without a CORS preflight, which this app never allows. Requests
 without it get 403 `{"error": …}` before any route runs.
 
-Reads are unaffected, as are the Jinja pages' own form posts (outside /api/)
-and /mcp, which takes bearer tokens, not cookies.
+Reads are unaffected, as are the login flow's routes (outside /api/) and
+/mcp, which takes bearer tokens, not cookies.
 """
 
 from __future__ import annotations

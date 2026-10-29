@@ -1,6 +1,6 @@
 # Sensibility frontend
 
-The React app that is replacing the Jinja pages
+The web dashboard: every page but `/login`
 (`docs/superpowers/specs/2026-10-28-react-frontend-design.md`). Vite, React
 19, TypeScript (strict), React Router 7 (library mode), TanStack Query 5,
 Tailwind 4 with the design tokens, Radix primitives copied in shadcn-style,
@@ -8,8 +8,12 @@ sonner for flashes, Vitest + Testing Library. The stack and versions match
 footstrike-dashboard (its lockfile seeded this one; versions are pinned
 exactly).
 
-During the build-out FastAPI serves the build under **`/app`**
-(`src/sensibility/web/spa.py`); the Jinja pages keep the canonical URLs.
+FastAPI serves the build from the root (`src/sensibility/web/spa.py`):
+`/assets/…` cached for a year, and `index.html` (never cached) for every GET
+no server route claims, so `/`, `/welcome` and `/workspaces/…` are this app's.
+The server keeps `/api/…`, `/login`, `/auth/…`, `/logout`, `/health`, `/mcp`,
+`/.well-known/…` and the API docs. `/app/…`, where the app lived while it was
+built, redirects permanently to the same path without the prefix.
 
 ## Commands
 
@@ -28,9 +32,9 @@ npm run build         # tsc -b && vite build -> dist/
 1. `ENV=dev uv run sensibility serve` (the API, on :8000).
 2. Log in at <http://localhost:8000/login>. The session cookie is per host,
    not per port, so it also covers Vite's port.
-3. `npm run dev` here and open <http://localhost:5173/app/>.
+3. `npm run dev` here and open <http://localhost:5173/>.
 
-Or `npm run build` and open <http://localhost:8000/app/> (no hot reload).
+Or `npm run build` and open <http://localhost:8000/> (no hot reload).
 Point the proxy elsewhere with `SENSIBILITY_BACKEND=http://host:port`.
 
 ## Layout
@@ -38,7 +42,8 @@ Point the proxy elsewhere with `SENSIBILITY_BACKEND=http://host:port`.
 ```
 src/
   main.tsx, App.tsx        providers (QueryClient, router, toaster)
-  router.tsx               every route, basename /app
+  router.tsx               every route (each page and drawer lazy), preloading
+  page-routes.json         the router's page paths, for the phone sweep
   index.css                Tailwind + the token theme + the phone/desk variants
   styles/tokens.css        the design tokens, light + dark (from base.html)
   api/
@@ -59,7 +64,12 @@ src/
 ## Conventions
 
 - **Routes** live in `router.tsx`, one component per page or drawer in
-  `routes/`. Paths keep the Jinja URLs. A drawer is a child route of its page
+  `routes/`, each loaded lazily as its own chunk through the `load` table;
+  `preloadRoutes()` fetches them all in idle time after the first render, so
+  a click never waits for one. A new page or drawer goes in `load`, in
+  `routes`, and in `page-routes.json` (`router.test.tsx` checks it matches;
+  `tests/browser/test_mobile_sweep.py` then needs a phone screen for it).
+  Paths keep the Jinja pages' URLs. A drawer is a child route of its page
   under a pathless layout route: the page renders `<Outlet />` and stays
   mounted. Drawers render `<RouteSheet closeTo=…>` and keep the page's search
   params (`?per=`) in `closeTo`. Inside a workspace, `useWorkspace()` gives

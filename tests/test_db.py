@@ -20,11 +20,14 @@ def _users(conn) -> int:
 
 
 @pytest.mark.db
-def test_a_connection_is_reused(pooled):
-    with db.get_connection_context() as conn:
-        first = conn.info.backend_pid
-    with db.get_connection_context() as conn:
-        assert conn.info.backend_pid == first
+def test_connections_are_reused(pooled):
+    # The pool may open a second connection while filling, and it hands
+    # them out in turn, so count the connections rather than expect one.
+    pids = set()
+    for _ in range(10):
+        with db.get_connection_context() as conn:
+            pids.add(conn.info.backend_pid)
+    assert len(pids) <= 2
 
 
 @pytest.mark.db

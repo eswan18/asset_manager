@@ -1,0 +1,14 @@
+[
+  "/",
+  "/accounts",
+  "/welcome",
+  "/workspaces/:workspaceId",
+  "/workspaces/:workspaceId/accounts",
+  "/workspaces/:workspaceId/accounts/new",
+  "/workspaces/:workspaceId/accounts/:accountId/edit",
+  "/workspaces/:workspaceId/cash-flows",
+  "/workspaces/:workspaceId/cash-flows/new",
+  "/workspaces/:workspaceId/cash-flows/:flowId/edit",
+  "/workspaces/:workspaceId/cash-flow-categories",
+  "/workspaces/:workspaceId/settings"
+]

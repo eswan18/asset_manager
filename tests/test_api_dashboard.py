@@ -1,8 +1,8 @@
 """GET /api/workspaces/{id}/dashboard: the dashboard page as data.
 
-Every figure is checked against the helpers the Jinja dashboard renders
-from (web/dashboard.py), and a few against hand-worked numbers, so the API
-and the page cannot drift apart.
+Every figure is checked against the helpers it is computed from
+(web/dashboard.py, unit-tested in test_dashboard.py), and a few against
+hand-worked numbers.
 """
 
 from datetime import date
@@ -22,7 +22,6 @@ from sensibility.web.dashboard import (
     getting_started,
     latest_category_totals,
 )
-from sensibility.web.dashboard import money as page_money
 from sensibility.workspaces import create_workspace
 from tests.support import WS
 from tests.web_support import STRANGER, add_user, login, session_for
@@ -158,14 +157,6 @@ class TestWithSnapshots:
                 for g in expected["groups"]
             ]
 
-    def test_the_page_shows_the_same_numbers(self, client, history):
-        body = client.get(DASHBOARD).json()
-        page = client.get(f"/workspaces/{WS}").text
-
-        assert page_money(Decimal(body["net_worth"])) in page  # "$12,300"
-        for card in body["cards"]:
-            assert page_money(Decimal(card["total"])) in page
-
     def test_categories_largest_first_with_their_colors(self, client, history):
         body = client.get(DASHBOARD).json()
 
@@ -279,6 +270,47 @@ class TestWithSnapshots:
             "net_worth": "9550.00",
         }
 
+    def test_the_range_leaves_the_headline_and_columns_alone(self, client, history):
+        """Only the history follows ?range=: the rest is the latest snapshot."""
+        short = client.get(f"{DASHBOARD}?range=6m").json()
+        everything = client.get(f"{DASHBOARD}?range=all").json()
+
+        assert short["history"] != everything["history"]
+        for key in (
+            "net_worth",
+            "change",
+            "last_snapshot",
+            "categories",
+            "bars",
+            "cards",
+        ):
+            assert short[key] == everything[key], key
+
+    def test_only_this_workspaces_snapshots_count(self, client, db_connection, history):
+        add_user(db_connection, STRANGER)
+        theirs = create_workspace(db_connection, STRANGER["id"], "Theirs")
+        elsewhere = create_account(db_connection, theirs.id, "Elsewhere", ASSET)
+        repo.upsert_amounts(
+            db_connection,
+            theirs.id,
+            date(2026, 12, 1),
+            {elsewhere.id: Decimal("123456")},
+        )
+        db_connection.commit()
+
+        body = client.get(f"{DASHBOARD}?range=all").json()
+
+        assert body["last_snapshot"] == "2026-10-24"
+        assert body["net_worth"] == "12300.25"
+        assert "2026-12-01" not in [p["date"] for p in body["history"]]
+        names = [
+            a["name"]
+            for card in body["cards"]
+            for group in card["groups"]
+            for a in group["accounts"]
+        ]
+        assert "Elsewhere" not in names
+
     def test_one_snapshot_has_no_change(self, client, db_connection):
         cash = create_account(db_connection, WS, "Cash", ASSET)
         repo.upsert_amounts(
@@ -334,7 +366,7 @@ class TestGettingStarted:
                     if s["action"] is None
                     else {"label": s["action"][0], "path": s["action"][1]},
                 }
-                for s in getting_started(0, "")
+                for s in getting_started(0)
             ],
         }
         assert body["onboarding"]["steps"][0]["action"] == {
