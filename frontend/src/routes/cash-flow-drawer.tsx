@@ -25,7 +25,15 @@ import {
   SheetFooter,
   SheetForm,
   SheetHeader,
+  SheetTitleLoading,
 } from "@/components/ui/sheet";
+import {
+  Loading,
+  Skeleton,
+  SkeletonButton,
+  SkeletonField,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 import { flash } from "@/components/ui/toaster";
 import { APP_NAME, useWorkspace } from "@/components/shell/workspace-context";
 import {
@@ -60,8 +68,20 @@ export function CashFlowDrawer() {
   const writes = useCashFlowWrites(workspace.id);
 
   if (!workspace.canEdit) return <Navigate to={pageHref} replace />;
+  // The page behind says what went wrong.
+  if (overview.isError) return <Navigate to={pageHref} replace />;
   const view = overview.data;
-  if (!view) return null;
+  // Usually the page's overview is here already (the drawer opens over
+  // it); opened by its URL, the drawer shows at once and waits in place.
+  // One RouteSheet throughout: the form's sheet replaces the skeleton's
+  // without sliding in again, and takes focus as it opens.
+  if (!view) {
+    return (
+      <RouteSheet closeTo={pageHref}>
+        <FlowSkeleton editing={flowId !== undefined} />
+      </RouteSheet>
+    );
+  }
 
   let flow: FlowRow | undefined;
   if (flowId !== undefined) {
@@ -74,13 +94,65 @@ export function CashFlowDrawer() {
     }
   }
   return (
-    <FlowDrawer
-      key={flowId ?? "new"}
-      view={view}
-      flow={flow}
-      pageHref={pageHref}
-      writes={writes}
-    />
+    <RouteSheet closeTo={pageHref}>
+      <FlowDrawer
+        key={flowId ?? "new"}
+        view={view}
+        flow={flow}
+        pageHref={pageHref}
+        writes={writes}
+      />
+    </RouteSheet>
+  );
+}
+
+/** The drawer before the overview: as much header as the URL gives (a new
+ * flow's direction), then the form's shape. */
+function FlowSkeleton({ editing }: { editing: boolean }) {
+  const [params] = useSearchParams();
+  const direction = params.get("direction") === "income" ? "income" : "expense";
+  return (
+    <SheetContent busy>
+      {editing ? (
+        <SheetHeader
+          eyebrow="Cash flows"
+          title={<SheetTitleLoading label="Loading cash flow" />}
+        />
+      ) : (
+        <SheetHeader
+          eyebrow={flowEyebrow(false, direction, undefined)}
+          title="New cash flow"
+        />
+      )}
+      <SheetBody>
+        <Loading label="Loading the form" className="flex flex-col gap-[18px]">
+          <Skeleton className="h-[46px] rounded-full phone:h-[50px]" />
+          <SkeletonField label="w-12" />
+          <span className="grid grid-cols-[1.3fr_0.7fr_1fr] items-end gap-2.5 phone:grid-cols-[minmax(0,1fr)_46px_84px] phone:gap-2">
+            <SkeletonField label="w-20" />
+            <Skeleton className="h-11 rounded-input" />
+            <Skeleton className="h-11 rounded-input" />
+          </span>
+          <Skeleton className="h-[68px] rounded-xl" />
+          <SkeletonField label="w-16" />
+          <Skeleton className="h-[72px] rounded-xl" />
+          <span className="flex flex-col gap-1.5">
+            <SkeletonText className="w-28 text-[13px]" />
+            <Skeleton className="h-[88px] rounded-input" />
+          </span>
+        </Loading>
+      </SheetBody>
+      <SheetFooter>
+        <span
+          aria-hidden="true"
+          className="skeleton-reveal flex flex-1 justify-end gap-2"
+        >
+          {editing && <SkeletonButton className="mr-auto w-20 phone:flex-1" />}
+          <SkeletonButton className="phone:flex-1" />
+          <SkeletonButton className="w-20 phone:flex-1" />
+        </span>
+      </SheetFooter>
+    </SheetContent>
   );
 }
 
@@ -199,218 +271,222 @@ function FlowDrawer({
   }
 
   return (
-    <RouteSheet closeTo={pageHref}>
-      <SheetContent style={{ "--section": color } as CSSProperties}>
-        <SheetHeader
-          eyebrow={
-            <span data-slot="eyebrow">
-              {flowEyebrow(Boolean(flow), direction, category?.name)}
-            </span>
-          }
-          title={title}
-        />
-        <SheetForm id="flow-form" onSubmit={save}>
-          <SheetBody>
-            {error && <SheetError>{error}</SheetError>}
+    <SheetContent style={{ "--section": color } as CSSProperties}>
+      <SheetHeader
+        eyebrow={
+          <span data-slot="eyebrow">
+            {flowEyebrow(Boolean(flow), direction, category?.name)}
+          </span>
+        }
+        title={title}
+      />
+      <SheetForm id="flow-form" onSubmit={save}>
+        <SheetBody>
+          {error && <SheetError>{error}</SheetError>}
 
-            <fieldset className="grid min-w-0 grid-cols-2 gap-0.5 rounded-full border-0 bg-chip p-[3px]">
-              <legend className="sr-only">Direction</legend>
-              {(["income", "expense"] as const).map((value) => (
-                <label
-                  key={value}
+          <fieldset className="grid min-w-0 grid-cols-2 gap-0.5 rounded-full border-0 bg-chip p-[3px]">
+            <legend className="sr-only">Direction</legend>
+            {(["income", "expense"] as const).map((value) => (
+              <label
+                key={value}
+                className={cn(
+                  "group relative flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-full text-muted phone:min-h-11",
+                  "has-checked:bg-surface has-checked:font-semibold has-checked:text-ink has-checked:shadow-pill",
+                  "has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-asset",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="direction"
+                  value={value}
+                  checked={form.direction === value}
+                  onChange={() => set("direction", value)}
+                  className="absolute size-px opacity-0"
+                />
+                <span
+                  aria-hidden="true"
                   className={cn(
-                    "group relative flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-full text-muted phone:min-h-11",
-                    "has-checked:bg-surface has-checked:font-semibold has-checked:text-ink has-checked:shadow-pill",
-                    "has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-asset",
+                    "hidden size-2 rounded-full group-has-checked:inline-block",
+                    value === "income" ? "bg-asset" : "bg-liability",
                   )}
-                >
-                  <input
-                    type="radio"
-                    name="direction"
-                    value={value}
-                    checked={form.direction === value}
-                    onChange={() => set("direction", value)}
-                    className="absolute size-px opacity-0"
-                  />
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "hidden size-2 rounded-full group-has-checked:inline-block",
-                      value === "income" ? "bg-asset" : "bg-liability",
-                    )}
-                  />
-                  {value === "income" ? "Income" : "Expense"}
-                </label>
-              ))}
-            </fieldset>
+                />
+                {value === "income" ? "Income" : "Expense"}
+              </label>
+            ))}
+          </fieldset>
 
-            <Field label="Name">
+          <Field label="Name">
+            <Input
+              name="name"
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              required
+              data-autofocus=""
+            />
+          </Field>
+
+          <div
+            data-slot="frequency"
+            className={cn(
+              "grid grid-cols-[1.3fr_auto_0.7fr_1fr] items-end gap-2.5",
+              // The unit and the count keep their width (all of "month"
+              // shows); the amount takes what is left.
+              "phone:grid-cols-[minmax(0,1fr)_auto_46px_84px] phone:gap-2",
+              "phone:[&_input]:px-2.5 phone:[&_select]:pr-1 phone:[&_select]:pl-2.5",
+            )}
+          >
+            <Field label="Amount ($)">
               <Input
-                name="name"
-                value={form.name}
-                onChange={(e) => set("name", e.target.value)}
+                num
+                name="amount"
+                value={form.amount}
+                onChange={(e) => set("amount", e.target.value)}
+                inputMode="decimal"
+                placeholder="0.00"
                 required
-                data-autofocus=""
               />
             </Field>
-
-            <div
-              data-slot="frequency"
-              className={cn(
-                "grid grid-cols-[1.3fr_auto_0.7fr_1fr] items-end gap-2.5",
-                // The unit and the count keep their width (all of "month"
-                // shows); the amount takes what is left.
-                "phone:grid-cols-[minmax(0,1fr)_auto_46px_84px] phone:gap-2",
-                "phone:[&_input]:px-2.5 phone:[&_select]:pr-1 phone:[&_select]:pl-2.5",
-              )}
+            <span
+              aria-hidden="true"
+              className="flex min-h-11 items-center text-muted"
             >
-              <Field label="Amount ($)">
-                <Input
-                  num
-                  name="amount"
-                  value={form.amount}
-                  onChange={(e) => set("amount", e.target.value)}
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  required
-                />
-              </Field>
-              <span
-                aria-hidden="true"
-                className="flex min-h-11 items-center text-muted"
-              >
-                every
-              </span>
-              <label className="flex flex-col">
-                <span className="sr-only">Every how many</span>
-                <Input
-                  num
-                  name="every"
-                  value={form.every}
-                  onChange={(e) => set("every", e.target.value)}
-                  inputMode="numeric"
-                  required
-                />
-              </label>
-              <label className="flex flex-col">
-                <span className="sr-only">Unit</span>
-                <Select
-                  name="unit"
-                  value={form.unit}
-                  onChange={(e) => set("unit", e.target.value)}
-                >
-                  {UNITS.map((unit) => (
-                    <option key={unit} value={unit}>
-                      {unit}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            </div>
-
-            {/* A day / a month / a year, the month emphasised. On phones
-                each column starts from its amount's width, so a year's six
-                figures stay on one line. */}
-            <div
-              data-slot="rates"
-              aria-live="polite"
-              className="grid grid-cols-3 overflow-hidden rounded-xl bg-chip phone:grid-cols-[repeat(3,auto)]"
-            >
-              {RATE_CELLS.map((cell) => (
-                <div
-                  key={cell.id}
-                  className="flex min-w-0 flex-col gap-0.5 px-3.5 py-3 [&+&]:border-l-2 [&+&]:border-surface phone:px-2 phone:py-2.5"
-                >
-                  <span className="text-[12px] text-muted">{cell.label}</span>
-                  <strong
-                    id={cell.id}
-                    className={cn(
-                      "font-display font-semibold [overflow-wrap:anywhere]",
-                      cell.key === "perMonth"
-                        ? "text-[20px] phone:text-[16px]"
-                        : "text-[16px] phone:text-[14px]",
-                      "phone:tracking-[-0.01em]",
-                    )}
-                  >
-                    {rates ? rates[cell.key] : "—"}
-                  </strong>
-                </div>
-              ))}
-            </div>
-
-            <Field label="Category">
+              every
+            </span>
+            <label className="flex flex-col">
+              <span className="sr-only">Every how many</span>
+              <Input
+                num
+                name="every"
+                value={form.every}
+                onChange={(e) => set("every", e.target.value)}
+                inputMode="numeric"
+                required
+              />
+            </label>
+            <label className="flex flex-col">
+              <span className="sr-only">Unit</span>
               <Select
-                name="category_id"
-                id="category-select"
-                value={form.categoryId}
-                onChange={(e) => set("categoryId", e.target.value)}
+                name="unit"
+                value={form.unit}
+                onChange={(e) => set("unit", e.target.value)}
               >
-                <option value="">Uncategorized</option>
-                {view.categories.map((c) => (
-                  <option key={c.id} value={String(c.id)}>
-                    {c.name}
+                {UNITS.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
                   </option>
                 ))}
               </Select>
-            </Field>
-
-            <label
-              className={cn(
-                "flex cursor-pointer items-start gap-2.5 rounded-xl bg-estimate-bg px-3.5 py-3 text-estimate-fg phone:min-h-11",
-                "has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-asset",
-              )}
-            >
-              <input
-                type="checkbox"
-                name="is_estimate"
-                checked={form.isEstimate}
-                onChange={(e) => set("isEstimate", e.target.checked)}
-                className="mt-px size-[18px] flex-none accent-estimate-fg"
-              />
-              <span className="flex flex-col gap-0.5 text-[13px]">
-                <strong className="text-[15px] font-semibold">
-                  ≈ This is an estimate
-                </strong>
-                The amount varies; it's marked ≈ and counted in the estimate
-                total.
-              </span>
             </label>
+          </div>
 
-            <Field
-              label={
-                <>
-                  Note <span className="font-normal">(optional)</span>
-                </>
-              }
-            >
-              <Textarea
-                name="description"
-                rows={3}
-                value={form.description}
-                onChange={(e) => set("description", e.target.value)}
-              />
-            </Field>
-          </SheetBody>
-          <SheetFooter>
-            {flow && (
-              <Button
-                variant="danger"
-                className="mr-auto px-3!"
-                onClick={remove}
-                disabled={busy}
+          {/* A day / a month / a year, the month emphasised. On phones
+                each column starts from its amount's width, so a year's six
+                figures stay on one line. */}
+          <div
+            data-slot="rates"
+            aria-live="polite"
+            className="grid grid-cols-3 overflow-hidden rounded-xl bg-chip phone:grid-cols-[repeat(3,auto)]"
+          >
+            {RATE_CELLS.map((cell) => (
+              <div
+                key={cell.id}
+                className="flex min-w-0 flex-col gap-0.5 px-3.5 py-3 [&+&]:border-l-2 [&+&]:border-surface phone:px-2 phone:py-2.5"
               >
-                Delete
-              </Button>
+                <span className="text-[12px] text-muted">{cell.label}</span>
+                <strong
+                  id={cell.id}
+                  className={cn(
+                    "font-display font-semibold [overflow-wrap:anywhere]",
+                    cell.key === "perMonth"
+                      ? "text-[20px] phone:text-[16px]"
+                      : "text-[16px] phone:text-[14px]",
+                    "phone:tracking-[-0.01em]",
+                  )}
+                >
+                  {rates ? rates[cell.key] : "—"}
+                </strong>
+              </div>
+            ))}
+          </div>
+
+          <Field label="Category">
+            <Select
+              name="category_id"
+              id="category-select"
+              value={form.categoryId}
+              onChange={(e) => set("categoryId", e.target.value)}
+            >
+              <option value="">Uncategorized</option>
+              {view.categories.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <label
+            className={cn(
+              "flex cursor-pointer items-start gap-2.5 rounded-xl bg-estimate-bg px-3.5 py-3 text-estimate-fg phone:min-h-11",
+              "has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-asset",
             )}
-            <SheetClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </SheetClose>
-            <Button type="submit" variant="primary" disabled={busy}>
-              Save
+          >
+            <input
+              type="checkbox"
+              name="is_estimate"
+              checked={form.isEstimate}
+              onChange={(e) => set("isEstimate", e.target.checked)}
+              className="mt-px size-[18px] flex-none accent-estimate-fg"
+            />
+            <span className="flex flex-col gap-0.5 text-[13px]">
+              <strong className="text-[15px] font-semibold">
+                ≈ This is an estimate
+              </strong>
+              The amount varies; it's marked ≈ and counted in the estimate
+              total.
+            </span>
+          </label>
+
+          <Field
+            label={
+              <>
+                Note <span className="font-normal">(optional)</span>
+              </>
+            }
+          >
+            <Textarea
+              name="description"
+              rows={3}
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
+          </Field>
+        </SheetBody>
+        <SheetFooter>
+          {flow && (
+            <Button
+              variant="danger"
+              className="mr-auto px-3!"
+              onClick={remove}
+              disabled={busy}
+              busy={writes.remove.isPending}
+            >
+              Delete
             </Button>
-          </SheetFooter>
-        </SheetForm>
-      </SheetContent>
-    </RouteSheet>
+          )}
+          <SheetClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </SheetClose>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={busy}
+            busy={writes.create.isPending || writes.update.isPending}
+          >
+            Save
+          </Button>
+        </SheetFooter>
+      </SheetForm>
+    </SheetContent>
   );
 }

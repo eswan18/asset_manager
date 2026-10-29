@@ -1,14 +1,19 @@
 /** Test helpers: a fake API and the app's router in memory. */
 import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  type ByRoleOptions,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   createMemoryRouter,
   RouterProvider,
   type RouteObject,
 } from "react-router";
-import { vi } from "vitest";
+import { expect, vi } from "vitest";
 
 import type { Me, MyInvite } from "@/api/shell";
 import { Toaster } from "@/components/ui/toaster";
@@ -110,6 +115,35 @@ export function renderRoute(
     </QueryClientProvider>,
   );
   return { ...result, router, queryClient, user };
+}
+
+/** The open drawer (`name` and the like as for `findByRole("dialog")`) once
+ * it has loaded: a drawer opens at once, busy, and its form replaces the
+ * skeleton when the data lands. */
+export async function findSheet(options?: ByRoleOptions) {
+  await screen.findByRole("dialog", options);
+  await waitFor(() => {
+    const sheet = screen.getByRole("dialog", options);
+    expect(sheet).not.toHaveAttribute("aria-busy");
+    expect(sheet.querySelector("[aria-busy=true]")).toBeNull();
+  });
+  return screen.getByRole("dialog", options);
+}
+
+/** A request the test answers when it chooses: `handler` for `mockApi`,
+ * and `release()` to let the response through. */
+export function held(answer: FakeResponse = {}) {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const calls = { count: 0 };
+  const handler: Handler = async () => {
+    calls.count += 1;
+    await gate;
+    return answer;
+  };
+  return { handler, release: () => release(), calls };
 }
 
 /** Render one element with a query client and a router around it. */

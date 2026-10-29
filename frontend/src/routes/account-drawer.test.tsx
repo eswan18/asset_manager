@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { AccountOut } from "@/api/accounts";
 import {
   ME,
+  findSheet,
   mockApi,
   renderRoute,
   shellApi,
@@ -65,7 +66,7 @@ function lastCall(fetchMock: ReturnType<typeof mockApi>, method: string) {
 describe("the new account drawer", () => {
   it("is a new asset by default, with the name focused", async () => {
     open(`${ACCOUNTS}/new`);
-    const dialog = await screen.findByRole("dialog", { name: "New asset" });
+    const dialog = await findSheet({ name: "New asset" });
     expect(dialog).toHaveTextContent("New account");
     expect(within(dialog).getByLabelText("Name")).toHaveFocus();
     expect(within(dialog).getByLabelText("Asset")).toBeChecked();
@@ -86,7 +87,7 @@ describe("the new account drawer", () => {
 
   it("takes the type from the link, and the type switch retitles it", async () => {
     const { user } = open(`${ACCOUNTS}/new?type=liability`);
-    const dialog = await screen.findByRole("dialog", { name: "New liability" });
+    const dialog = await findSheet({ name: "New liability" });
     expect(within(dialog).getByLabelText("Liability")).toBeChecked();
     await user.click(within(dialog).getByLabelText("Asset"));
     expect(
@@ -96,14 +97,12 @@ describe("the new account drawer", () => {
 
   it("falls back to an asset for an unknown type", async () => {
     open(`${ACCOUNTS}/new?type=boat`);
-    expect(
-      await screen.findByRole("dialog", { name: "New asset" }),
-    ).toBeInTheDocument();
+    expect(await findSheet({ name: "New asset" })).toBeInTheDocument();
   });
 
   it("lists plain, active accounts as inputs, under their type", async () => {
     const { user } = open(`${ACCOUNTS}/new`);
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.click(
       within(dialog).getByLabelText("Computed from other accounts"),
     );
@@ -128,7 +127,7 @@ describe("the new account drawer", () => {
     const { user } = open(`${ACCOUNTS}/new`, {
       [`GET ${API}/overview`]: { body: one },
     });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.click(
       within(dialog).getByLabelText("Computed from other accounts"),
     );
@@ -143,7 +142,7 @@ describe("the new account drawer", () => {
     const { user } = open(`${ACCOUNTS}/new`, {
       [`GET ${API}/overview`]: { body: none },
     });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.click(
       within(dialog).getByLabelText("Computed from other accounts"),
     );
@@ -154,7 +153,7 @@ describe("the new account drawer", () => {
 
   it("shows the computed value as the fields change", async () => {
     const { user } = open(`${ACCOUNTS}/new`);
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.click(
       within(dialog).getByLabelText("Computed from other accounts"),
     );
@@ -188,7 +187,7 @@ describe("the new account drawer", () => {
         },
       },
     });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.type(within(dialog).getByLabelText("Name"), "Brokerage");
     await user.selectOptions(
       within(dialog).getByLabelText("Category"),
@@ -215,7 +214,7 @@ describe("the new account drawer", () => {
     const { user, fetchMock } = open(`${ACCOUNTS}/new?type=liability`, {
       [`POST ${API}`]: { status: 201, body: { ...TAX, id: 9 } },
     });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.type(within(dialog).getByLabelText("Name"), "Tax");
     await user.click(
       within(dialog).getByLabelText("Computed from other accounts"),
@@ -242,7 +241,7 @@ describe("the new account drawer", () => {
         body: { error: "A asset named 'Checking' already exists" },
       },
     });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.type(within(dialog).getByLabelText("Name"), "Checking");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
@@ -259,7 +258,7 @@ describe("the new account drawer", () => {
         body: { error: "A liability named 'Cap gains tax' already exists" },
       },
     });
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet({ name: "New liability" });
     const field = (label: string) => within(dialog).getByLabelText(label);
     await user.type(field("Name"), "Cap gains tax");
     await user.selectOptions(field("Category"), "tax_liability");
@@ -285,7 +284,7 @@ describe("the new account drawer", () => {
 
   it("is editor-only", async () => {
     open(`${ACCOUNTS}/new`, {}, VIEWER);
-    const dialog = await screen.findByRole("dialog", { name: "New account" });
+    const dialog = await findSheet({ name: "New account" });
     expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "This needs the editor role or higher",
     );
@@ -294,11 +293,11 @@ describe("the new account drawer", () => {
 
   it("closes on Cancel and Escape", async () => {
     const { user, router } = open(`${ACCOUNTS}/new`);
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(router.state.location.pathname).toBe(ACCOUNTS);
     await router.navigate(`${ACCOUNTS}/new`);
-    await screen.findByRole("dialog");
+    await findSheet();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(router.state.location.pathname).toBe(ACCOUNTS));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -320,7 +319,7 @@ describe("the edit drawer", () => {
         },
       ]),
     });
-    const dialog = await screen.findByRole("dialog", { name: "Cap gains tax" });
+    const dialog = await findSheet({ name: "Cap gains tax" });
     expect(dialog).toHaveTextContent("Edit liability");
     expect(within(dialog).getByLabelText("Name")).toHaveValue("Cap gains tax");
     expect(within(dialog).getByLabelText("Name")).toHaveFocus();
@@ -365,7 +364,7 @@ describe("the edit drawer", () => {
   it("shows a plain account with no snapshots yet, and plain Retire", async () => {
     const cash = { ...CHECKING, id: 7, name: "Cash", amount: null };
     open(`${ACCOUNTS}/7/edit`, details([cash]));
-    const dialog = await screen.findByRole("dialog", { name: "Cash" });
+    const dialog = await findSheet({ name: "Cash" });
     expect(dialog).toHaveTextContent("Edit asset");
     expect(
       within(dialog).getByLabelText("Computed from other accounts"),
@@ -388,7 +387,7 @@ describe("the edit drawer", () => {
 
   it("says History (1 snapshot)", async () => {
     open(`${ACCOUNTS}/${CHECKING.id}/edit`, details([CHECKING]));
-    const dialog = await screen.findByRole("dialog", { name: "Checking" });
+    const dialog = await findSheet({ name: "Checking" });
     expect(dialog.querySelector("summary")).toHaveTextContent(
       "History (1 snapshot)",
     );
@@ -405,7 +404,7 @@ describe("the edit drawer", () => {
         },
       ]),
     );
-    const dialog = await screen.findByRole("dialog", { name: "Schwab" });
+    const dialog = await findSheet({ name: "Schwab" });
     const retire = within(dialog).getByRole("region", { name: "Retire" });
     expect(retire).toHaveTextContent("Schwab is an input to Cap gains tax");
     expect(within(retire).queryByRole("button")).toBeNull();
@@ -416,7 +415,7 @@ describe("the edit drawer", () => {
       ...details([TAX]),
       [`PATCH ${API}/${TAX.id}`]: { body: { ...TAX, name: "Tax" } },
     });
-    const dialog = await screen.findByRole("dialog", { name: "Cap gains tax" });
+    const dialog = await findSheet({ name: "Cap gains tax" });
     const name = within(dialog).getByLabelText("Name");
     await user.clear(name);
     await user.type(name, "Tax");
@@ -443,7 +442,7 @@ describe("the edit drawer", () => {
       ...details([TAX]),
       [`PATCH ${API}/${TAX.id}`]: { body: TAX },
     });
-    const dialog = await screen.findByRole("dialog", { name: "Cap gains tax" });
+    const dialog = await findSheet({ name: "Cap gains tax" });
     await user.click(
       within(dialog).getByLabelText("Computed from other accounts"),
     );
@@ -465,7 +464,7 @@ describe("the edit drawer", () => {
         body: { error: "Rate must be a number, e.g. 15 for 15%" },
       },
     });
-    const dialog = await screen.findByRole("dialog", { name: "Cap gains tax" });
+    const dialog = await findSheet({ name: "Cap gains tax" });
     const rate = within(dialog).getByLabelText("Rate (%)");
     await user.clear(rate);
     await user.type(rate, "abc");
@@ -490,7 +489,7 @@ describe("the edit drawer", () => {
         },
       },
     );
-    const dialog = await screen.findByRole("dialog", { name: "Checking" });
+    const dialog = await findSheet({ name: "Checking" });
     await user.click(within(dialog).getByRole("button", { name: "Retire" }));
     expect(await screen.findByText("Retired Checking")).toBeInTheDocument();
     await waitFor(() => expect(router.state.location.pathname).toBe(ACCOUNTS));
@@ -507,7 +506,7 @@ describe("the edit drawer", () => {
         body: { error: "Checking is already retired" },
       },
     });
-    const dialog = await screen.findByRole("dialog", { name: "Checking" });
+    const dialog = await findSheet({ name: "Checking" });
     await user.click(within(dialog).getByRole("button", { name: "Retire" }));
     expect(
       await screen.findByText("Checking is already retired"),
@@ -522,7 +521,7 @@ describe("the edit drawer", () => {
         body: { ...OLD, retired_at: null },
       },
     });
-    const dialog = await screen.findByRole("dialog", { name: "Old savings" });
+    const dialog = await findSheet({ name: "Old savings" });
     const retire = within(dialog).getByRole("region", { name: "Retire" });
     expect(retire).toHaveTextContent(
       "Retired Sep 1, 2026. Unretiring brings it back with a blank amount.",
@@ -541,7 +540,7 @@ describe("the edit drawer", () => {
     open(`${ACCOUNTS}/99/edit`, {
       [`GET ${API}/99`]: { status: 404, body: { error: "Account not found" } },
     });
-    const dialog = await screen.findByRole("dialog", {
+    const dialog = await findSheet({
       name: "Account not found",
     });
     expect(within(dialog).getByRole("alert")).toHaveTextContent(
@@ -561,7 +560,7 @@ describe("the edit drawer", () => {
       },
       VIEWER,
     );
-    const dialog = await screen.findByRole("dialog", { name: "Cap gains tax" });
+    const dialog = await findSheet({ name: "Cap gains tax" });
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "This needs the editor role or higher",

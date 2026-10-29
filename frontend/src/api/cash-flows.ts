@@ -2,6 +2,7 @@
  * and category writes (web/api_cash_flows.py, web/api_routes.py). */
 import {
   keepPreviousData,
+  queryOptions,
   useMutation,
   useQuery,
   useQueryClient,
@@ -195,12 +196,20 @@ export function useCashFlowsPeriod(base: string): {
   return { period, pageHref: `${base}/cash-flows?per=${period}` };
 }
 
+/** The page's query for one period (its drawers read it too): what
+ * `useCashFlowsOverview` reads and a link to the page prefetches
+ * (api/prefetch.ts). */
+export const cashFlowsOverviewQuery = (workspaceId: number, per: Period) =>
+  queryOptions({
+    queryKey: queryKeys.cashFlowsOverview(workspaceId, per),
+    queryFn: () => getCashFlowsOverview(workspaceId, per),
+  });
+
 /** The page's model for one period. Switching periods keeps showing the
  * last one until the next arrives, so the page doesn't blank. */
 export function useCashFlowsOverview(workspaceId: number, per: Period) {
   return useQuery({
-    queryKey: queryKeys.cashFlowsOverview(workspaceId, per),
-    queryFn: () => getCashFlowsOverview(workspaceId, per),
+    ...cashFlowsOverviewQuery(workspaceId, per),
     placeholderData: keepPreviousData,
   });
 }

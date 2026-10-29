@@ -1,7 +1,12 @@
 /** The Accounts page and the account drawer: types, fetchers and hooks
  * (web/api_accounts.py, and `POST .../snapshots` in web/api_routes.py).
  * Money is a two-place decimal string ("12400.00"), dates ISO. */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { api } from "./client";
 import { queryKeys } from "./queryKeys";
@@ -173,17 +178,28 @@ export const unretireAccount = (workspaceId: number, accountId: number) =>
 export const saveSnapshot = (workspaceId: number, body: SnapshotIn) =>
   api.post<SnapshotSaved>(`/api/workspaces/${workspaceId}/snapshots`, body);
 
-export function useAccountsOverview(workspaceId: number) {
-  return useQuery({
+/** The Accounts page's query: what `useAccountsOverview` reads and a link
+ * to the page prefetches (api/prefetch.ts), so the two can't drift. */
+export const accountsOverviewQuery = (workspaceId: number) =>
+  queryOptions({
     queryKey: queryKeys.accountsOverview(workspaceId, true),
     queryFn: () => getAccountsOverview(workspaceId),
   });
+
+/** The account drawer's query; an account's row prefetches it. */
+export const accountQuery = (workspaceId: number, accountId: number) =>
+  queryOptions({
+    queryKey: queryKeys.account(workspaceId, accountId),
+    queryFn: () => getAccount(workspaceId, accountId),
+  });
+
+export function useAccountsOverview(workspaceId: number) {
+  return useQuery(accountsOverviewQuery(workspaceId));
 }
 
 export function useAccount(workspaceId: number, accountId: number | null) {
   return useQuery({
-    queryKey: queryKeys.account(workspaceId, accountId ?? 0),
-    queryFn: () => getAccount(workspaceId, accountId!),
+    ...accountQuery(workspaceId, accountId ?? 0),
     enabled: accountId !== null,
   });
 }

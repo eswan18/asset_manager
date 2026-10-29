@@ -36,24 +36,56 @@ const buttonVariants = cva(
 );
 
 type ButtonProps = React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & { asChild?: boolean };
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean;
+    /** A write is in flight: a spinner before the label, and disabled (so
+     * it can't be sent twice). Every button that writes sets it while its
+     * write runs. Not with `asChild` (links don't write). */
+    busy?: boolean;
+  };
 
 function Button({
   className,
   variant,
   size,
   asChild = false,
+  busy = false,
+  disabled,
   type,
+  children,
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button";
+  const working = busy && !asChild;
   return (
     <Comp
       data-slot="button"
       // A plain <button> never submits a form by accident.
       type={asChild ? type : (type ?? "button")}
+      disabled={disabled || working}
+      aria-busy={working || undefined}
       className={cn(buttonVariants({ variant, size }), className)}
       {...props}
+    >
+      {working ? (
+        <>
+          <Spinner />
+          {children}
+        </>
+      ) : (
+        children
+      )}
+    </Comp>
+  );
+}
+
+/** The busy button's spinner, in the label's color. */
+function Spinner() {
+  return (
+    <span
+      aria-hidden="true"
+      data-slot="spinner"
+      className="inline-block size-3 flex-none animate-spin rounded-full border-2 border-current border-r-transparent border-b-transparent"
     />
   );
 }

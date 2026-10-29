@@ -1,11 +1,20 @@
 import { Outlet, useParams } from "react-router";
 
 import { useMe } from "@/api/shell";
+import { Card, CardGrid, CardHead } from "@/components/ui/card";
+import {
+  Loading,
+  Skeleton,
+  SkeletonRow,
+  SkeletonText,
+} from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { NotFound } from "@/routes/not-found";
 
 import { ShellHeader } from "./header";
 import { InviteStrips } from "./invite-strip";
 import {
+  APP_NAME,
   currentWorkspace,
   WorkspaceContext,
   type CurrentWorkspace,
@@ -20,7 +29,7 @@ export function AppShell() {
   const { workspaceId } = useParams();
   const me = useMe();
 
-  if (me.isPending) return null;
+  if (me.isPending) return <ShellSkeleton />;
   if (me.isError) {
     return (
       <main className="mx-auto max-w-[1160px] px-gutter py-6">
@@ -50,5 +59,54 @@ export function AppShell() {
         {missing ? <NotFound /> : <Outlet />}
       </main>
     </WorkspaceContext.Provider>
+  );
+}
+
+/** The app's very first paint, before it knows who you are (`/api/me`):
+ * the top bar's shape (wordmark, nav, picker, gear, avatar) over a page of
+ * cards. Once `me` is cached, every later page skips straight to its own
+ * skeleton, inside the real shell. */
+export function ShellSkeleton() {
+  return (
+    <Loading label="Loading Sensibility">
+      <div
+        className={cn(
+          "mx-auto flex max-w-[1160px] items-center justify-between gap-3 px-gutter py-5",
+          "phone:min-h-[60px] phone:gap-2 phone:py-2",
+        )}
+      >
+        <span className="font-display text-[20px] font-bold text-ink">
+          {APP_NAME}
+        </span>
+        <Skeleton
+          on="bg"
+          className="h-12 w-[300px] rounded-full phone:hidden"
+        />
+        <span className="flex items-center gap-3 phone:gap-2">
+          <Skeleton on="bg" className="h-10 w-36 rounded-input phone:hidden" />
+          <Skeleton on="bg" className="size-10 rounded-full phone:size-11" />
+          <Skeleton on="bg" className="size-10 rounded-full phone:size-11" />
+        </span>
+      </div>
+      <div className="mx-auto max-w-[1160px] px-gutter pt-2">
+        <div className="mb-4 flex flex-col gap-1 px-1 py-2">
+          <SkeletonText on="bg" className="w-44 text-[32px]" />
+          <SkeletonText on="bg" className="w-64 text-[14px]" />
+        </div>
+        <CardGrid>
+          {(["asset", "liability"] as const).map((kind) => (
+            <Card key={kind} kind={kind} className="phone:px-4 phone:py-5">
+              <CardHead>
+                <SkeletonText className="w-28 text-[20px]" />
+                <SkeletonText className="w-24 text-[20px]" />
+              </CardHead>
+              <SkeletonRow name="w-36" />
+              <SkeletonRow name="w-28" />
+              <SkeletonRow name="w-40" />
+            </Card>
+          ))}
+        </CardGrid>
+      </div>
+    </Loading>
   );
 }

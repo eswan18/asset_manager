@@ -80,6 +80,7 @@ function InviteStrip({ invite }: { invite: MyInvite }) {
           variant="outline"
           size="lg"
           disabled={busy}
+          busy={decline.isPending}
           onClick={onDecline}
           className={phoneButton}
         >
@@ -89,6 +90,7 @@ function InviteStrip({ invite }: { invite: MyInvite }) {
           variant="primary"
           size="lg"
           disabled={busy}
+          busy={accept.isPending}
           onClick={onJoin}
           className={phoneButton}
         >

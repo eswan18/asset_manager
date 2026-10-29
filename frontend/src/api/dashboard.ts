@@ -1,6 +1,10 @@
 /** The dashboard's data: `GET /api/workspaces/{id}/dashboard?range=`
  * (web/api_dashboard.py, whose Pydantic models these types mirror). */
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  queryOptions,
+  useQuery,
+} from "@tanstack/react-query";
 
 import { api } from "./client";
 import { queryKeys } from "./queryKeys";
@@ -130,13 +134,20 @@ export const getDashboard = (workspaceId: number, range: RangeKey) =>
     query: { range },
   });
 
+/** The dashboard's query for a range: what `useDashboard` reads and a link
+ * to the dashboard prefetches (api/prefetch.ts). */
+export const dashboardQuery = (workspaceId: number, range: RangeKey) =>
+  queryOptions({
+    queryKey: queryKeys.dashboard(workspaceId, range),
+    queryFn: () => getDashboard(workspaceId, range),
+  });
+
 /** The dashboard for a range. Changing the range keeps the last one's data
  * on screen (`isPlaceholderData`) until the new one arrives; another
  * workspace's never stands in. */
 export function useDashboard(workspaceId: number, range: RangeKey) {
   return useQuery({
-    queryKey: queryKeys.dashboard(workspaceId, range),
-    queryFn: () => getDashboard(workspaceId, range),
+    ...dashboardQuery(workspaceId, range),
     placeholderData: (previous, previousQuery) =>
       previousQuery?.queryKey[1] === workspaceId
         ? keepPreviousData(previous)

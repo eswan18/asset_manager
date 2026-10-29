@@ -23,6 +23,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Field, FormError, Input, Select } from "@/components/ui/field";
+import {
+  Loading,
+  Skeleton,
+  SkeletonButton,
+  SkeletonField,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 import { Tag } from "@/components/ui/tag";
 import { flash } from "@/components/ui/toaster";
 import {
@@ -51,7 +58,8 @@ export function SettingsPage() {
   const workspace = useWorkspace();
   useDocumentTitle(`Settings · ${workspace.name}`);
   const settings = useWorkspaceSettings(workspace.id);
-  if (settings.isPending) return null;
+  if (settings.isPending)
+    return <SettingsSkeleton isOwner={workspace.isOwner} />;
   if (settings.isError) {
     return (
       <FormError>
@@ -62,6 +70,62 @@ export function SettingsPage() {
   }
   // Keyed: another workspace's settings start with no errors or drafts.
   return <Settings key={workspace.id} settings={settings.data} />;
+}
+
+/** The first load: the heading, then General (owners) and Leave / Delete
+ * beside People with a few rows. Your role, from the shell, decides which
+ * cards there are. */
+function SettingsSkeleton({ isOwner }: { isOwner: boolean }) {
+  return (
+    <Loading label="Loading settings">
+      <div className="mb-4 flex flex-col gap-1 px-1 pt-2 pb-1">
+        <SkeletonText on="bg" className="w-72 text-[32px]" />
+        <SkeletonText on="bg" className="w-44" />
+      </div>
+      <div className="grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] items-start gap-4 [@media(max-width:860px)]:grid-cols-[minmax(0,1fr)]">
+        <div className="flex flex-col gap-4">
+          {isOwner && (
+            <Card className="gap-4 phone:px-4 phone:py-5">
+              <SkeletonText className="w-24 text-[20px]" />
+              <SkeletonField label="w-12" />
+              <SkeletonButton className="self-end" />
+            </Card>
+          )}
+          <div className="flex flex-col items-start gap-2 rounded-card px-7 py-6 shadow-[inset_0_0_0_1px_var(--rule-strong)] phone:px-4 phone:py-5">
+            <SkeletonText on="bg" className="w-40" />
+            <SkeletonText on="bg" className="w-64 text-[14px]" />
+            <Skeleton on="bg" className="h-10 w-24 rounded-full" />
+          </div>
+        </div>
+        <Card className="phone:px-4 phone:py-5">
+          <span className="flex items-baseline justify-between gap-3 border-b border-rule-strong pb-3">
+            <SkeletonText className="w-20 text-[20px]" />
+            <SkeletonText className="w-24 text-[14px]" />
+          </span>
+          {isOwner && (
+            <span className="grid grid-cols-[minmax(0,1fr)_120px_auto] items-center gap-2 border-b border-rule py-4 phone:grid-cols-[minmax(0,1fr)_auto]">
+              <Skeleton className="h-11 rounded-input phone:col-span-full" />
+              <Skeleton className="h-11 rounded-input" />
+              <SkeletonButton className="w-[84px]" />
+            </span>
+          )}
+          {["w-32", "w-40", "w-28"].map((name) => (
+            <span
+              key={name}
+              className="grid min-h-[68px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 border-b border-rule py-1.5"
+            >
+              <Skeleton className="size-10 rounded-full" />
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <SkeletonText className={name} />
+                <SkeletonText className="w-48 text-[13px]" />
+              </span>
+              <SkeletonText className="w-14 text-[14px]" />
+            </span>
+          ))}
+        </Card>
+      </div>
+    </Loading>
+  );
 }
 
 /** Where a refusal shows: the section whose control it came from. */
@@ -421,7 +485,7 @@ function General({
           type="submit"
           variant="primary"
           size="lg"
-          disabled={busy}
+          busy={busy}
           className="self-end"
         >
           Save
@@ -490,7 +554,7 @@ function InviteForm({
           </option>
         ))}
       </Select>
-      <Button type="submit" variant="primary" size="lg" disabled={busy}>
+      <Button type="submit" variant="primary" size="lg" busy={busy}>
         Invite
       </Button>
     </form>
@@ -714,7 +778,7 @@ function Confirm({
         </Button>
         <Button
           variant="danger-solid"
-          disabled={busy}
+          busy={busy}
           onClick={onConfirm}
           className={button}
         >

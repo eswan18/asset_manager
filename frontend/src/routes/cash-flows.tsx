@@ -12,6 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyCard } from "@/components/ui/empty-card";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import {
+  Loading,
+  Skeleton,
+  SkeletonRow,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 import { EstimateTag } from "@/components/ui/tag";
 import { APP_NAME, useWorkspace } from "@/components/shell/workspace-context";
 import { money, PERIODS, type Period } from "@/lib/cash-flows";
@@ -48,7 +54,7 @@ export function CashFlowsPage() {
   usePageTitle(`Cash flows · ${workspace.name}`, onPage);
   const overview = useCashFlowsOverview(workspace.id, period);
 
-  let content = null;
+  let content = <FlowsSkeleton />;
   if (overview.isError) {
     content = (
       <div
@@ -63,6 +69,7 @@ export function CashFlowsPage() {
       <Flows
         view={overview.data}
         period={period}
+        updating={overview.isPlaceholderData}
         onPeriod={(per) => setParams({ per })}
       />
     );
@@ -76,17 +83,64 @@ export function CashFlowsPage() {
   );
 }
 
+/** The first load: the top card (headline, the toggle and buttons, the
+ * bar and its key) and a few flow cards. */
+function FlowsSkeleton() {
+  return (
+    <Loading label="Loading cash flows" className="flex flex-col gap-4">
+      <Card className="gap-7 p-8 phone:gap-6 phone:px-5 phone:py-6">
+        <div className="flex flex-wrap items-end justify-between gap-4 phone:gap-5">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <SkeletonText className="w-36 text-[14px]" />
+            <Skeleton className="h-16 w-72 max-w-full rounded-xl phone:h-12 phone:w-60" />
+            <SkeletonText className="w-60" />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 phone:w-full">
+            <Skeleton className="h-[42px] w-[210px] rounded-full phone:h-[50px] phone:w-full" />
+            <Skeleton className="h-12 w-44 rounded-full phone:hidden" />
+          </div>
+        </div>
+        <div className="flex flex-col gap-2.5">
+          <SkeletonText className="w-36 text-[14px]" />
+          <Skeleton className="h-10 rounded-[10px]" />
+          <SkeletonText className="w-full max-w-[520px] text-[13px]" />
+        </div>
+      </Card>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] items-start gap-4">
+        {["w-20", "w-24", "w-28"].map((title) => (
+          <Card key={title} className="p-6 phone:p-5">
+            <span className="flex items-center justify-between gap-3 pb-2.5">
+              <SkeletonText className={cn("text-[18px]", title)} />
+              <SkeletonText className="w-24 text-[18px]" />
+            </span>
+            <span className="border-b border-rule-strong pb-2">
+              <SkeletonText className="w-24 text-[13px]" />
+            </span>
+            <SkeletonRow name="w-32" />
+            <SkeletonRow name="w-24" />
+          </Card>
+        ))}
+      </div>
+    </Loading>
+  );
+}
+
 function Flows({
   view,
   period,
+  updating,
   onPeriod,
 }: {
   view: CashFlowsOverview;
   period: Period;
+  /** `view` is the last period's, until this one's arrives. */
+  updating: boolean;
   onPeriod: (period: Period) => void;
 }) {
   const workspace = useWorkspace();
   const { base, canEdit } = workspace;
+  // The figures being replaced, dimmed; the toggle and buttons stay live.
+  const figures = { "aria-busy": updating || undefined, className: "updating" };
 
   if (view.empty) {
     return (
@@ -115,7 +169,9 @@ function Flows({
         className="gap-7 p-8 phone:gap-6 phone:px-5 phone:py-6"
       >
         <div className="flex flex-wrap items-end justify-between gap-4 phone:gap-5">
-          <Headline view={view} />
+          <div {...figures} className={cn(figures.className, "min-w-0")}>
+            <Headline view={view} />
+          </div>
           <div
             data-slot="flows-actions"
             className="flex flex-wrap items-center gap-3 phone:w-full phone:gap-2.5"
@@ -146,10 +202,18 @@ function Flows({
             )}
           </div>
         </div>
-        <WhereIncomeGoes view={view} />
+        <div {...figures}>
+          <WhereIncomeGoes view={view} />
+        </div>
       </Card>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] items-start gap-4">
+      <div
+        {...figures}
+        className={cn(
+          figures.className,
+          "grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] items-start gap-4",
+        )}
+      >
         {view.cards.map((card) => (
           <FlowCardView
             key={`${card.direction}-${card.category_id}`}

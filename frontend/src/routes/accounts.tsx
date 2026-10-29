@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Link, Outlet, useMatch, useParams } from "react-router";
 
 import {
+  accountQuery,
   useAccountWrites,
   useAccountsOverview,
   type AccountOut,
@@ -9,6 +10,7 @@ import {
   type SnapshotSaved,
 } from "@/api/accounts";
 import { ApiError } from "@/api/client";
+import { prefetching, usePrefetch } from "@/api/prefetch";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,6 +24,12 @@ import {
 } from "@/components/ui/card";
 import { EmptyCard } from "@/components/ui/empty-card";
 import { MoneyInput } from "@/components/ui/field";
+import {
+  Loading,
+  Skeleton,
+  SkeletonRow,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 import { flash } from "@/components/ui/toaster";
 import {
   useDocumentTitle,
@@ -68,7 +76,7 @@ export function AccountsPage() {
   const overview = useAccountsOverview(workspace.id);
   useDocumentTitle(useDrawerTitle(overview.data, workspace.name));
 
-  let page = null;
+  let page = <AccountsSkeleton />;
   if (overview.isError) {
     page = (
       <div
@@ -109,6 +117,39 @@ export function AccountsPage() {
       {page}
       <Outlet />
     </>
+  );
+}
+
+/** The first load: the heading and the two cards, a few rows each with an
+ * amount field. */
+function AccountsSkeleton() {
+  const { canEdit } = useWorkspace();
+  return (
+    <Loading label="Loading accounts">
+      <div className="mb-4 px-1 py-2">
+        <SkeletonText on="bg" className="w-40 text-[32px]" />
+        <SkeletonText on="bg" className="mt-1 w-72 text-[14px]" />
+      </div>
+      <CardGrid>
+        {(["asset", "liability"] as const).map((kind) => (
+          <Card key={kind} kind={kind} className="phone:px-4 phone:py-5">
+            <CardHead>
+              <SkeletonText className="w-28 text-[20px] phone:text-[17px]" />
+              <span className="flex items-center gap-3 phone:gap-2">
+                {canEdit && (
+                  <Skeleton className="h-10 w-[78px] rounded-full phone:size-11" />
+                )}
+                <SkeletonText className="w-28 text-[20px] phone:text-[17px]" />
+              </span>
+            </CardHead>
+            <SkeletonText className="mt-[18px] mb-1.5 w-32 text-[13px]" />
+            <SkeletonRow input name="w-32" />
+            <SkeletonRow input name="w-24" />
+            <SkeletonRow input name="w-36" />
+          </Card>
+        ))}
+      </CardGrid>
+    </Loading>
   );
 }
 
@@ -375,7 +416,9 @@ function AccountsEditor({
       )}
 
       <CardGrid
-        className={cn("fade-in", saving && "pointer-events-none opacity-55")}
+        // Dimmed (and still) while the save runs and the figures refetch.
+        aria-busy={saving || undefined}
+        className={cn("updating fade-in", saving && "pointer-events-none")}
         style={{ animationDelay: "0.05s" }}
       >
         {overview.sections.map((section) => (
@@ -432,6 +475,7 @@ function AccountsEditor({
                       return (
                         <AccountRow
                           key={account.id}
+                          workspaceId={workspace.id}
                           base={workspace.base}
                           account={account}
                           edited={model ? edited(model) : false}
@@ -488,18 +532,24 @@ const INVALID = "border-[1.5px] border-danger text-danger";
 const READ_ONLY = "border-transparent bg-transparent";
 
 function AccountRow({
+  workspaceId,
   base,
   account,
   edited,
   computedAmount,
   fieldProps,
 }: {
+  workspaceId: number;
   base: string;
   account: AccountOut;
   edited: boolean;
   computedAmount: Dec | null;
   fieldProps: FieldProps;
 }) {
+  // Reaching for the name starts loading its drawer's detail.
+  const prefetch = usePrefetch(
+    prefetching(accountQuery(workspaceId, account.id)),
+  );
   const retired = account.retired_at !== null;
   const computed = !retired && account.formula !== null;
   const was =
@@ -565,6 +615,7 @@ function AccountRow({
       >
         <Link
           to={`${base}/accounts/${account.id}/edit`}
+          {...prefetch}
           className={cn(
             "text-ink no-underline [overflow-wrap:anywhere]",
             "hover:underline hover:decoration-rule-strong hover:underline-offset-3",
@@ -712,16 +763,10 @@ function SaveBar({
           </Button>
           <Button
             variant="primary"
-            disabled={saving}
+            busy={saving}
             onClick={onSave}
             className="min-h-11 phone:flex-[1_1_0] phone:px-3"
           >
-            {saving && (
-              <span
-                aria-hidden="true"
-                className="inline-block size-3 animate-spin rounded-full border-2 border-on-primary border-r-transparent border-b-transparent"
-              />
-            )}
             {saveLabel}
           </Button>
         </span>
