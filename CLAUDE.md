@@ -144,7 +144,7 @@ sensibility/
 ├── tests/
 ├── db/
 │   └── migrations/
-├── pyproject.toml              # Includes Vercel app entrypoint
+├── pyproject.toml
 └── README.md
 ```
 
