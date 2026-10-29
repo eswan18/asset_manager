@@ -293,10 +293,8 @@ def test_the_getting_started_dashboard_fits_a_phone(
     page = open_page(APP, phone=width)
     page.get_by_role("heading", name=WELCOME).wait_for()
     assert_fits_phone(page)
-    welcome = page.get_by_role("region", name=WELCOME).bounding_box()
-    placeholder = page.locator("[data-placeholder-chart]").bounding_box()
-    assert welcome and placeholder
-    assert placeholder["x"] + placeholder["width"] <= welcome["x"] + welcome["width"]
+    # The placeholder chart would only push the steps' card down a screen.
+    expect(page.locator("[data-placeholder-chart]")).to_be_hidden()
 
 
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
@@ -389,13 +387,15 @@ def test_a_new_workspace_offers_to_add_an_account(open_page):
     steps = page.get_by_role("region", name=WELCOME).get_by_role("listitem")
     expect(steps).to_have_count(3)
     expect(steps.nth(0)).to_contain_text("1Add your accounts")
+    # Step 1 is the only way to add one: no empty Assets and Liabilities cards.
     links = page.locator("main a[href*='/accounts']")
-    expect(links).to_have_text(
-        ["+ Add an account", "+ Add an asset", "+ Add a liability"]
-    )
+    expect(links).to_have_text(["+ Add an account"])
     expect(links.nth(0)).to_have_attribute("href", f"{APP}/accounts/new?type=asset")
-    expect(links.nth(2)).to_have_attribute("href", f"{APP}/accounts/new?type=liability")
-    expect(page.get_by_text("No assets yet.")).to_be_visible()
+    expect(page.get_by_role("heading", name="Assets", exact=True)).to_have_count(0)
+    expect(
+        page.get_by_role("main").get_by_role("link", name="Cash flows", exact=True)
+    ).to_have_attribute("href", f"{APP}/cash-flows")
+    expect(page.locator("[data-placeholder-chart]")).to_be_visible()
     expect(page.get_by_text("editor")).to_have_count(0)
     # A client-side move to the account drawer.
     page.evaluate("window.notReloaded = true")

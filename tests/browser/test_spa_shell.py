@@ -34,7 +34,7 @@ LAKE = "The Swan family lake house fund"
 # (the dashboard's: its first card, with no snapshot yet). Every page and
 # drawer state is fitted to a phone in its own test_spa_<area>.py.
 PAGES = {
-    APP: "Assets",
+    APP: "Let's get your first net worth on the board.",
     f"{APP}/settings": "People",
     "/welcome": "Start your own workspace",
 }
@@ -280,7 +280,7 @@ def test_a_cash_flow_drawer_closes_to_the_same_period(open_page):
 @pytest.mark.parametrize("path", sorted(PAGES))
 def test_every_page_fits_a_phone(open_page, path, width):
     page = open_page(path, phone=width)
-    expect(page.get_by_role("heading", level=2, name=PAGES[path])).to_be_visible()
+    expect(page.get_by_role("heading", name=PAGES[path])).to_be_visible()
     assert_fits_phone(page)
 
 
