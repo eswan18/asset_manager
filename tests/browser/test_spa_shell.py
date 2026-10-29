@@ -25,20 +25,13 @@ JORDAN = {
 }
 LAKE = "The Swan family lake house fund"
 
-# Every route the SPA has today, and the heading its placeholder shows.
+# Pages the shell tests open in an empty workspace, and a heading each shows
+# (the dashboard's: its first card, with no snapshot yet). Every page and
+# drawer state is fitted to a phone in its own test_spa_<area>.py.
 PAGES = {
-    APP: "Dashboard",
-    f"{APP}/accounts": "Accounts",
-    f"{APP}/cash-flows": "Cash flows",
-    f"{APP}/settings": "Settings",
-    "/app/welcome": "Welcome",
-}
-DRAWERS = {
-    f"{APP}/accounts/new": "New account",
-    f"{APP}/accounts/1/edit": "Edit account",
-    f"{APP}/cash-flows/new?per=year": "New cash flow",
-    f"{APP}/cash-flows/1/edit": "Edit cash flow",
-    f"{APP}/cash-flow-categories": "Categories",
+    APP: "Assets",
+    f"{APP}/settings": "People",
+    "/app/welcome": "Start your own workspace",
 }
 
 
@@ -75,7 +68,9 @@ def style(locator, prop: str) -> str:
 def test_app_goes_to_your_oldest_workspace(open_page):
     page = open_page("/app")
     expect(page).to_have_url(f"http://{page.url.split('/')[2]}{APP}")
-    expect(page.get_by_role("heading", name="Dashboard")).to_be_visible()
+    expect(
+        page.get_by_role("heading", name="Let's get your first net worth")
+    ).to_be_visible()
 
 
 def test_a_lost_session_goes_to_login(open_page):
@@ -168,7 +163,7 @@ def test_the_account_menu_opens_and_closes(open_page, width):
     page.get_by_role("button", name="Account menu for Me").click()
     page.get_by_role("menuitem", name="New workspace").click()
     page.wait_for_url("**/app/welcome")
-    expect(page.get_by_role("heading", name="Welcome")).to_be_visible()
+    expect(page.get_by_role("heading", name="New workspace")).to_be_visible()
 
 
 def test_the_picker_switches_workspace_keeping_the_section(open_page, invited):
@@ -228,7 +223,7 @@ def test_an_api_write_without_the_header_is_refused(open_page):
 @pytest.mark.parametrize("width", [None, *PHONE_WIDTHS])
 def test_a_drawer_is_a_side_panel_or_a_full_screen_sheet(open_page, width):
     page = open_page(f"{APP}/accounts/new", phone=width)
-    dialog = page.get_by_role("dialog", name="New account")
+    dialog = page.get_by_role("dialog", name="New asset")
     expect(dialog).to_be_visible()
     settled(page)
     frame = box(dialog)
@@ -260,13 +255,4 @@ def test_a_cash_flow_drawer_closes_to_the_same_period(open_page):
 def test_every_page_fits_a_phone(open_page, path, width):
     page = open_page(path, phone=width)
     expect(page.get_by_role("heading", level=2, name=PAGES[path])).to_be_visible()
-    assert_fits_phone(page)
-
-
-@pytest.mark.parametrize("width", PHONE_WIDTHS)
-@pytest.mark.parametrize("path", sorted(DRAWERS))
-def test_every_drawer_fits_a_phone(open_page, path, width):
-    page = open_page(path, phone=width)
-    expect(page.get_by_role("dialog", name=DRAWERS[path])).to_be_visible()
-    settled(page)
     assert_fits_phone(page)

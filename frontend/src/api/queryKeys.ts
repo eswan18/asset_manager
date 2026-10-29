@@ -38,6 +38,8 @@ export const queryKeys = {
   cashFlowCategories: (workspaceId: number) =>
     ["workspaces", workspaceId, "cash-flow-categories"] as const,
 
+  settings: (workspaceId: number) =>
+    ["workspaces", workspaceId, "settings"] as const,
   members: (workspaceId: number) =>
     ["workspaces", workspaceId, "members"] as const,
   workspaceInvites: (workspaceId: number) =>
