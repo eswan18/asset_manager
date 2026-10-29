@@ -1,16 +1,19 @@
 options:
   logging: CLOUD_LOGGING_ONLY
 steps:
-  - name: 'gcr.io/cloud-builders/docker'
+  # Build with BuildKit, persisting the layer cache (all stages, via mode=max)
+  # to a `buildcache` tag in Artifact Registry. Cloud Build workers are
+  # ephemeral, so without a registry-backed cache every build starts cold.
+  # BuildKit also builds the frontend and Python stages in parallel.
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: bash
     args:
-      - 'build'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/ethans-services/containers/sensibility:$SHORT_SHA'
-      - '.'
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - '--all-tags'
-      - 'us-central1-docker.pkg.dev/ethans-services/containers/sensibility'
-images:
-  - 'us-central1-docker.pkg.dev/ethans-services/containers/sensibility:$SHORT_SHA'
+      - -c
+      - |
+        docker buildx create --use --driver docker-container
+        docker buildx build \
+          --cache-from type=registry,ref=us-central1-docker.pkg.dev/ethans-services/containers/sensibility:buildcache \
+          --cache-to type=registry,ref=us-central1-docker.pkg.dev/ethans-services/containers/sensibility:buildcache,mode=max \
+          -t us-central1-docker.pkg.dev/ethans-services/containers/sensibility:$SHORT_SHA \
+          --push \
+          .
