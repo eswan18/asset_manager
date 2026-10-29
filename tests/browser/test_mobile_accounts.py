@@ -226,6 +226,10 @@ def test_every_drawer_state_fits(open_page, with_retired, width, state):
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
 def test_the_computed_drawer_wraps_rather_than_clipping(open_page, seeded, width):
     page = open_page(f"{ACCOUNTS}/{seeded['tax'].id}/edit", phone=width)
+    # The sheet slides up; measure once it has arrived.
+    page.wait_for_function(
+        "document.getAnimations().every(a => a.playState === 'finished')"
+    )
     # The rate and cost basis stay side by side.
     rate, basis = (
         box(page, "input[name=rate_percent]"),
