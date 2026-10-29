@@ -43,7 +43,6 @@ dependencies = [
 
 [project.scripts]
 sensibility = "sensibility.cli:main"
-app = "sensibility.web.app:app"
 
 [build-system]
 requires = ["hatchling"]
