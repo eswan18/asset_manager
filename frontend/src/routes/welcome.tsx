@@ -70,7 +70,14 @@ export function WelcomePage() {
         </>
       )}
 
-      <Create primary={acceptable.length === 0} />
+      <Create
+        primary={acceptable.length === 0}
+        defaultName={
+          hasWorkspaces
+            ? ""
+            : `${firstName(me.data.name, me.data.email)}'s Money`
+        }
+      />
     </div>
   );
 }
@@ -180,11 +187,18 @@ function Invites({ invites }: { invites: MyInvite[] }) {
   );
 }
 
-/** Start your own workspace, then go into it. A refusal keeps the name. */
-function Create({ primary }: { primary: boolean }) {
+/** Start your own workspace, then go into it. A refusal keeps the name.
+ * Your first one comes named ("Ethan's Money"), so starting is one click. */
+function Create({
+  primary,
+  defaultName,
+}: {
+  primary: boolean;
+  defaultName: string;
+}) {
   const navigate = useNavigate();
   const create = useCreateWorkspace();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(defaultName);
   const [error, setError] = useState<string>();
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {

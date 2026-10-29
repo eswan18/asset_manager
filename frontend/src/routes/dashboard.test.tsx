@@ -423,7 +423,7 @@ describe("the dashboard", () => {
 });
 
 describe("the getting-started dashboard", () => {
-  it("offers an editor the first step and the cards' add buttons", async () => {
+  it("offers an editor the first step, and Cash flows", async () => {
     mockApi({ ...shellApi(), [URL]: { body: newWorkspace() } });
     renderRoute("/workspaces/1");
 
@@ -440,17 +440,23 @@ describe("the getting-started dashboard", () => {
     const links = within(screen.getByRole("main"))
       .getAllByRole("link")
       .filter((a) => a.getAttribute("href")?.includes("/accounts"));
+    // Step 1 is the only way to add one: no empty cards until there are
+    // accounts to list.
     expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
       ["+ Add an account", "/workspaces/1/accounts/new?type=asset"],
-      ["+ Add an asset", "/workspaces/1/accounts/new?type=asset"],
-      ["+ Add a liability", "/workspaces/1/accounts/new?type=liability"],
     ]);
-    expect(screen.getByText("No assets yet.")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "No liabilities yet. That's fine; plenty of people have none.",
-      ),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { level: 2, name: "Assets" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("No assets yet.")).not.toBeInTheDocument();
+    expect(
+      within(welcome).getByText(/^Optional: add your income and expenses on/),
+    ).toHaveTextContent(
+      "Optional: add your income and expenses on Cash flows.",
+    );
+    expect(
+      within(welcome).getByRole("link", { name: "Cash flows" }),
+    ).toHaveAttribute("href", "/workspaces/1/cash-flows");
     expect(screen.queryByText(/editor/)).not.toBeInTheDocument();
     // No chart: a placeholder, hidden from screen readers.
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
@@ -497,6 +503,7 @@ describe("the getting-started dashboard", () => {
     mockApi({ ...shellApi(VIEWER), [URL]: { body } });
     renderRoute("/workspaces/1");
     expect(await screen.findByText(note)).toBeInTheDocument();
+    expect(screen.queryByText(/^Optional:/)).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("main"))
         .queryAllByRole("link")

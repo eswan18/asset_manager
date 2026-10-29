@@ -323,13 +323,16 @@ function AccountCard({
   );
 }
 
-/** No snapshot yet (board Y): the three steps, a placeholder chart, and the
- * cards with any accounts already added. Viewers get no buttons, and a line
- * saying an editor hasn't started. */
+/** No snapshot yet (board Y): the three steps, a pointer to Cash flows, a
+ * placeholder chart (not on phones, where it would push everything down),
+ * and, once there are accounts, the cards listing them (before that, step 1
+ * is the only way to add one). Viewers get no buttons, and a line saying an
+ * editor hasn't started. */
 function GettingStarted({ data }: { data: Dashboard }) {
   const { name, base } = useWorkspace();
   const onboarding = data.onboarding;
   const canEdit = data.can_edit;
+  const hasAccounts = data.cards.some((card) => card.groups.length > 0);
   return (
     <div className="fade-in flex flex-col gap-4">
       <Card
@@ -385,6 +388,18 @@ function GettingStarted({ data }: { data: Dashboard }) {
               </li>
             ))}
           </ol>
+          {canEdit && (
+            <p className="text-[14px] text-muted">
+              Optional: add your income and expenses on{" "}
+              <Link
+                to={`${base}/cash-flows`}
+                className="text-ink underline underline-offset-2"
+              >
+                Cash flows
+              </Link>
+              .
+            </p>
+          )}
           {!canEdit && (
             <p className="text-[14px] text-muted">
               {onboarding?.has_accounts
@@ -396,16 +411,18 @@ function GettingStarted({ data }: { data: Dashboard }) {
         <PlaceholderChart />
       </Card>
 
-      <CardGrid>
-        {data.cards.map((card) => (
-          <AccountCard
-            key={card.kind}
-            card={card}
-            onboarding
-            canEdit={canEdit}
-          />
-        ))}
-      </CardGrid>
+      {hasAccounts && (
+        <CardGrid>
+          {data.cards.map((card) => (
+            <AccountCard
+              key={card.kind}
+              card={card}
+              onboarding
+              canEdit={canEdit}
+            />
+          ))}
+        </CardGrid>
+      )}
     </div>
   );
 }
@@ -416,7 +433,7 @@ function PlaceholderChart() {
     <div
       aria-hidden="true"
       data-placeholder-chart=""
-      className="relative h-[340px] overflow-hidden rounded-2xl bg-chip phone:h-[200px]"
+      className="relative h-[340px] overflow-hidden rounded-2xl bg-chip phone:hidden"
     >
       <svg
         viewBox="0 0 400 300"

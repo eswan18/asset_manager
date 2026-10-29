@@ -6,7 +6,8 @@ import { Button } from "./button";
 import { Card } from "./card";
 
 /** An empty page's card (ui.empty_card): what goes here, then one button to
- * add the first — or, for a viewer, who can add nothing, `viewerNote`. */
+ * add the first — or, for a viewer, who can add nothing, `viewerNote`.
+ * Centered and only as wide as its text, like the welcome page's cards. */
 function EmptyCard({
   title,
   text,
@@ -23,7 +24,7 @@ function EmptyCard({
   return (
     <Card
       className={cn(
-        "fade-in items-start gap-3 p-10 phone:px-6 phone:py-7",
+        "fade-in mx-auto w-full max-w-[640px] items-start gap-3 p-10 phone:px-6 phone:py-7",
         className,
       )}
     >

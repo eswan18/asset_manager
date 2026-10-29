@@ -43,9 +43,9 @@ describe("welcome, without invites", () => {
     expect(screen.queryByText("or", { exact: true })).toBeNull();
     // Create is the primary button.
     expect(createButton()).toHaveClass("bg-primary");
-    expect(screen.getByRole("textbox", { name: "Name" })).toHaveAttribute(
-      "placeholder",
-      "e.g. Personal",
+    // Named already, so starting is one click.
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
+      "Sam's Money",
     );
   });
 
@@ -57,6 +57,9 @@ describe("welcome, without invites", () => {
     expect(
       await screen.findByRole("heading", { name: "Welcome, sam.lee" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
+      "sam.lee's Money",
+    );
   });
 
   it("is New workspace when you have some", async () => {
@@ -66,6 +69,10 @@ describe("welcome, without invites", () => {
       await screen.findByRole("heading", { level: 1, name: "New workspace" }),
     ).toBeInTheDocument();
     expect(document.title).toBe("New workspace · Sensibility");
+    // A second one isn't named for you.
+    const field = screen.getByRole("textbox", { name: "Name" });
+    expect(field).toHaveValue("");
+    expect(field).toHaveAttribute("placeholder", "e.g. Personal");
   });
 });
 
@@ -197,6 +204,23 @@ describe("welcome, with invites", () => {
 });
 
 describe("creating a workspace", () => {
+  it("creates the first one under its default name in one click", async () => {
+    const fetchMock = mockApi({
+      ...shellApi(NEWCOMER),
+      "POST /api/workspaces": {
+        status: 201,
+        body: { id: 5, name: "Sam's Money", role: "owner" },
+      },
+    });
+    const { user } = renderRoute("/welcome");
+    await screen.findByRole("textbox", { name: "Name" });
+    await user.click(createButton());
+    expect(await screen.findByText("Created Sam's Money.")).toBeInTheDocument();
+    expect(headers(fetchMock, "/api/workspaces").body).toEqual({
+      name: "Sam's Money",
+    });
+  });
+
   it("creates it and goes into it", async () => {
     let me = NEWCOMER;
     const fetchMock = mockApi({
@@ -209,10 +233,9 @@ describe("creating a workspace", () => {
       },
     });
     const { user, router } = renderRoute("/welcome");
-    await user.type(
-      await screen.findByRole("textbox", { name: "Name" }),
-      " Personal ",
-    );
+    const field = await screen.findByRole("textbox", { name: "Name" });
+    await user.clear(field);
+    await user.type(field, " Personal ");
     await user.click(createButton());
 
     await waitFor(() =>
@@ -237,6 +260,7 @@ describe("creating a workspace", () => {
     });
     const { user, router } = renderRoute("/welcome");
     const field = await screen.findByRole("textbox", { name: "Name" });
+    await user.clear(field);
     await user.type(field, "  ");
     await user.click(createButton());
 
