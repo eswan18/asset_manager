@@ -22,21 +22,16 @@ from sensibility.accounts import MAX_AMOUNT
 from sensibility.cashflows import (
     MAX_EVERY,
     CashFlowError,
-    CategoryTotal,
     Period,
-    category_totals,
     create_cash_flow,
     create_category,
     delete_cash_flow,
     delete_category,
     every_text,
-    in_period,
     move_category,
     parse_period,
     per_year,
-    percent_text,
     rates,
-    share,
     update_cash_flow,
     update_category,
 )
@@ -57,24 +52,19 @@ from .access import (
     page_prefix,
     shell_context,
 )
+from .cash_flows_model import (
+    EXPENSE_RAMP,
+    INCOME_COLOR,
+    Card,
+    cash_flows_figures,
+    category_figures,
+    flow_in_period,
+)
 from .rendering import render, set_flash
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/workspaces/{workspace_id}")
 
-INCOME_COLOR = "var(--asset)"
-LEFTOVER_COLOR = "var(--leftover)"
-# A category with no flows has no color on the page.
-EMPTY_CATEGORY_COLOR = "var(--rule-strong)"
-# Expense categories take the liability ramp by size, largest strongest.
-# Past four, the smaller ones share the palest step: color strength always
-# means size, so a small category never looks like the largest one.
-EXPENSE_RAMP = (
-    "var(--liability)",
-    "var(--liability-2)",
-    "var(--liability-3)",
-    "var(--liability-4)",
-)
 MINUS = "−"
 
 
@@ -94,15 +84,6 @@ def money(amount: Decimal, *, cents: bool = True, sign: bool = False) -> str:
     return body
 
 
-def expense_colors(groups: list[CategoryTotal]) -> list[str]:
-    """One ramp color per group, in the groups' order, assigned by size."""
-    by_size = sorted(range(len(groups)), key=lambda i: (groups[i].yearly, i))
-    colors = [""] * len(groups)
-    for rank, index in enumerate(by_size):
-        colors[index] = EXPENSE_RAMP[min(rank, len(EXPENSE_RAMP) - 1)]
-    return colors
-
-
 def _flow_row(flow: CashFlow, period: Period) -> dict[str, Any]:
     return {
         "id": flow.id,
@@ -110,125 +91,63 @@ def _flow_row(flow: CashFlow, period: Period) -> dict[str, Any]:
         "estimate": flow.is_estimate,
         "amount": money(flow.amount),
         "every": every_text(flow.every, flow.unit),
-        "value": money(in_period(abs(per_year(flow)), period)),
+        "value": money(flow_in_period(flow, period)),
     }
 
 
-def _width(part: Decimal, whole: Decimal) -> str:
-    """A slice's flex weight: its unrounded percentage of `whole`."""
-    return f"{abs(part) * 100 / whole:.4f}"
+def _card(card: Card, period: Period) -> dict[str, Any]:
+    if card.direction == CashFlowDirection.INCOME:
+        note, empty, add_query = "All income", "No income yet", "direction=income"
+    else:
+        note = f"{card.share} of income" if card.share else "No income to compare"
+        empty = "No expenses yet"
+        add_query = "direction=expense" + (
+            f"&category_id={card.category.id}" if card.category else ""
+        )
+    return {
+        "name": card.name,
+        "color": card.color,
+        "total": money(card.total),
+        "note": note,
+        "rows": [_flow_row(f, period) for f in card.flows],
+        "empty": empty,
+        "add_query": add_query,
+    }
 
 
 def cash_flows_view(
     flows: list[CashFlow], categories: list[CashFlowCategory], period: Period
 ) -> dict[str, Any]:
-    """Everything the page shows, for one period.
-
-    Amounts are summed unrounded per year and rounded once per figure, so a
-    category's total is its flows' exact sum, not a sum of rounded rows.
-    Shares are of income and display-rounded; bar widths are unrounded.
-    """
-    incomes = [f for f in flows if f.direction == CashFlowDirection.INCOME]
-    income = sum((per_year(f) for f in incomes), Decimal(0))
-    # A card per category with expenses: a category holding only income
-    # (or nothing yet) is not an expense category on this page.
-    groups = [g for g in category_totals(flows, categories) if g.flows]
-    expenses = sum((g.yearly for g in groups), Decimal(0))  # negative
-    net = income + expenses
-    colors = expense_colors(groups)
-
-    def share_text(yearly: Decimal) -> str | None:
-        fraction = share(yearly, income)
-        return None if fraction is None else percent_text(fraction)
-
-    # The bar. 100% is income, unless expenses are more than income: then
-    # it is all expenses, scaled to their total.
-    if income <= 0:
-        bar_state = "no_income"
-    elif net < 0:
-        bar_state = "over"
-    else:
-        bar_state = "normal"
-    slices = []
-    if bar_state != "no_income":
-        whole = income if bar_state == "normal" else -expenses
-        for group, color in zip(groups, colors):
-            if group.yearly:
-                slices.append(
-                    {
-                        "label": group.name,
-                        "color": color,
-                        "weight": _width(group.yearly, whole),
-                        "amount": money(in_period(-group.yearly, period)),
-                        "share": share_text(group.yearly),
-                    }
-                )
-        if bar_state == "normal" and net > 0:
-            slices.append(
-                {
-                    "label": "Left over",
-                    "color": LEFTOVER_COLOR,
-                    "weight": _width(net, whole),
-                    "amount": money(in_period(net, period)),
-                    "share": share_text(net),
-                }
-            )
-
-    income_card = {
-        "name": "Income",
-        "color": INCOME_COLOR,
-        "total": money(in_period(income, period)),
-        "note": "All income",
-        "rows": [_flow_row(f, period) for f in incomes],
-        "empty": "No income yet",
-        "add_query": "direction=income",
-    }
-    expense_cards = [
-        {
-            "name": group.name,
-            "color": color,
-            "total": money(in_period(-group.yearly, period)),
-            "note": f"{text} of income"
-            if (text := share_text(group.yearly))
-            else "No income to compare",
-            "rows": [_flow_row(f, period) for f in group.flows],
-            "empty": "No expenses yet",
-            "add_query": "direction=expense"
-            + (f"&category_id={group.category.id}" if group.category else ""),
-        }
-        for group, color in zip(groups, colors)
-    ]
-
-    # The headline's second figure: the net over a year, or over a month
-    # when the page already shows a year.
-    other = Period.MONTH if period == Period.YEAR else Period.YEAR
-    estimates = sum(1 for f in flows if f.is_estimate)
-    over = bar_state == "over"
+    """Everything the page shows, for one period: `cash_flows_figures` (which
+    the JSON API serves too) as the page's text."""
+    figures = cash_flows_figures(flows, categories, period)
     return {
         "period": period.value,
-        "empty": not flows,
-        "headline": f"{'Short' if over else 'Left over'} each {period.value}",
-        "net": money(in_period(net, period), sign=True),
-        "income": money(in_period(income, period)),
-        "other": f"{money(in_period(net, other), cents=False)} a {other.value}",
-        "estimates": estimates,
-        "expenses": money(in_period(-expenses, period)),
-        "expenses_share": share_text(expenses),
-        "bar_state": bar_state,
-        "slices": slices,
-        "over_by": money(in_period(-net, period)) if net < 0 else None,
-        # Over income (board AA): the bar is all expenses, and the marker is
-        # where income runs out on it, unrounded like the slices' widths;
-        # the share it is over by is of income, display-rounded.
-        "over_share": share_text(net) if over else None,
-        "marker": _width(income, -expenses) if over else None,
-        "cards": [income_card, *expense_cards],
-        # Each expense category's color on this page, by category id (None
-        # for Uncategorized), so the drawers can match it.
-        "colors": {
-            (group.category.id if group.category else None): color
-            for group, color in zip(groups, colors)
-        },
+        "empty": figures.empty,
+        "headline": f"{'Short' if figures.short else 'Left over'} each {period.value}",
+        "net": money(figures.net, sign=True),
+        "income": money(figures.income),
+        "other": f"{money(figures.other_net, cents=False)} "
+        f"a {figures.other_period.value}",
+        "estimates": figures.estimates,
+        "expenses": money(figures.expenses),
+        "expenses_share": figures.expenses_share,
+        "bar_state": figures.bar_state.value,
+        "slices": [
+            {
+                "label": s.label,
+                "color": s.color,
+                "weight": s.weight,
+                "amount": money(s.amount),
+                "share": s.share,
+            }
+            for s in figures.slices
+        ],
+        "over_by": None if figures.over_by is None else money(figures.over_by),
+        "over_share": figures.over_share,
+        "marker": figures.marker,
+        "cards": [_card(card, period) for card in figures.cards],
+        "colors": figures.colors,
     }
 
 
@@ -654,39 +573,29 @@ def category_rows(
     a meta line ("4 flows · $3,376.67/mo"). Income in a category is shown
     apart from its expenses; an empty category is "No flows yet"."""
     suffix = _PER_SUFFIX[period]
+    figures = category_figures(flows, categories, colors, period)
     rows = []
-    for index, category in enumerate(categories):
-        members = [f for f in flows if f.category_id == category.id]
-        expenses = [f for f in members if f.direction == CashFlowDirection.EXPENSE]
-        incomes = [f for f in members if f.direction == CashFlowDirection.INCOME]
+    for index, row in enumerate(figures):
         parts = []
-        if expenses:
-            spent = -sum((per_year(f) for f in expenses), Decimal(0))
-            parts.append(money(in_period(spent, period)) + suffix)
-        if incomes:
-            earned = sum((per_year(f) for f in incomes), Decimal(0))
-            parts.append("income " + money(in_period(earned, period)) + suffix)
-        count = len(members)
+        if row.expenses is not None:
+            parts.append(money(row.expenses) + suffix)
+        if row.income is not None:
+            parts.append("income " + money(row.income) + suffix)
+        count = row.count
         if count:
             meta = " · ".join([f"{count} flow{'' if count == 1 else 's'}", *parts])
         else:
             meta = "No flows yet"
-        if category.id in colors:
-            color = colors[category.id]
-        elif incomes:
-            color = INCOME_COLOR
-        else:
-            color = EMPTY_CATEGORY_COLOR
         rows.append(
             {
-                "id": category.id,
-                "name": category.name,
-                "value": category.name,
-                "color": color,
+                "id": row.category.id,
+                "name": row.category.name,
+                "value": row.category.name,
+                "color": row.color,
                 "meta": meta,
                 "count": count,
                 "first": index == 0,
-                "last": index == len(categories) - 1,
+                "last": index == len(figures) - 1,
             }
         )
     return rows

@@ -261,14 +261,8 @@ async def revoke_invite_route(invite_id: int, access: OwnerAccess) -> JSONRespon
     return JSONResponse({"revoked": invite_id})
 
 
-@router.get("/invites")
-async def my_invites(user: CurrentUser) -> JSONResponse:
-    """Pending invites addressed to your email."""
-    with get_connection_context() as conn:
-        found = repo.get_pending_invites_for_email(conn, user["email"])
-    return JSONResponse(
-        {"invites": [{**invite_json(i), "workspace_name": w.name} for i, w in found]}
-    )
+# GET /api/invites (yours) is in api_settings, with the sender's name and
+# whether you can accept it.
 
 
 @router.post("/invites/{invite_id}/accept")

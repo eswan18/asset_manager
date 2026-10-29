@@ -1,0 +1,90 @@
+/* Design tokens: docs/superpowers/specs/2026-10-26-frontend-redesign-design.md.
+   The same names and values as base.html's :root (tests/test_spa.py checks
+   they stay in step until the Jinja pages go). Components name tokens, never
+   colors: index.css exposes each as a Tailwind color (bg-surface, text-ink,
+   border-rule-strong, …). Light is the default; dark follows the system. The
+   font and radius tokens live in index.css's @theme, which emits them under
+   these same names. */
+:root {
+  --bg: #f2f3f5;
+  --surface: #ffffff;
+  --ink: #15171a;
+  --muted: #4a505a;
+  --rule: #f0f1f3;
+  --rule-strong: #dadde2;
+  --grid: #eceef1;
+  --chip: #f2f3f5;
+  --input: #ffffff;
+  --asset: #2457c5;
+  --asset-2: #8fb0ee;
+  --asset-tint: #eef3fc;
+  --primary: #2457c5;
+  --on-primary: #ffffff;
+  --liability: #b4530f;
+  --liability-2: #d9772e;
+  --liability-3: #e9a066;
+  --liability-4: #f3c79e;
+  --leftover: #dce6f8;
+  --estimate-bg: #fff4e5;
+  --estimate-fg: #8a4b0c;
+  --danger: #b42318;
+  --danger-tint: #fdecea;
+  --bar-bg: #15171a;
+  --bar-fg: #ffffff;
+  --bar-muted: #b9bec6;
+  --bar-border: #15171a;
+  --shadow: rgba(0, 0, 0, 0.06);
+  --scrim: rgba(21, 23, 26, 0.35);
+
+  /* Layout: phones are max-width 600px (docs/superpowers/specs/2026-10-26-mobile-design.md).
+     --tabbar-h is the bottom tab bar's height there, 0 elsewhere; anything
+     fixed to the bottom of the screen sits above it. */
+  --gutter: 24px;
+  --tabbar-h: 0px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --surface: #191c21;
+    --ink: #eceef1;
+    --muted: #9ba3af;
+    --rule: #23272e;
+    --rule-strong: #3a404a;
+    --grid: #262a31;
+    --chip: #23272e;
+    --input: #12151a;
+    --asset: #6e9cf5;
+    --asset-2: #34558f;
+    --asset-tint: #1b2638;
+    --primary: #6e9cf5;
+    --on-primary: #0f1115;
+    --liability: #f08c4a;
+    --liability-2: #c46a2c;
+    --liability-3: #8f4f24;
+    --liability-4: #5e3a20;
+    --leftover: #2c3b5c;
+    --estimate-bg: #3a2a12;
+    --estimate-fg: #f5c27a;
+    --danger: #f97066;
+    --danger-tint: #3a1c1a;
+    --bar-bg: #2a2f37;
+    --bar-fg: #eceef1;
+    --bar-muted: #a9b0ba;
+    --bar-border: #454b55;
+    --shadow: rgba(0, 0, 0, 0.4);
+    --scrim: rgba(0, 0, 0, 0.55);
+    color-scheme: dark;
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --gutter: 16px;
+  }
+  /* The tab bar's height, where there is one (the shell marks it). */
+  :root:has([data-tabbar]) {
+    --tabbar-h: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+}

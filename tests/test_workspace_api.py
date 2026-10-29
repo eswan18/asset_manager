@@ -227,6 +227,30 @@ class TestRoles:
 
         refused = {k for k, v in statuses.items() if v == 403}
         assert refused == self._expected_403_for_viewer()
+        # Spelled out: the account writes behind the React drawer are editor
+        # routes, while their page models (dashboard, overview, detail) are
+        # reads, checked with the rest below.
+        api = f"/api/workspaces/{WS}"
+        assert {
+            ("POST", f"{api}/accounts"),
+            ("PATCH", f"{api}/accounts/1"),
+            ("POST", f"{api}/accounts/1/retire"),
+            ("POST", f"{api}/accounts/1/unretire"),
+        } <= refused
+        assert {
+            statuses[("GET", path)]
+            for path in (
+                f"{api}/dashboard",
+                f"{api}/accounts/overview",
+                f"{api}/accounts/1",
+            )
+        } == {200}
+        # The pages' JSON: viewers read the Cash flows overview and settings
+        # (without invites) but cannot reorder categories.
+        api = f"/api/workspaces/{WS}"
+        assert ("POST", f"{api}/cash-flow-categories/1/move") in refused
+        assert statuses[("GET", f"{api}/cash-flows/overview")] == 200
+        assert statuses[("GET", f"{api}/settings")] == 200
         reads = {
             k: v
             for k, v in statuses.items()
@@ -245,6 +269,7 @@ class TestRoles:
         statuses = sweep(client)
 
         refused = {k for k, v in statuses.items() if v == 403}
+        # Account create/update/retire/unretire are editor routes, so absent.
         assert refused == {
             ("PATCH", f"/api/workspaces/{WS}"),
             ("DELETE", f"/api/workspaces/{WS}"),

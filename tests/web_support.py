@@ -19,6 +19,9 @@ ACCOUNTS = f"/api/workspaces/{WS}/accounts"
 SNAPSHOTS = f"/api/workspaces/{WS}/snapshots"
 # The seeded workspace's pages: the API path without /api.
 PAGES = f"/workspaces/{WS}"
+# What the SPA sends on every API mutation (web/csrf.py); the client fixture
+# sends it on every request.
+API_HEADERS = {"X-Requested-With": "sensibility"}
 
 
 def claims(user: dict, **extra) -> dict:
@@ -60,6 +63,8 @@ def add_user(conn, user: dict, role: str | None = None, workspace_id: int = WS) 
 # Routes reachable without a session. Every other route must refuse. The
 # docs routes are public too but are not in the schema, so not listed here;
 # nor is /mcp, which takes bearer tokens, not sessions (test_mcp_http.py).
+# /app is the React app's shell (web/spa.py): it holds no data, and the SPA
+# sends anyone the API answers 401 to /login.
 PUBLIC_PATHS = {
     "/login",
     "/auth/start",
@@ -68,6 +73,8 @@ PUBLIC_PATHS = {
     "/logout",
     "/health",
     "/.well-known/oauth-protected-resource/mcp",
+    "/app",
+    "/app/{path}",
 }
 
 

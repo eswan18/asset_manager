@@ -28,6 +28,32 @@ jobs:
       - name: Typecheck
         run:
           uv run ty check src/sensibility
+  frontend:
+    # The React app (frontend/), in parallel with the Python jobs.
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install Dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
   test:
     name: Test All
     runs-on: ubuntu-latest
@@ -75,6 +101,17 @@ jobs:
         run: |
           sudo curl -fsSL https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 -o /usr/local/bin/dbmate
           sudo chmod +x /usr/local/bin/dbmate
+      # The browser tests open the React app under /app; build it once here
+      # (tests/browser/conftest.py finds it fresh and doesn't rebuild).
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the frontend
+        working-directory: frontend
+        run: npm ci && npm run build
       - name: Get Playwright version
         id: playwright
         run: echo "version=$(uv run python -c 'from importlib.metadata import version; print(version("playwright"))')" >> "$GITHUB_OUTPUT"

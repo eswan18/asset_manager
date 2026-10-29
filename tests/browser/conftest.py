@@ -7,6 +7,7 @@ environment). Each test still gets the usual seeded database from
 """
 
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -35,12 +36,57 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
+FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
+# What a build depends on: newer than dist/index.html means rebuild.
+_BUILD_INPUTS = ("src", "public", "index.html", "package.json", "package-lock.json")
+
+
+def _newest_input() -> float:
+    newest = 0.0
+    for name in [*_BUILD_INPUTS, *(p.name for p in FRONTEND.glob("*.config.*"))]:
+        path = FRONTEND / name
+        files = path.rglob("*") if path.is_dir() else [path]
+        newest = max([newest, *(f.stat().st_mtime for f in files if f.is_file())])
+    return newest
+
+
 @pytest.fixture(scope="session")
-def server_url(db_url, _run_migrations, tmp_path_factory) -> Iterator[str]:
-    """The app under uvicorn on a free port, for the whole session."""
+def spa_dist() -> Path:
+    """frontend/dist, built if it is missing or older than its sources (CI
+    builds it in an earlier step, so this finds it fresh). Needs npm."""
+    dist = FRONTEND / "dist"
+    index = dist / "index.html"
+    if index.is_file() and index.stat().st_mtime >= _newest_input():
+        return dist
+    npm = shutil.which("npm")
+    if npm is None:
+        pytest.fail(
+            "The browser tests need the React app built, and npm is not on PATH.\n"
+            "    cd frontend && npm ci && npm run build",
+            pytrace=False,
+        )
+    steps = [[npm, "run", "build"]]
+    if not (FRONTEND / "node_modules").is_dir():
+        steps.insert(0, [npm, "ci"])
+    for step in steps:
+        result = subprocess.run(step, cwd=FRONTEND, capture_output=True, text=True)
+        if result.returncode != 0:
+            pytest.fail(
+                f"{' '.join(step[1:])} failed in frontend/:\n"
+                f"{result.stdout}\n{result.stderr}",
+                pytrace=False,
+            )
+    return dist
+
+
+@pytest.fixture(scope="session")
+def server_url(db_url, _run_migrations, spa_dist, tmp_path_factory) -> Iterator[str]:
+    """The app under uvicorn on a free port, for the whole session, serving
+    the built React app at /app."""
     port = _free_port()
     env = {
         **os.environ,
+        "SPA_DIST": str(spa_dist),
         "DATABASE_URL": db_url,
         "SECRET_KEY": SECRET,
         # dev: cookies without Secure, since this is plain http.

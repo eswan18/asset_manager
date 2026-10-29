@@ -27,14 +27,12 @@ from sensibility.invites import (
     InviteNotFound,
     create_invite,
     revoke_invite,
-    sender_is_owner,
 )
 from sensibility.models import Member, Role
 from sensibility.workspaces import (
     WorkspaceError,
     change_role,
     delete_workspace,
-    is_last_owner,
     remove_member,
     update_workspace,
 )
@@ -48,6 +46,7 @@ from .access import (
     shell_context,
 )
 from .rendering import render, set_flash
+from .settings_model import display_name, settings_facts
 from .viewer_zone import zone_of
 from .wording import a_role, day_text
 
@@ -59,10 +58,6 @@ ROLES = [Role.OWNER, Role.EDITOR, Role.VIEWER]
 # --- view helpers ----------------------------------------------------------
 
 
-def display_name(member: Member) -> str:
-    return member.name or member.email
-
-
 def _settings_url(access: WorkspaceAccess) -> str:
     return f"{page_prefix(access.workspace.id)}/settings"
 
@@ -70,18 +65,15 @@ def _settings_url(access: WorkspaceAccess) -> str:
 def settings_view(
     conn: Connection, access: WorkspaceAccess, zone: str, confirm: str = ""
 ) -> dict[str, Any]:
-    """Everything the page shows. Owners also get the pending invites; a
-    `confirm` the viewer could not act on is ignored."""
-    me = access.user["id"]
-    is_owner = access.role == Role.OWNER
-    members = repo.get_members(conn, access.workspace.id)
-    by_id = {m.user_id: m for m in members}
-    can_leave = me in by_id and not is_last_owner(by_id[me], members)
+    """Everything the page shows, from `settings_facts` (which the JSON API
+    serves too). Owners also get the pending invites; a `confirm` the viewer
+    could not act on is ignored."""
+    facts = settings_facts(conn, access)
+    is_owner, can_leave = facts.is_owner, facts.can_leave
 
     people: list[dict[str, Any]] = []
-    for m in members:
-        you = m.user_id == me
-        removable = (is_owner or you) and (can_leave or not you)
+    for row in facts.members:
+        m = row.member
         people.append(
             {
                 "kind": "member",
@@ -89,30 +81,25 @@ def settings_view(
                 "name": display_name(m),
                 "email": m.email,
                 "role": m.role.value,
-                "you": you,
-                "removable": removable,
+                "you": row.you,
+                "removable": row.removable,
                 "remove_label": f"Leave {access.workspace.name}"
-                if you
+                if row.you
                 else f"Remove {display_name(m)}",
-                "confirming": removable and confirm == f"member-{m.user_id}",
+                "confirming": row.removable and confirm == f"member-{m.user_id}",
             }
         )
 
-    invites = (
-        repo.get_pending_workspace_invites(conn, access.workspace.id)
-        if is_owner
-        else []
-    )
-    for invite in invites:
-        sender = by_id.get(invite.invited_by)
-        if invite.invited_by == me:
+    for found in facts.invites:
+        invite = found.invite
+        if found.by_you:
             sent_by = "you"
-        elif sender is not None:
-            sent_by = display_name(sender)
+        elif found.sender is not None:
+            sent_by = display_name(found.sender)
         else:
             sent_by = "a former member"
         sub = f"Sent by {sent_by} {day_text(invite.created_at, zone)} · "
-        if sender_is_owner(conn, invite):
+        if not found.lapsed:
             sub += f"expires {day_text(invite.expires_at, zone)}"
         else:  # it cannot be accepted (and the sender is not you: you're an owner)
             sub += f"lapsed: {sent_by} is no longer an owner"
@@ -128,13 +115,13 @@ def settings_view(
             }
         )
 
-    count = len(members)
+    count = len(facts.members)
     return {
         "is_owner": is_owner,
         "your_role": a_role(access.role),
         "people": people,
         "member_count": f"{count} member{'' if count == 1 else 's'}",
-        "invite_count": len(invites),
+        "invite_count": len(facts.invites),
         "can_leave": can_leave,
         # The template shows these only where can_leave / is_owner allow.
         "confirm_leave": confirm == "leave",

@@ -69,22 +69,35 @@ def db_connection(db_url, _run_migrations):
     yield conn
 
     # Clean up: roll back anything left open, then truncate every table
-    conn.rollback()
-    _truncate(conn)
-    conn.close()
+    try:
+        conn.rollback()
+        _truncate(conn)
+    finally:
+        conn.close()
 
 
-def _truncate(conn) -> None:
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            TRUNCATE TABLE snapshots, formula_inputs, accounts,
-                           cash_flows, cash_flow_categories, workspace_invites,
-                           workspace_members, workspaces, users
-            RESTART IDENTITY CASCADE
-            """
-        )
-    conn.commit()
+def _truncate(conn, attempts: int = 5) -> None:
+    """Empty every table. A browser test's server can still be answering the
+    page's last request, and Postgres may then pick the TRUNCATE as a
+    deadlock's victim; that is retried, as Postgres expects."""
+    for attempt in range(attempts):
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    TRUNCATE TABLE snapshots, formula_inputs, accounts,
+                                   cash_flows, cash_flow_categories,
+                                   workspace_invites, workspace_members,
+                                   workspaces, users
+                    RESTART IDENTITY CASCADE
+                    """
+                )
+            conn.commit()
+            return
+        except psycopg.errors.DeadlockDetected:
+            conn.rollback()
+            if attempt == attempts - 1:
+                raise
 
 
 @pytest.fixture(autouse=True)
@@ -97,8 +110,11 @@ def skip_db_tests_in_ci(request):
 
 @pytest.fixture
 def client(db_connection, db_url, monkeypatch):
-    """A TestClient wired to the test container. db_connection handles cleanup."""
-    from tests.web_support import SECRET
+    """A TestClient wired to the test container. db_connection handles cleanup.
+
+    It sends the API's CSRF header (web/csrf.py) on every request, as the SPA
+    does on every mutation; test_csrf.py takes it off to check the refusal."""
+    from tests.web_support import API_HEADERS, SECRET
 
     monkeypatch.setenv("SECRET_KEY", SECRET)
     monkeypatch.setenv("DATABASE_URL", db_url)
@@ -111,7 +127,7 @@ def client(db_connection, db_url, monkeypatch):
     from sensibility.web.app import app
 
     get_settings.cache_clear()
-    with TestClient(app) as test_client:
+    with TestClient(app, headers=API_HEADERS) as test_client:
         yield test_client
     get_settings.cache_clear()
 
