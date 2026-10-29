@@ -12,6 +12,12 @@ import { useDocumentTitle } from "@/components/shell/workspace-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, FormError, Input } from "@/components/ui/field";
+import {
+  Loading,
+  SkeletonButton,
+  SkeletonField,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 import { flash } from "@/components/ui/toaster";
 import { firstName, welcomeInviteLine } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -32,7 +38,7 @@ export function WelcomePage() {
   useDocumentTitle(hasWorkspaces ? "New workspace" : "Welcome");
   // The shell has loaded `me`; wait for the invites so Create's button
   // doesn't change under you.
-  if (!me.data || invites.isPending) return null;
+  if (!me.data || invites.isPending) return <WelcomeSkeleton />;
   const acceptable = (invites.data ?? []).filter((i) => i.acceptable);
 
   return (
@@ -66,6 +72,31 @@ export function WelcomePage() {
 
       <Create primary={acceptable.length === 0} />
     </div>
+  );
+}
+
+/** While your invites load: the heading and the create card. */
+function WelcomeSkeleton() {
+  return (
+    <Loading
+      label="Loading invites"
+      className="mx-auto flex max-w-[640px] flex-col gap-4 pt-6 phone:pt-2"
+    >
+      <div className="flex flex-col gap-1.5 px-1 pb-2">
+        <SkeletonText on="bg" className="w-72 text-[36px] phone:text-[30px]" />
+        <SkeletonText on="bg" className="w-full max-w-[560px] text-[16px]" />
+      </div>
+      <Card className="gap-4 phone:px-5 phone:py-6">
+        <SkeletonText className="w-56 text-[20px]" />
+        <span className="flex flex-wrap items-end gap-2.5">
+          <SkeletonField
+            label="w-12"
+            className="flex-[1_1_220px] phone:basis-full"
+          />
+          <SkeletonButton className="w-44 phone:basis-full" />
+        </span>
+      </Card>
+    </Loading>
   );
 }
 
@@ -124,6 +155,7 @@ function Invites({ invites }: { invites: MyInvite[] }) {
               variant="outline"
               size="lg"
               disabled={busy}
+              busy={decline.isPending && decline.variables === invite.id}
               aria-label={`Decline the invite to ${invite.workspace_name}`}
               onClick={() => onDecline(invite)}
               className={button}
@@ -134,6 +166,7 @@ function Invites({ invites }: { invites: MyInvite[] }) {
               variant="primary"
               size="lg"
               disabled={busy}
+              busy={accept.isPending && accept.variables === invite.id}
               aria-label={`Join ${invite.workspace_name}`}
               onClick={() => onJoin(invite)}
               className={button}
@@ -193,7 +226,7 @@ function Create({ primary }: { primary: boolean }) {
           type="submit"
           variant={primary ? "primary" : "primary-outline"}
           size="lg"
-          disabled={create.isPending}
+          busy={create.isPending}
           className="phone:basis-full"
         >
           Create workspace

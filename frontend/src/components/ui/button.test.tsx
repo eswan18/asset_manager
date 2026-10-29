@@ -47,4 +47,22 @@ describe("Button", () => {
     render(<Button type="submit">Go</Button>);
     expect(screen.getByRole("button")).toHaveAttribute("type", "submit");
   });
+
+  it("shows a write in flight with busy: a spinner, and disabled", () => {
+    const { rerender } = render(<Button busy>Save</Button>);
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button.querySelector("[data-slot=spinner]")).not.toBeNull();
+
+    rerender(<Button>Save</Button>);
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute("aria-busy");
+    expect(button.querySelector("[data-slot=spinner]")).toBeNull();
+  });
+
+  it("stays disabled when asked, busy or not", () => {
+    render(<Button disabled>Save</Button>);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
 });

@@ -2,7 +2,12 @@
  * writes both pages make (web/api_settings.py reads; web/api_routes.py
  * writes). Your own invites, Join and Decline are the shell's
  * (`useMyInvites`, `useAnswerInvite` in api/shell.ts). */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import type { Role } from "@/lib/wording";
 
@@ -100,11 +105,16 @@ export const createInvite = (workspaceId: number, email: string, role: Role) =>
 export const revokeInvite = (workspaceId: number, inviteId: number) =>
   api.delete<unknown>(`${ws(workspaceId)}/invites/${inviteId}`);
 
-export function useWorkspaceSettings(workspaceId: number) {
-  return useQuery({
+/** The settings page's query: what `useWorkspaceSettings` reads and the
+ * gear prefetches (api/prefetch.ts). */
+export const settingsQuery = (workspaceId: number) =>
+  queryOptions({
     queryKey: queryKeys.settings(workspaceId),
     queryFn: () => getSettings(workspaceId),
   });
+
+export function useWorkspaceSettings(workspaceId: number) {
+  return useQuery(settingsQuery(workspaceId));
 }
 
 /**

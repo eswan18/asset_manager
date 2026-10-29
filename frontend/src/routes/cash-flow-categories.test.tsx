@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CashFlowsOverview, CategoryRow } from "@/api/cash-flows";
 import {
+  findSheet,
   mockApi,
   renderRoute,
   shellApi,
@@ -64,7 +65,7 @@ const status = () => screen.getByRole("status");
 
 async function open(path = `${DRAWER}?per=month`) {
   const result = renderRoute(path);
-  await screen.findByRole("dialog", { name: "Categories" });
+  await findSheet({ name: "Categories" });
   return result;
 }
 

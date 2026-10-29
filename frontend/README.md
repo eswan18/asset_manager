@@ -51,9 +51,11 @@ src/
     queryClient.ts         defaults (30s fresh, refetch on focus, no 4xx retries)
     queryKeys.ts           every query key
     shell.ts               /api/me and your invites (types, fetchers, hooks)
+    prefetch.ts            usePrefetch, prefetching, pagePrefetch
   components/ui/           primitives: Button, Card, SegmentedControl, Sheet,
                            DropdownMenu, Field/Input/Select/Textarea/Check/
-                           MoneyInput, Tag, EmptyCard, Toaster + flash
+                           MoneyInput, Tag, EmptyCard, Toaster + flash,
+                           Loading + Skeleton*
   components/shell/        AppShell, header + tab bar, picker, account menu,
                            invite strip, workspace context
   routes/                  one module per page and drawer
@@ -94,7 +96,69 @@ src/
   anything fixed to the bottom, `px-gutter` for side padding.
 - **Flashes**: `flash.success(text)` / `flash.error(text)` from
   `components/ui/toaster`.
+- **Loading** (see below): a route never renders nothing while its data is
+  on its way, every write's button is `busy`, and links prefetch.
 - **Tests**: Vitest + Testing Library beside the code (`*.test.tsx`);
   `mockApi` and `renderRoute` in `src/test/utils.tsx`. End-to-end tests are
   the Python Playwright suite (`tests/browser/test_spa_*.py`), which builds
   this app if `dist/` is missing or stale.
+
+## Loading
+
+A click always does something at once, usually there is nothing to wait
+for, and what does wait says so.
+
+- **Skeletons** (`components/ui/skeleton.tsx`): while a page's data loads it
+  shows a skeleton in its own layout (headline, cards with a few rows, the
+  chart at its height), never nothing; a page's error state is unchanged.
+  Wrap skeleton blocks in `<Loading label="Loading …">`: it is `aria-busy`,
+  names what is coming for screen readers, and **fades in only after
+  150ms**, so a quick answer never flashes a skeleton. That delay is the one
+  flash-avoidance rule, for pages and drawers alike. Blocks are `Skeleton`
+  (chip-colored; `on="bg"` straight on the page background), `SkeletonText`
+  (a line, sized like its text), `SkeletonRow`, `SkeletonField`,
+  `SkeletonButton`. They pulse, except under reduced motion. The shell
+  (`ShellSkeleton`) covers the first paint, before `/api/me`.
+- **Drawers open at once.** A drawer route renders its `RouteSheet`
+  straight away with a `busy` `SheetContent` (`aria-busy`): the header as
+  far as it is known (a new account's type and a new flow's direction come
+  from the URL; an unknown title is `SheetTitleLoading`), and the form's
+  shape. When the data lands, the same `RouteSheet` renders the real
+  `SheetContent`, which takes focus as an opening sheet does (the
+  `data-autofocus` field) and does not slide in again. Escape, the scrim and
+  ✕ close it throughout.
+- **The account drawer is seeded from the page's overview**, which has
+  every field the form needs (and its inputs: active, plain, not this one),
+  so over the page it opens with the form ready and focused; only the
+  history and Retire wait for `GET …/accounts/{id}`. The form's state is set
+  once, keyed on the account: the detail landing, or any refetch, never
+  resets what was typed. An account the overview doesn't have (another
+  tab's) waits for its detail. Cash flow drawers read everything from the
+  overview, so over the page they have nothing to wait for.
+- **Prefetch on intent** (`api/prefetch.ts`): spread
+  `usePrefetch(prefetching(query), …)` on a link and it prefetches on
+  pointerenter, focus and touchstart. Each area exports its query options
+  (`accountQuery`, `accountsOverviewQuery`, `dashboardQuery`,
+  `cashFlowsOverviewQuery`, `settingsQuery`) and its hook reads the same
+  ones, so they can't drift; `pagePrefetch(workspaceId, section)` is what a
+  section's bare link opens. Used by account rows (the detail), the tab bar
+  and the gear (their page), the workspace picker (the same section in your
+  other workspaces), and Update balances. The default `staleTime` (30s)
+  means a prefetch just before the click is reused, not refetched. Cash flow
+  rows and Manage categories need nothing the page hasn't loaded.
+- **In place**: data being replaced (a new range or period, a snapshot
+  save, a category write) keeps the old figures, dimmed, with `aria-busy`
+  and the `updating` utility (index.css; the dim also waits 150ms). The
+  controls (the toggles) stay live.
+- **Writes**: every button that writes takes `busy` (a spinner, and
+  disabled) while its write runs; `disabled` stays for "another write is
+  running". In tests, `held()` (`src/test/utils.tsx`) holds a response
+  until `release()`, and `findSheet()` waits for a drawer to finish
+  loading; `src/routes/loading.test.tsx` and
+  `tests/browser/test_spa_loading.py` cover the states.
+
+Where you still wait: a page's first visit in a session (or after 30s)
+with nothing prefetched, which shows its skeleton; a deep link or reload
+into a drawer (the drawer opens at once over the page's skeleton); the
+dashboard chart's own code on its first view; and writes, which resolve only
+once the refetch they cause has landed.

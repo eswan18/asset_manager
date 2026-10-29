@@ -5,6 +5,8 @@ import { useNavigate, type To } from "react-router";
 
 import { cn } from "@/lib/utils";
 
+import { SkeletonText } from "./skeleton";
+
 /**
  * The drawer (base.html's .drawer): a form over its page. On desktop it
  * comes in from the right, 500px wide; on phones it is a full-screen sheet
@@ -32,8 +34,31 @@ import { cn } from "@/lib/utils";
 const Sheet = Dialog.Root;
 const SheetClose = Dialog.Close;
 
+/** Whether the RouteSheet around a SheetContent has already slid one in. */
+interface SlideMemory {
+  slid: () => boolean;
+  markSlid: () => void;
+}
+const SlidIn = React.createContext<SlideMemory | null>(null);
+
+function slideMemory(): SlideMemory {
+  let slid = false;
+  return {
+    slid: () => slid,
+    markSlid: () => {
+      slid = true;
+    },
+  };
+}
+
 /** A Sheet that is open while its route is, and closes by navigating to
- * `closeTo` (keep the page's search params in it, e.g. `?per=year`). */
+ * `closeTo` (keep the page's search params in it, e.g. `?per=year`).
+ *
+ * Opening one never waits for data: render it at once with a `busy`
+ * SheetContent (the header you already know, a skeleton body), then, from
+ * the same RouteSheet, the real SheetContent once the data is here. The
+ * new content takes focus as a freshly opened sheet does (the
+ * `data-autofocus` field), and doesn't slide in a second time. */
 function RouteSheet({
   closeTo,
   children,
@@ -42,15 +67,18 @@ function RouteSheet({
   children: React.ReactNode;
 }) {
   const navigate = useNavigate();
+  const [memory] = React.useState(slideMemory);
   return (
-    <Sheet
-      open
-      onOpenChange={(open) => {
-        if (!open) navigate(closeTo);
-      }}
-    >
-      {children}
-    </Sheet>
+    <SlidIn.Provider value={memory}>
+      <Sheet
+        open
+        onOpenChange={(open) => {
+          if (!open) navigate(closeTo);
+        }}
+      >
+        {children}
+      </Sheet>
+    </SlidIn.Provider>
   );
 }
 
@@ -73,11 +101,19 @@ function SheetContent({
   className,
   children,
   kind,
+  busy = false,
   onOpenAutoFocus = focusOnOpen,
   ...props
 }: React.ComponentProps<typeof Dialog.Content> & {
   kind?: keyof typeof SECTION;
+  /** Still loading: marked `aria-busy`. Escape, the scrim and the ✕ work
+   * as ever. */
+  busy?: boolean;
 }) {
+  const memory = React.useContext(SlidIn);
+  // Content that replaces its RouteSheet's loading state is already in.
+  const [slide] = React.useState(() => !memory?.slid());
+  React.useEffect(() => memory?.markSlid(), [memory]);
   return (
     <Dialog.Portal>
       <Dialog.Overlay
@@ -88,9 +124,11 @@ function SheetContent({
         data-slot="sheet"
         // No description by default; pass aria-describedby to add one.
         aria-describedby={undefined}
+        aria-busy={busy || undefined}
         onOpenAutoFocus={onOpenAutoFocus}
         className={cn(
-          "drawer-in fixed top-0 right-0 bottom-0 z-[41] flex w-[min(100%,500px)] flex-col bg-surface shadow-drawer outline-none",
+          "fixed top-0 right-0 bottom-0 z-[41] flex w-[min(100%,500px)] flex-col bg-surface shadow-drawer outline-none",
+          slide && "drawer-in",
           "phone:bottom-auto phone:left-0 phone:h-dvh phone:w-full phone:shadow-none phone:[--drawer-from:translateY(40px)]",
           kind && SECTION[kind],
           className,
@@ -197,6 +235,17 @@ function SheetError({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** The title of a sheet whose subject isn't known yet (an edit drawer
+ * opened by its URL): a skeleton line, named `label` for screen readers. */
+function SheetTitleLoading({ label }: { label: string }) {
+  return (
+    <>
+      <span className="sr-only">{label}</span>
+      <SkeletonText className="skeleton-reveal w-48 max-w-full" />
+    </>
+  );
+}
+
 export {
   RouteSheet,
   Sheet,
@@ -207,4 +256,5 @@ export {
   SheetFooter,
   SheetForm,
   SheetHeader,
+  SheetTitleLoading,
 };

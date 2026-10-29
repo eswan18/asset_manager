@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CashFlowsOverview, SavedFlow } from "@/api/cash-flows";
 import {
+  findSheet,
   mockApi,
   renderRoute,
   shellApi,
@@ -79,7 +80,7 @@ describe("the cash flow drawer, editing", () => {
   it("is prefilled, over the page", async () => {
     drawerApi();
     renderRoute(`${PAGE}/5/edit?per=day`);
-    const dialog = await screen.findByRole("dialog", { name: "Groceries" });
+    const dialog = await findSheet({ name: "Groceries" });
     expect(eyebrow()).toHaveTextContent("Edit expense · Food");
     // Food is the second-largest expense category: its card's color.
     expect(section()).toBe("var(--liability-2)");
@@ -127,7 +128,7 @@ describe("the cash flow drawer, editing", () => {
   it("colors an income blue and an uncategorized expense as its card", async () => {
     drawerApi();
     renderRoute(`${PAGE}/1/edit`);
-    await screen.findByRole("dialog", { name: "Salary" });
+    await findSheet({ name: "Salary" });
     expect(eyebrow()).toHaveTextContent("Edit income · Work");
     expect(section()).toBe("var(--asset)");
   });
@@ -135,7 +136,7 @@ describe("the cash flow drawer, editing", () => {
   it("follows direction and category in the header", async () => {
     drawerApi();
     const { user } = renderRoute(`${PAGE}/5/edit`);
-    const dialog = await screen.findByRole("dialog", { name: "Groceries" });
+    const dialog = await findSheet({ name: "Groceries" });
 
     await user.click(within(dialog).getByRole("radio", { name: "Income" }));
     expect(eyebrow()).toHaveTextContent("Edit income · Food");
@@ -162,7 +163,7 @@ describe("the cash flow drawer, editing", () => {
   it("recomputes the rates strip as you type", async () => {
     drawerApi();
     const { user } = renderRoute(`${PAGE}/5/edit`);
-    await screen.findByRole("dialog");
+    await findSheet();
     const enter = async (amount: string, every: string, unit: string) => {
       await user.clear(field("amount"));
       if (amount) await user.type(field("amount"), amount);
@@ -189,7 +190,7 @@ describe("the cash flow drawer, editing", () => {
       },
     });
     const { user, router } = renderRoute(`${PAGE}/5/edit?per=day`);
-    const dialog = await screen.findByRole("dialog", { name: "Groceries" });
+    const dialog = await findSheet({ name: "Groceries" });
     await user.clear(field("name"));
     await user.type(field("name"), "Food shop");
     await user.click(within(dialog).getByRole("radio", { name: "Income" }));
@@ -235,7 +236,7 @@ describe("the cash flow drawer, editing", () => {
       "DELETE /api/workspaces/1/cash-flows/7": { body: { deleted: 7 } },
     });
     const { user, router } = renderRoute(`${PAGE}/7/edit?per=year`);
-    const dialog = await screen.findByRole("dialog", { name: "Gas" });
+    const dialog = await findSheet({ name: "Gas" });
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
     expect(await screen.findByText("Deleted Gas")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe(PAGE);
@@ -255,7 +256,7 @@ describe("the cash flow drawer, editing", () => {
       },
     });
     const { user, router } = renderRoute(`${PAGE}/5/edit?per=year`);
-    const dialog = await screen.findByRole("dialog", { name: "Groceries" });
+    const dialog = await findSheet({ name: "Groceries" });
     await user.clear(field("name"));
     await user.type(field("name"), "Restaurants");
     await user.selectOptions(field("category_id"), "Uncategorized");
@@ -287,7 +288,7 @@ describe("the cash flow drawer, editing", () => {
   ])("closes to the page in its period with %s", async (_, name) => {
     drawerApi();
     const { user, router } = renderRoute(`${PAGE}/5/edit?per=year`);
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.click(within(dialog).getByRole("button", { name }));
     await waitFor(() => expect(router.state.location.pathname).toBe(PAGE));
     expect(router.state.location.search).toBe("?per=year");
@@ -296,7 +297,7 @@ describe("the cash flow drawer, editing", () => {
   it("closes on Escape", async () => {
     drawerApi();
     const { user, router } = renderRoute(`${PAGE}/5/edit?per=day`);
-    await screen.findByRole("dialog");
+    await findSheet();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(router.state.location.search).toBe("?per=day"));
     expect(router.state.location.pathname).toBe(PAGE);
@@ -307,7 +308,7 @@ describe("the cash flow drawer, new", () => {
   it("starts as an uncategorized monthly expense", async () => {
     drawerApi();
     renderRoute(`${PAGE}/new`);
-    const dialog = await screen.findByRole("dialog", { name: "New cash flow" });
+    const dialog = await findSheet({ name: "New cash flow" });
     expect(eyebrow().textContent).toBe("New expense");
     expect(
       within(dialog).getByRole("radio", { name: "Expense" }),
@@ -329,7 +330,7 @@ describe("the cash flow drawer, new", () => {
   it("starts as income from the income card", async () => {
     drawerApi();
     renderRoute(`${PAGE}/new?direction=income&per=year`);
-    const dialog = await screen.findByRole("dialog", { name: "New cash flow" });
+    const dialog = await findSheet({ name: "New cash flow" });
     expect(eyebrow().textContent).toBe("New income");
     expect(within(dialog).getByRole("radio", { name: "Income" })).toBeChecked();
     expect(section()).toBe("var(--asset)");
@@ -338,7 +339,7 @@ describe("the cash flow drawer, new", () => {
   it("starts in its card's category", async () => {
     drawerApi();
     renderRoute(`${PAGE}/new?direction=expense&category_id=13`);
-    await screen.findByRole("dialog");
+    await findSheet();
     expect(eyebrow().textContent).toBe("New expense · Food");
     expect(field("category_id")).toHaveValue("13");
     expect(section()).toBe("var(--liability-2)");
@@ -349,7 +350,7 @@ describe("the cash flow drawer, new", () => {
     async (query) => {
       drawerApi();
       renderRoute(`${PAGE}/new?${query}`);
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await findSheet();
       expect(
         within(dialog).getByRole("radio", { name: "Expense" }),
       ).toBeChecked();
@@ -373,7 +374,7 @@ describe("the cash flow drawer, new", () => {
       "POST /api/workspaces/1/cash-flows": { status: 201, body: saved() },
     });
     const { user, router } = renderRoute(`${PAGE}/new?per=year`);
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.type(field("name"), "  Gym  ");
     await user.type(field("amount"), "$1,045.505");
     await user.clear(field("every"));
@@ -418,7 +419,7 @@ describe("the cash flow drawer, new", () => {
     async (amount, every, message) => {
       const fetchMock = drawerApi();
       const { user } = renderRoute(`${PAGE}/new`);
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await findSheet();
       await user.type(field("name"), "Gym");
       await user.type(field("amount"), amount);
       await user.clear(field("every"));
@@ -445,7 +446,7 @@ describe("the cash flow drawer, new", () => {
       },
     });
     const { user } = renderRoute(`${PAGE}/new?per=day`);
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSheet();
     await user.type(field("name"), "Gym");
     await user.type(field("amount"), amount);
     await user.click(within(dialog).getByRole("button", { name: "Save" }));

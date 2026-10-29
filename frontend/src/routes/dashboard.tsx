@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Link, useSearchParams } from "react-router";
 
+import { accountsOverviewQuery } from "@/api/accounts";
 import {
   parseRange,
   useDashboard,
@@ -8,6 +9,7 @@ import {
   type DashboardCard,
   type RangeKey,
 } from "@/api/dashboard";
+import { prefetching, usePrefetch } from "@/api/prefetch";
 import {
   useDocumentTitle,
   useWorkspace,
@@ -24,6 +26,12 @@ import {
   CardTotal,
 } from "@/components/ui/card";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import {
+  Loading,
+  Skeleton,
+  SkeletonRow,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 import { ComputedTag } from "@/components/ui/tag";
 import {
   longDate,
@@ -54,7 +62,7 @@ export function DashboardPage() {
   const dashboard = useDashboard(workspace.id, range);
   useDocumentTitle(workspace.name);
 
-  if (dashboard.isPending) return null;
+  if (dashboard.isPending) return <DashboardSkeleton />;
   if (dashboard.isError) {
     return (
       <div
@@ -85,10 +93,7 @@ export function DashboardPage() {
         className="gap-8 p-8 phone:gap-6 phone:px-4 phone:py-6"
       >
         <Headline data={data} />
-        <div
-          className="flex flex-col gap-3"
-          aria-busy={dashboard.isPlaceholderData || undefined}
-        >
+        <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3 phone:gap-4">
             <LineKey />
             <SegmentedControl
@@ -103,13 +108,21 @@ export function DashboardPage() {
               className="phone:w-full phone:[&>*]:flex-1"
             />
           </div>
-          <Suspense fallback={<div className="h-[320px] phone:h-[240px]" />}>
-            <NetWorthChart
-              history={data.history}
-              categories={data.categories}
-            />
-          </Suspense>
-          <CategoryKey categories={data.categories} bars={data.bars} />
+          {/* The last range's chart, dimmed, until the new range's arrives;
+              the toggle stays live. */}
+          <div
+            data-range-figures=""
+            aria-busy={dashboard.isPlaceholderData || undefined}
+            className="updating flex flex-col gap-3"
+          >
+            <Suspense fallback={<ChartSkeleton />}>
+              <NetWorthChart
+                history={data.history}
+                categories={data.categories}
+              />
+            </Suspense>
+            <CategoryKey categories={data.categories} bars={data.bars} />
+          </div>
         </div>
       </Card>
 
@@ -122,8 +135,62 @@ export function DashboardPage() {
   );
 }
 
+/** The chart's place, at its height, while Recharts loads. */
+function ChartSkeleton() {
+  return (
+    <Loading label="Loading the chart">
+      <Skeleton className="h-[320px] rounded-2xl phone:h-[240px]" />
+    </Loading>
+  );
+}
+
+/** The first load: the net worth card (headline, the key and toggle, the
+ * chart at its height, the category key) and the two account cards. */
+function DashboardSkeleton() {
+  return (
+    <Loading label="Loading the dashboard" className="flex flex-col gap-4">
+      <Card className="gap-8 p-8 phone:gap-6 phone:px-4 phone:py-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-col gap-1.5">
+            <SkeletonText className="w-20 text-[14px]" />
+            <Skeleton className="h-16 w-72 max-w-full rounded-xl phone:h-11 phone:w-56" />
+            <SkeletonText className="w-56" />
+          </div>
+          <div className="flex flex-wrap items-center gap-4 phone:w-full phone:flex-col phone:items-stretch phone:gap-3">
+            <SkeletonText className="w-40 text-[14px]" />
+            <Skeleton className="h-12 w-44 rounded-full phone:w-full" />
+          </div>
+        </div>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 phone:gap-4">
+            <SkeletonText className="w-60 text-[13px]" />
+            <Skeleton className="h-[42px] w-[150px] rounded-full phone:h-[50px] phone:w-full" />
+          </div>
+          <Skeleton className="h-[320px] rounded-2xl phone:h-[240px]" />
+          <SkeletonText className="w-80 self-end text-[13px] phone:self-start" />
+        </div>
+      </Card>
+      <CardGrid>
+        {(["asset", "liability"] as const).map((kind) => (
+          <Card key={kind} kind={kind}>
+            <CardHead className="items-baseline">
+              <SkeletonText className="w-28 text-[20px]" />
+              <SkeletonText className="w-24 text-[20px]" />
+            </CardHead>
+            <SkeletonText className="mt-[18px] mb-1.5 w-32 text-[13px]" />
+            <SkeletonRow className="min-h-11" name="w-36" />
+            <SkeletonRow className="min-h-11" name="w-28" />
+            <SkeletonRow className="min-h-11" name="w-40" />
+          </Card>
+        ))}
+      </CardGrid>
+    </Loading>
+  );
+}
+
 function Headline({ data }: { data: Dashboard }) {
-  const { base } = useWorkspace();
+  const { base, id } = useWorkspace();
+  const prefetch = usePrefetch(prefetching(accountsOverviewQuery(id)));
   const change = data.change;
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
@@ -160,7 +227,9 @@ function Headline({ data }: { data: Dashboard }) {
           variant="primary"
           className="min-h-12 px-[22px] text-[15px] phone:min-h-12 phone:w-full"
         >
-          <Link to={`${base}/accounts`}>Update balances</Link>
+          <Link to={`${base}/accounts`} {...prefetch}>
+            Update balances
+          </Link>
         </Button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router";
 
+import { pagePrefetch, usePrefetch } from "@/api/prefetch";
 import type { Me } from "@/api/shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,7 +58,7 @@ export function ShellHeader({
       >
         {APP_NAME}
       </Link>
-      {workspace && <MainNav base={workspace.base} tab={tab} />}
+      {workspace && <MainNav workspace={workspace} tab={tab} />}
       <div
         className={cn(
           "flex items-center gap-3",
@@ -67,24 +68,39 @@ export function ShellHeader({
         {workspace && (
           <>
             <WorkspacePicker me={me} workspace={workspace} section={section} />
-            <Link
-              to={`${workspace.base}/settings`}
-              aria-label="Workspace settings"
-              aria-current={tab === "settings" ? "page" : undefined}
-              className={cn(
-                "flex size-10 items-center justify-center rounded-full bg-surface text-ink shadow-pill",
-                "aria-[current=page]:bg-ink aria-[current=page]:text-surface",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asset",
-                "phone:size-11 phone:flex-[0_0_44px]",
-              )}
-            >
-              <GearIcon />
-            </Link>
+            <GearLink workspace={workspace} current={tab === "settings"} />
           </>
         )}
         <AccountMenu me={me} />
       </div>
     </header>
+  );
+}
+
+/** The settings gear; reaching for it starts loading the settings. */
+function GearLink({
+  workspace,
+  current,
+}: {
+  workspace: CurrentWorkspace;
+  current: boolean;
+}) {
+  const prefetch = usePrefetch(...pagePrefetch(workspace.id, "settings"));
+  return (
+    <Link
+      to={`${workspace.base}/settings`}
+      aria-label="Workspace settings"
+      aria-current={current ? "page" : undefined}
+      className={cn(
+        "flex size-10 items-center justify-center rounded-full bg-surface text-ink shadow-pill",
+        "aria-[current=page]:bg-ink aria-[current=page]:text-surface",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asset",
+        "phone:size-11 phone:flex-[0_0_44px]",
+      )}
+      {...prefetch}
+    >
+      <GearIcon />
+    </Link>
   );
 }
 
@@ -101,7 +117,13 @@ const TABS = [
 
 /** The pill nav; on phones, the bottom tab bar (`data-tabbar` sets
  * `--tabbar-h`, so anything fixed to the bottom sits above it). */
-function MainNav({ base, tab }: { base: string; tab: Tab }) {
+function MainNav({
+  workspace,
+  tab,
+}: {
+  workspace: CurrentWorkspace;
+  tab: Tab;
+}) {
   return (
     <nav
       aria-label="Main"
@@ -112,29 +134,52 @@ function MainNav({ base, tab }: { base: string; tab: Tab }) {
         "phone:rounded-none phone:p-0 phone:pb-[env(safe-area-inset-bottom,0px)] phone:shadow-[inset_0_1px_0_var(--rule-strong)]",
       )}
     >
-      {TABS.map(({ tab: name, path, label, Icon }) => {
-        const current = tab === name;
-        return (
-          <Link
-            key={name}
-            to={base + path}
-            aria-current={current ? "page" : undefined}
-            className={cn(
-              "flex min-h-10 items-center rounded-full px-[18px] whitespace-nowrap text-muted no-underline hover:text-ink",
-              "aria-[current=page]:bg-ink aria-[current=page]:font-medium aria-[current=page]:text-surface",
-              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asset",
-              "phone:min-h-14 phone:flex-col phone:justify-center phone:gap-[3px] phone:rounded-none phone:px-1",
-              "phone:text-[12px] phone:leading-[1.2] phone:[-webkit-tap-highlight-color:transparent]",
-              "phone:aria-[current=page]:bg-transparent phone:aria-[current=page]:font-semibold phone:aria-[current=page]:text-ink",
-              "phone:focus-visible:rounded-xl phone:focus-visible:-outline-offset-4",
-            )}
-          >
-            <Icon current={current} />
-            {label}
-          </Link>
-        );
-      })}
+      {TABS.map(({ tab: name, path, label, Icon }) => (
+        <NavTab
+          key={name}
+          workspace={workspace}
+          path={path}
+          current={tab === name}
+        >
+          <Icon current={tab === name} />
+          {label}
+        </NavTab>
+      ))}
     </nav>
+  );
+}
+
+/** A tab; reaching for it starts loading its page's data. */
+function NavTab({
+  workspace,
+  path,
+  current,
+  children,
+}: {
+  workspace: CurrentWorkspace;
+  /** "", "/accounts" or "/cash-flows". */
+  path: string;
+  current: boolean;
+  children: React.ReactNode;
+}) {
+  const prefetch = usePrefetch(...pagePrefetch(workspace.id, path.slice(1)));
+  return (
+    <Link
+      to={workspace.base + path}
+      aria-current={current ? "page" : undefined}
+      className={cn(
+        "flex min-h-10 items-center rounded-full px-[18px] whitespace-nowrap text-muted no-underline hover:text-ink",
+        "aria-[current=page]:bg-ink aria-[current=page]:font-medium aria-[current=page]:text-surface",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asset",
+        "phone:min-h-14 phone:flex-col phone:justify-center phone:gap-[3px] phone:rounded-none phone:px-1",
+        "phone:text-[12px] phone:leading-[1.2] phone:[-webkit-tap-highlight-color:transparent]",
+        "phone:aria-[current=page]:bg-transparent phone:aria-[current=page]:font-semibold phone:aria-[current=page]:text-ink",
+        "phone:focus-visible:rounded-xl phone:focus-visible:-outline-offset-4",
+      )}
+      {...prefetch}
+    >
+      {children}
+    </Link>
   );
 }
 
@@ -150,6 +195,13 @@ function WorkspacePicker({
   section: string;
 }) {
   const navigate = useNavigate();
+  // Reaching for the picker starts loading this section in the others
+  // (one read each; most people have a workspace or two).
+  const prefetch = usePrefetch(
+    ...me.workspaces
+      .filter((other) => other.id !== workspace.id)
+      .flatMap((other) => pagePrefetch(other.id, section)),
+  );
   return (
     <label
       className={cn(
@@ -159,6 +211,7 @@ function WorkspacePicker({
     >
       <span className="phone:sr-only">Workspace</span>
       <select
+        {...prefetch}
         value={workspace.id}
         onChange={(event) =>
           navigate(sameSectionIn(Number(event.target.value), section))

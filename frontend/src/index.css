@@ -136,3 +136,44 @@
     animation: none;
   }
 }
+
+/* Loading (components/ui/skeleton.tsx). A loading region fades in only
+   after 150ms, so an answer that comes quickly never flashes a skeleton:
+   the one flash-avoidance rule, for pages and drawers alike. Fading is not
+   motion, so it stays under reduced motion; the pulse does not. */
+@keyframes skeleton-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@utility skeleton-reveal {
+  animation: skeleton-reveal 0.2s ease-out 150ms both;
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@utility skeleton-pulse {
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/* Data being replaced in place (a new range or period, a save, a category
+   move): the old figures stay, dimmed, while `aria-busy` is set. The dim
+   waits the same 150ms, so a quick answer never blinks it. */
+@utility updating {
+  transition: opacity 0.2s ease-out;
+  &[aria-busy="true"] {
+    opacity: 0.55;
+    transition-delay: 150ms;
+  }
+}

@@ -18,6 +18,7 @@ import {
   SheetFooter,
   SheetHeader,
 } from "@/components/ui/sheet";
+import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { APP_NAME, useWorkspace } from "@/components/shell/workspace-context";
 import { categoryMeta, deleteWhy, type Period } from "@/lib/cash-flows";
 import { cn } from "@/lib/utils";
@@ -55,8 +56,15 @@ export function CashFlowCategoriesDrawer() {
   }, [workspace.name]);
 
   if (!workspace.canEdit) return <Navigate to={pageHref} replace />;
-  const view = overview.data;
-  if (!view) return null;
+  // The page behind says what went wrong.
+  if (overview.isError) return <Navigate to={pageHref} replace />;
+  // Opened by its URL, the list waits in place; adding needs nothing.
+  const rows = overview.data?.categories;
+  const pendingWrite =
+    writes.create.isPending ||
+    writes.rename.isPending ||
+    writes.move.isPending ||
+    writes.remove.isPending;
 
   /** Run a write; say what happened in the footer, or why not up top. */
   async function attempt<T>(
@@ -95,10 +103,9 @@ export function CashFlowCategoriesDrawer() {
     newField.current?.focus();
   }
 
-  const rows = view.categories;
   return (
     <RouteSheet closeTo={pageHref}>
-      <SheetContent>
+      <SheetContent busy={rows === undefined}>
         <SheetHeader
           eyebrow="Cash flows"
           title="Categories"
@@ -111,48 +118,76 @@ export function CashFlowCategoriesDrawer() {
             reordering saves right away.
           </p>
 
-          <ul>
-            {rows.map((row, index) =>
-              confirm === row.id ? (
-                <ConfirmDelete
-                  key={row.id}
-                  row={row}
-                  onKeep={() => setConfirm(null)}
-                  onDelete={() =>
-                    attempt(
-                      () => writes.remove.mutateAsync(row.id),
-                      () => `Deleted ${row.name}`,
-                    ).then(() => setConfirm(null))
-                  }
-                  busy={writes.remove.isPending}
-                />
-              ) : (
-                <CategoryItem
-                  // A new name from the server starts the row afresh.
-                  key={`${row.id}:${row.name}`}
-                  row={row}
-                  period={period}
-                  first={index === 0}
-                  last={index === rows.length - 1}
-                  invalid={invalid === row.id}
-                  onRename={(name) => rename(row, name)}
-                  onMove={(direction) =>
-                    attempt(
-                      () => writes.move.mutateAsync({ id: row.id, direction }),
-                      () => `Moved ${row.name} ${direction}`,
-                    )
-                  }
-                  onDelete={() => setConfirm(row.id)}
-                />
-              ),
-            )}
-            {rows.length === 0 && (
-              <li className="py-3 text-[14px] text-muted">
-                No categories yet. Add one below; expenses in it get their own
-                card.
-              </li>
-            )}
-          </ul>
+          {rows === undefined ? (
+            <Loading label="Loading categories">
+              {["w-28", "w-36", "w-24"].map((name) => (
+                <span
+                  key={name}
+                  className="grid grid-cols-[40px_minmax(0,1fr)_44px] items-center gap-2.5 border-b border-rule py-2.5 phone:gap-1.5"
+                >
+                  <span className="flex flex-col gap-0.5">
+                    <Skeleton className="h-[26px] w-10 rounded-md" />
+                    <Skeleton className="h-[26px] w-10 rounded-md" />
+                  </span>
+                  <span className="flex flex-col gap-1">
+                    <Skeleton className="h-10 rounded-input" />
+                    <SkeletonText
+                      className={cn("ml-[18px] text-[13px]", name)}
+                    />
+                  </span>
+                  <Skeleton className="mx-auto size-5 rounded" />
+                </span>
+              ))}
+            </Loading>
+          ) : (
+            <ul
+              // Dimmed while a write and the refetch that follows it run.
+              aria-busy={pendingWrite || undefined}
+              className="updating"
+            >
+              {rows.map((row, index) =>
+                confirm === row.id ? (
+                  <ConfirmDelete
+                    key={row.id}
+                    row={row}
+                    onKeep={() => setConfirm(null)}
+                    onDelete={() =>
+                      attempt(
+                        () => writes.remove.mutateAsync(row.id),
+                        () => `Deleted ${row.name}`,
+                      ).then(() => setConfirm(null))
+                    }
+                    busy={writes.remove.isPending}
+                  />
+                ) : (
+                  <CategoryItem
+                    // A new name from the server starts the row afresh.
+                    key={`${row.id}:${row.name}`}
+                    row={row}
+                    period={period}
+                    first={index === 0}
+                    last={index === rows.length - 1}
+                    invalid={invalid === row.id}
+                    onRename={(name) => rename(row, name)}
+                    onMove={(direction) =>
+                      attempt(
+                        () =>
+                          writes.move.mutateAsync({ id: row.id, direction }),
+                        () => `Moved ${row.name} ${direction}`,
+                      )
+                    }
+                    onDelete={() => setConfirm(row.id)}
+                  />
+                ),
+              )}
+              {rows.length === 0 && (
+                <li className="py-3 text-[14px] text-muted">
+                  No categories yet. Add one below; expenses in it get their own
+                  card.
+                </li>
+              )}
+            </ul>
+          )}
 
           <form data-slot="cat-add" className="mt-4 flex gap-2" onSubmit={add}>
             <input
@@ -174,7 +209,7 @@ export function CashFlowCategoriesDrawer() {
               type="submit"
               variant="secondary"
               className="min-h-11 phone:flex-none phone:px-[18px]"
-              disabled={writes.create.isPending}
+              busy={writes.create.isPending}
             >
               + Add
             </Button>
@@ -372,7 +407,7 @@ function ConfirmDelete({
         <Button ref={keep} variant="outline" onClick={onKeep}>
           Keep
         </Button>
-        <Button variant="danger-solid" onClick={onDelete} disabled={busy}>
+        <Button variant="danger-solid" onClick={onDelete} busy={busy}>
           Delete category
         </Button>
       </div>

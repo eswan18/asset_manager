@@ -6,6 +6,7 @@ import {
   useAccountWrites,
   useAccountsOverview,
   type AccountDetail,
+  type AccountOut,
   type AccountType,
   type AccountsOverview,
   type CategoryOption,
@@ -24,7 +25,15 @@ import {
   SheetFooter,
   SheetForm,
   SheetHeader,
+  SheetTitleLoading,
 } from "@/components/ui/sheet";
+import {
+  Loading,
+  Skeleton,
+  SkeletonButton,
+  SkeletonField,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 import { flash } from "@/components/ui/toaster";
 import {
   useWorkspace,
@@ -50,22 +59,21 @@ export function AccountDrawer() {
   const id = accountId === undefined ? null : Number(accountId);
   const overview = useAccountsOverview(workspace.id);
   const detail = useAccount(workspace.id, id);
+  const type = search.get("type") === "liability" ? "liability" : "asset";
 
+  let content;
+  const failed = overview.error ?? detail.error;
   if (id === null && !workspace.canEdit) {
-    return (
+    content = (
       <Refusal
-        closeTo={closeTo}
         title="New account"
         message="This needs the editor role or higher"
       />
     );
-  }
-  const failed = overview.error ?? detail.error;
-  if (failed) {
+  } else if (failed) {
     const missing = failed instanceof ApiError && failed.status === 404;
-    return (
+    content = (
       <Refusal
-        closeTo={closeTo}
         title={missing ? "Account not found" : "Something went wrong"}
         message={
           missing
@@ -74,67 +82,159 @@ export function AccountDrawer() {
         }
       />
     );
+  } else {
+    // The form's fields need only the page's overview (usually cached: the
+    // drawer opens over the page), so it shows at once; the detail adds
+    // the history and Retire when it lands. An account the overview
+    // doesn't have yet waits for its detail.
+    const account =
+      id === null
+        ? null
+        : ((overview.data && findAccount(overview.data, id)) ??
+          detail.data?.account);
+    if (!overview.data || account === undefined) {
+      content = (
+        <FormSkeleton id={id} type={type} account={account ?? undefined} />
+      );
+    } else {
+      content = (
+        <AccountForm
+          key={id ?? "new"}
+          workspace={workspace}
+          closeTo={closeTo}
+          categories={overview.data.categories}
+          account={account}
+          detail={detail.data}
+          newType={type}
+          candidates={candidatesFrom(overview.data, id)}
+        />
+      );
+    }
   }
-  // Opened once its data is here, so focus lands on the Name field.
-  if (!overview.data || (id !== null && !detail.data)) return null;
-
-  const type = search.get("type");
-  return (
-    <AccountForm
-      key={id ?? "new"}
-      workspace={workspace}
-      closeTo={closeTo}
-      categories={overview.data.categories}
-      detail={detail.data ?? null}
-      newType={type === "liability" ? "liability" : "asset"}
-      candidates={
-        detail.data
-          ? detail.data.eligible_inputs
-          : candidatesFrom(overview.data)
-      }
-    />
-  );
+  // One RouteSheet throughout: the skeleton's sheet is replaced by the
+  // form's without sliding in again, and the form takes focus as it opens.
+  return <RouteSheet closeTo={closeTo}>{content}</RouteSheet>;
 }
 
-/** A new account's possible inputs: every active, plain account, under
- * Assets and Liabilities, by name (as the edit drawer's `eligible_inputs`). */
-function candidatesFrom(overview: AccountsOverview): InputGroup[] {
+function findAccount(
+  overview: AccountsOverview,
+  id: number,
+): AccountOut | undefined {
+  for (const section of overview.sections) {
+    for (const group of section.groups) {
+      const found = group.accounts.find((a) => a.id === id);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+/** The possible inputs: every active, plain account but this one, under
+ * Assets and Liabilities, by name (the server's `eligible_inputs`, from the
+ * overview, so the form needn't wait for the detail). */
+function candidatesFrom(
+  overview: AccountsOverview,
+  exclude: number | null,
+): InputGroup[] {
   return overview.sections
     .map((section) => ({
       kind: section.kind,
       label: section.title,
       accounts: section.groups
         .flatMap((g) => g.accounts)
-        .filter((a) => a.retired_at === null && !a.computed)
+        .filter((a) => a.retired_at === null && !a.computed && a.id !== exclude)
         .sort((a, b) => (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1))
         .map(({ id, name, amount }) => ({ id, name, amount })),
     }))
     .filter((group) => group.accounts.length > 0);
 }
 
-function Refusal({
-  closeTo,
-  title,
-  message,
+/** The drawer before its data: the header as far as it's known (a new
+ * account's type is in the URL; an account the overview has, its name),
+ * then the form's shape. */
+function FormSkeleton({
+  id,
+  type,
+  account,
 }: {
-  closeTo: string;
-  title: string;
-  message: string;
+  id: number | null;
+  type: AccountType;
+  account: AccountOut | undefined;
 }) {
   return (
-    <RouteSheet closeTo={closeTo}>
-      <SheetContent>
-        <SheetHeader eyebrow="Accounts" title={title} />
-        <SheetBody>
-          <SheetError>{message}</SheetError>
-        </SheetBody>
-        <SheetFooter>
-          <SheetClose asChild>
-            <Button variant="outline">Close</Button>
-          </SheetClose>
-        </SheetFooter>
-      </SheetContent>
-    </RouteSheet>
+    <SheetContent busy kind={id === null ? type : account?.type}>
+      {id === null ? (
+        <SheetHeader eyebrow="New account" title={`New ${type}`} />
+      ) : account ? (
+        <SheetHeader eyebrow={`Edit ${account.type}`} title={account.name} />
+      ) : (
+        <SheetHeader
+          eyebrow="Accounts"
+          title={<SheetTitleLoading label="Loading account" />}
+        />
+      )}
+      <SheetBody>
+        <Loading label="Loading the form" className="flex flex-col gap-[18px]">
+          <SkeletonField label="w-12" />
+          {id === null && (
+            <span className="flex flex-col gap-2">
+              <SkeletonText className="w-10 text-[13px]" />
+              <span className="flex gap-2">
+                <SkeletonButton className="w-20" />
+                <SkeletonButton className="w-24" />
+              </span>
+            </span>
+          )}
+          <SkeletonField label="w-16" />
+          <span className="flex min-h-11 items-center gap-2.5">
+            <Skeleton className="size-[18px] rounded" />
+            <SkeletonText className="w-52" />
+          </span>
+          {id !== null && <DetailSkeleton />}
+        </Loading>
+      </SheetBody>
+      <SheetFooter>
+        <span
+          aria-hidden="true"
+          className="skeleton-reveal flex gap-2 phone:flex-1"
+        >
+          <SkeletonButton className="phone:flex-1" />
+          <SkeletonButton className="w-20 phone:flex-1" />
+        </span>
+      </SheetFooter>
+    </SheetContent>
+  );
+}
+
+/** An existing account's history and Retire, while its detail loads. */
+function DetailSkeleton() {
+  return (
+    <>
+      <span className="flex min-h-11 items-center border-t border-rule pt-2">
+        <SkeletonText className="w-44" />
+      </span>
+      <span className="flex flex-col items-start gap-2.5 border-t border-rule pt-4">
+        <SkeletonText className="w-full text-[14px]" />
+        <SkeletonText className="w-2/3 text-[14px]" />
+        <SkeletonButton className="h-10 w-24" />
+      </span>
+    </>
+  );
+}
+
+function Refusal({ title, message }: { title: string; message: string }) {
+  return (
+    <SheetContent>
+      <SheetHeader eyebrow="Accounts" title={title} />
+      <SheetBody>
+        <SheetError>{message}</SheetError>
+      </SheetBody>
+      <SheetFooter>
+        <SheetClose asChild>
+          <Button variant="outline">Close</Button>
+        </SheetClose>
+      </SheetFooter>
+    </SheetContent>
   );
 }
 
@@ -150,10 +250,10 @@ interface FormState {
 }
 
 function initialForm(
-  detail: AccountDetail | null,
+  account: AccountOut | null,
   newType: AccountType,
 ): FormState {
-  if (detail === null) {
+  if (account === null) {
     return {
       name: "",
       type: newType,
@@ -164,7 +264,6 @@ function initialForm(
       inputIds: [],
     };
   }
-  const { account } = detail;
   const formula = account.formula;
   return {
     name: account.name,
@@ -177,10 +276,14 @@ function initialForm(
   };
 }
 
+/** The form. Its fields start from `account` (null for a new one) once,
+ * when it mounts, keyed on the account: a later refetch never resets what
+ * has been typed. `detail` (history, Retire) may come after. */
 function AccountForm({
   workspace,
   closeTo,
   categories,
+  account,
   detail,
   newType,
   candidates,
@@ -188,15 +291,15 @@ function AccountForm({
   workspace: CurrentWorkspace;
   closeTo: string;
   categories: CategoryOption[];
-  detail: AccountDetail | null;
+  account: AccountOut | null;
+  detail: AccountDetail | undefined;
   newType: AccountType;
   candidates: InputGroup[];
 }) {
   const navigate = useNavigate();
   const writes = useAccountWrites(workspace.id);
-  const [form, setForm] = useState(() => initialForm(detail, newType));
+  const [form, setForm] = useState(() => initialForm(account, newType));
   const [error, setError] = useState<string | null>(null);
-  const account = detail?.account ?? null;
   const set = (patch: Partial<FormState>) =>
     setForm((current) => ({ ...current, ...patch }));
 
@@ -277,202 +380,215 @@ function AccountForm({
   }
 
   return (
-    <RouteSheet closeTo={closeTo}>
-      <SheetContent kind={form.type}>
-        <SheetHeader
-          eyebrow={account ? `Edit ${account.type}` : "New account"}
-          title={account ? account.name : `New ${form.type}`}
-        />
-        <SheetForm onSubmit={submit}>
-          <SheetBody>
-            {error && <SheetError>{error}</SheetError>}
+    <SheetContent kind={form.type}>
+      <SheetHeader
+        eyebrow={account ? `Edit ${account.type}` : "New account"}
+        title={account ? account.name : `New ${form.type}`}
+      />
+      <SheetForm onSubmit={submit}>
+        <SheetBody>
+          {error && <SheetError>{error}</SheetError>}
 
-            <div className="flex flex-col gap-[18px]">
-              <Field label="Name">
-                <Input
-                  name="name"
-                  required
-                  data-autofocus
-                  value={form.name}
-                  onChange={(e) => set({ name: e.target.value })}
-                />
-              </Field>
-
-              {account === null && (
-                <Pills legend="Type">
-                  {(["asset", "liability"] as const).map((value) => (
-                    <Pill
-                      key={value}
-                      type="radio"
-                      name="type"
-                      value={value}
-                      checked={form.type === value}
-                      onChange={() => set({ type: value })}
-                    >
-                      {value === "asset" ? "Asset" : "Liability"}
-                    </Pill>
-                  ))}
-                </Pills>
-              )}
-
-              <Field label="Category">
-                <Select
-                  name="category"
-                  value={form.category}
-                  onChange={(e) => set({ category: e.target.value })}
-                >
-                  <option value="">Uncategorized</option>
-                  {categories.map((c) => (
-                    <option key={c.key} value={c.key}>
-                      {c.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-
-              <Check
-                label="Computed from other accounts"
-                name="computed"
-                checked={form.computed}
-                onChange={(e) => set({ computed: e.target.checked })}
+          <div className="flex flex-col gap-[18px]">
+            <Field label="Name">
+              <Input
+                name="name"
+                required
+                data-autofocus
+                value={form.name}
+                onChange={(e) => set({ name: e.target.value })}
               />
+            </Field>
 
-              {form.computed && (
-                <div className="flex flex-col gap-[18px]" data-formula-fields>
-                  <FieldPair>
-                    <Field label="Rate (%)">
-                      <Input
-                        num
-                        name="rate_percent"
-                        inputMode="decimal"
-                        placeholder="15"
-                        value={form.ratePercent}
-                        onChange={(e) => set({ ratePercent: e.target.value })}
-                      />
-                    </Field>
-                    <Field label="Cost basis ($)">
-                      <Input
-                        num
-                        name="cost_basis"
-                        inputMode="decimal"
-                        placeholder="0.00"
-                        value={form.costBasis}
-                        onChange={(e) => set({ costBasis: e.target.value })}
-                      />
-                    </Field>
-                  </FieldPair>
-                  <Pills legend="Inputs">
-                    {candidates.length === 0 && (
-                      <p className="text-[14px] text-muted">
-                        No plain, active accounts to use as inputs yet.
-                      </p>
-                    )}
-                    {candidates.map((group, i) => [
-                      candidates.length > 1 && (
-                        <span
-                          key={`label-${group.kind}`}
-                          className={cn(
-                            "basis-full text-[12px] text-muted",
-                            i > 0 && "mt-1",
-                          )}
-                        >
-                          {group.label}
-                        </span>
-                      ),
-                      ...group.accounts.map((c) => (
-                        <Pill
-                          key={c.id}
-                          type="checkbox"
-                          name="input_ids"
-                          value={String(c.id)}
-                          checked={form.inputIds.includes(c.id)}
-                          onChange={(e) =>
-                            set({
-                              inputIds: e.target.checked
-                                ? [...form.inputIds, c.id]
-                                : form.inputIds.filter((x) => x !== c.id),
-                            })
-                          }
-                        >
-                          {c.name}
-                        </Pill>
-                      )),
-                    ])}
-                  </Pills>
-                  <div
-                    aria-live="polite"
-                    data-formula-preview
-                    className={cn(
-                      "flex items-baseline justify-between gap-3 rounded-xl bg-chip px-4 py-3.5 text-[14px]",
-                      "phone:flex-wrap",
-                    )}
+            {account === null && (
+              <Pills legend="Type">
+                {(["asset", "liability"] as const).map((value) => (
+                  <Pill
+                    key={value}
+                    type="radio"
+                    name="type"
+                    value={value}
+                    checked={form.type === value}
+                    onChange={() => set({ type: value })}
                   >
-                    <span className="text-muted phone:min-w-0 phone:[overflow-wrap:anywhere]">
-                      {preview ? preview.text : PREVIEW_HINT}
-                    </span>
-                    <strong className="font-display text-[18px] font-semibold whitespace-nowrap">
-                      {preview ? preview.value : "—"}
-                    </strong>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {detail && (
-              <>
-                <History history={detail.history} />
-                <section
-                  aria-label="Retire"
-                  className="flex flex-col items-start gap-2.5 border-t border-rule pt-4"
-                >
-                  {detail.account.retired_at !== null ? (
-                    <>
-                      <p className="text-[14px] text-muted">
-                        Retired {shortDate(detail.account.retired_at)}.
-                        Unretiring brings it back with a blank amount.
-                      </p>
-                      <Button
-                        variant="outline"
-                        disabled={pending}
-                        onClick={() => lifecycle("unretire")}
-                      >
-                        Unretire
-                      </Button>
-                    </>
-                  ) : detail.retire_blocker ? (
-                    <p className="text-[14px] text-muted">
-                      {detail.retire_blocker}
-                    </p>
-                  ) : (
-                    <>
-                      <p className="text-[14px] text-muted">
-                        {detail.retire_warning ??
-                          "Retiring hides this account and stops including it in snapshots. History is kept."}
-                      </p>
-                      <Button
-                        variant="danger-outline"
-                        disabled={pending}
-                        onClick={() => lifecycle("retire")}
-                      >
-                        {detail.retire_warning ? "Retire anyway" : "Retire"}
-                      </Button>
-                    </>
-                  )}
-                </section>
-              </>
+                    {value === "asset" ? "Asset" : "Liability"}
+                  </Pill>
+                ))}
+              </Pills>
             )}
-          </SheetBody>
-          <SheetFooter>
-            <SheetClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </SheetClose>
-            <Button type="submit" variant="primary" disabled={pending}>
-              Save
-            </Button>
-          </SheetFooter>
-        </SheetForm>
-      </SheetContent>
-    </RouteSheet>
+
+            <Field label="Category">
+              <Select
+                name="category"
+                value={form.category}
+                onChange={(e) => set({ category: e.target.value })}
+              >
+                <option value="">Uncategorized</option>
+                {categories.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Check
+              label="Computed from other accounts"
+              name="computed"
+              checked={form.computed}
+              onChange={(e) => set({ computed: e.target.checked })}
+            />
+
+            {form.computed && (
+              <div className="flex flex-col gap-[18px]" data-formula-fields>
+                <FieldPair>
+                  <Field label="Rate (%)">
+                    <Input
+                      num
+                      name="rate_percent"
+                      inputMode="decimal"
+                      placeholder="15"
+                      value={form.ratePercent}
+                      onChange={(e) => set({ ratePercent: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Cost basis ($)">
+                    <Input
+                      num
+                      name="cost_basis"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      value={form.costBasis}
+                      onChange={(e) => set({ costBasis: e.target.value })}
+                    />
+                  </Field>
+                </FieldPair>
+                <Pills legend="Inputs">
+                  {candidates.length === 0 && (
+                    <p className="text-[14px] text-muted">
+                      No plain, active accounts to use as inputs yet.
+                    </p>
+                  )}
+                  {candidates.map((group, i) => [
+                    candidates.length > 1 && (
+                      <span
+                        key={`label-${group.kind}`}
+                        className={cn(
+                          "basis-full text-[12px] text-muted",
+                          i > 0 && "mt-1",
+                        )}
+                      >
+                        {group.label}
+                      </span>
+                    ),
+                    ...group.accounts.map((c) => (
+                      <Pill
+                        key={c.id}
+                        type="checkbox"
+                        name="input_ids"
+                        value={String(c.id)}
+                        checked={form.inputIds.includes(c.id)}
+                        onChange={(e) =>
+                          set({
+                            inputIds: e.target.checked
+                              ? [...form.inputIds, c.id]
+                              : form.inputIds.filter((x) => x !== c.id),
+                          })
+                        }
+                      >
+                        {c.name}
+                      </Pill>
+                    )),
+                  ])}
+                </Pills>
+                <div
+                  aria-live="polite"
+                  data-formula-preview
+                  className={cn(
+                    "flex items-baseline justify-between gap-3 rounded-xl bg-chip px-4 py-3.5 text-[14px]",
+                    "phone:flex-wrap",
+                  )}
+                >
+                  <span className="text-muted phone:min-w-0 phone:[overflow-wrap:anywhere]">
+                    {preview ? preview.text : PREVIEW_HINT}
+                  </span>
+                  <strong className="font-display text-[18px] font-semibold whitespace-nowrap">
+                    {preview ? preview.value : "—"}
+                  </strong>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {account && !detail && (
+            <Loading
+              label="Loading history"
+              className="flex flex-col gap-[18px]"
+            >
+              <DetailSkeleton />
+            </Loading>
+          )}
+          {detail && (
+            <>
+              <History history={detail.history} />
+              <section
+                aria-label="Retire"
+                className="flex flex-col items-start gap-2.5 border-t border-rule pt-4"
+              >
+                {detail.account.retired_at !== null ? (
+                  <>
+                    <p className="text-[14px] text-muted">
+                      Retired {shortDate(detail.account.retired_at)}. Unretiring
+                      brings it back with a blank amount.
+                    </p>
+                    <Button
+                      variant="outline"
+                      disabled={pending}
+                      busy={writes.unretire.isPending}
+                      onClick={() => lifecycle("unretire")}
+                    >
+                      Unretire
+                    </Button>
+                  </>
+                ) : detail.retire_blocker ? (
+                  <p className="text-[14px] text-muted">
+                    {detail.retire_blocker}
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-[14px] text-muted">
+                      {detail.retire_warning ??
+                        "Retiring hides this account and stops including it in snapshots. History is kept."}
+                    </p>
+                    <Button
+                      variant="danger-outline"
+                      disabled={pending}
+                      busy={writes.retire.isPending}
+                      onClick={() => lifecycle("retire")}
+                    >
+                      {detail.retire_warning ? "Retire anyway" : "Retire"}
+                    </Button>
+                  </>
+                )}
+              </section>
+            </>
+          )}
+        </SheetBody>
+        <SheetFooter>
+          <SheetClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </SheetClose>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={pending}
+            busy={writes.create.isPending || writes.update.isPending}
+          >
+            Save
+          </Button>
+        </SheetFooter>
+      </SheetForm>
+    </SheetContent>
   );
 }
 
