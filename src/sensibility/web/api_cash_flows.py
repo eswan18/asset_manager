@@ -1,7 +1,7 @@
 """JSON for the Cash flows page: everything it renders, and moving a category.
 
-The overview is `cash_flows_model.cash_flows_figures`, the same computation
-the Jinja page formats, so the two can't drift. Money is a string with two
+The overview is `cash_flows_model.cash_flows_figures`, serialized; the
+React app formats it. Money is a string with two
 decimals ("1215.48"; only `net` and `other_net` can be negative); shares are
 display text ("28%", "<1%"); bar weights and the marker are unrounded
 percentages; colors are CSS values naming the design tokens

@@ -1,8 +1,8 @@
 """The dashboard's numbers: daily totals, the change line, ranges, categories.
 
 Everything here is pure: it takes the workspace's records and accounts (from
-`get_all_records` and `get_accounts`) and returns plain values for the
-template and the chart. The latest snapshot date is the latest date among
+`get_all_records` and `get_accounts`) and returns plain values for the JSON
+API (api_dashboard.py) and the MCP tools. The latest snapshot date is the latest date among
 the records passed in, so it is always the workspace's own.
 """
 
@@ -17,7 +17,6 @@ from typing import Any
 
 from sensibility.models import Account, AccountCategory, Record, RecordType
 
-MINUS = "−"
 UNCATEGORIZED = "Uncategorized"
 
 # Category colors, strongest first: the largest category takes the first.
@@ -267,46 +266,13 @@ def computed_label(account: Account) -> str | None:
     return f"{text}% of gains, computed"
 
 
-def money(amount: Decimal) -> str:
-    """Whole dollars: $412,380, or −$1,200."""
-    whole = amount.quantize(Decimal(1), rounding=ROUND_HALF_UP)
-    sign = MINUS if whole < 0 else ""
-    return f"{sign}${abs(whole):,.0f}"
-
-
-def signed_money(amount: Decimal) -> str:
-    """+$6,140, −$1,200, or $0."""
-    whole = amount.quantize(Decimal(1), rounding=ROUND_HALF_UP)
-    return ("+" if whole > 0 else "") + money(whole)
-
-
-def signed_percent(percent: Decimal) -> str:
-    """+1.5%, −0.3%, or 0.0%, to one decimal place."""
-    rounded = percent.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
-    if rounded > 0:
-        return f"+{rounded}%"
-    if rounded < 0:
-        return f"{MINUS}{abs(rounded)}%"
-    return "0.0%"
-
-
-def short_date(day: date, reference: date) -> str:
-    """ "Sep 24", with the year only when it differs from `reference`'s."""
-    text = f"{day:%b} {day.day}"
-    return text if day.year == reference.year else f"{text}, {day.year}"
-
-
-def long_date(day: date) -> str:
-    """ "Oct 24, 2026"."""
-    return f"{day:%b} {day.day}, {day.year}"
-
-
-def getting_started(active_accounts: int, base: str) -> list[dict[str, Any]]:
+def getting_started(active_accounts: int) -> list[dict[str, Any]]:
     """A new workspace's three steps (board Y), until its first snapshot.
 
     With no active accounts, step 1 carries the button; once there are some,
     step 1 is done and step 2's button goes to Accounts to enter balances.
-    `action` is a (label, href) pair, shown only to editors.
+    `action` is a (label, path) pair, shown only to editors; the path is
+    relative to the workspace's own (`/accounts`).
     """
     has_accounts = active_accounts > 0
     noun = "account" if active_accounts == 1 else "accounts"
@@ -320,14 +286,14 @@ def getting_started(active_accounts: int, base: str) -> list[dict[str, Any]]:
             "done": has_accounts,
             "action": None
             if has_accounts
-            else ("+ Add an account", f"{base}/accounts/new?type=asset"),
+            else ("+ Add an account", "/accounts/new?type=asset"),
         },
         {
             "title": "Enter today's balances",
             "text": "Type each balance on Accounts and save. "
             "That's your first snapshot.",
             "done": False,
-            "action": ("Enter balances", f"{base}/accounts") if has_accounts else None,
+            "action": ("Enter balances", "/accounts") if has_accounts else None,
         },
         {
             "title": "Come back now and then",
@@ -341,38 +307,6 @@ def getting_started(active_accounts: int, base: str) -> list[dict[str, Any]]:
 
 CARD_TITLES = {RecordType.ASSET: "Assets", RecordType.LIABILITY: "Liabilities"}
 
-
-def cards_view(records: list[Record], accounts: list[Account]) -> list[dict[str, Any]]:
-    """The Assets and Liabilities cards: each active account under its
-    category, with the latest snapshot's amount ("—" if it has none)."""
-    cards = account_cards(records, accounts)
-    return [
-        {
-            "title": title,
-            "kind": type.value,
-            "total": money(cards[type]["total"]),
-            "groups": [
-                {
-                    "label": g["label"],
-                    "total": money(g["total"]),
-                    "rows": [
-                        {
-                            "name": r["name"],
-                            "amount": "—"
-                            if r["amount"] is None
-                            else money(r["amount"]),
-                            "computed": r["computed"],
-                        }
-                        for r in g["rows"]
-                    ],
-                }
-                for g in cards[type]["groups"]
-            ],
-        }
-        for type, title in CARD_TITLES.items()
-    ]
-
-
 # A new workspace's empty cards (board Y): what goes there, and its button.
 EMPTY_CARDS = {
     "asset": ("No assets yet.", "+ Add an asset"),
@@ -381,20 +315,3 @@ EMPTY_CARDS = {
         "+ Add a liability",
     ),
 }
-
-
-def onboarding_context(accounts: list[Account], base: str) -> dict[str, Any]:
-    """Template values for a workspace with no snapshot yet: the steps, and
-    the cards listing any accounts already added, with no amounts."""
-    active = sum(1 for a in accounts if a.is_active)
-    cards = cards_view([], accounts)
-    for card in cards:
-        empty, add = EMPTY_CARDS[card["kind"]]
-        card["total"] = "—" if card["groups"] else money(Decimal(0))
-        card["empty"] = empty
-        card["add"] = (add, f"{base}/accounts/new?type={card['kind']}")
-    return {
-        "steps": getting_started(active, base),
-        "has_accounts": active > 0,
-        "cards": cards,
-    }

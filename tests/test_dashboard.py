@@ -1,4 +1,4 @@
-"""Pure tests for the dashboard's numbers and its Plotly figure."""
+"""Pure tests for the dashboard's numbers (web/dashboard.py)."""
 
 from datetime import date, timedelta
 from decimal import Decimal
@@ -12,7 +12,6 @@ from sensibility.models import (
     Record,
     RecordType,
 )
-from sensibility.web.charts import build_figure
 from sensibility.web.dashboard import (
     Point,
     BarSegment,
@@ -23,15 +22,11 @@ from sensibility.web.dashboard import (
     computed_label,
     daily_totals,
     filter_range,
+    getting_started,
     latest_category_totals,
-    long_date,
-    money,
     months_before,
     parse_range,
     ramp_color,
-    short_date,
-    signed_money,
-    signed_percent,
 )
 
 A, L = RecordType.ASSET, RecordType.LIABILITY
@@ -286,6 +281,19 @@ class TestLatestCategoryTotals:
     def test_no_records(self):
         assert latest_category_totals([], [account(1)]) == {A: [], L: []}
 
+    def test_an_account_retired_today_counts_until_the_next_save(self):
+        """The columns read the latest snapshot's rows, so they meet the
+        lines' ends: a same-day-retired account still has its row there."""
+        accounts = [
+            account(1, A, BANK, "Live"),
+            account(2, A, BANK, "Gone", retired_at=LATEST),
+        ]
+        records = [rec(LATEST, 1, "5"), rec(LATEST, 2, "7")]
+        totals = latest_category_totals(records, accounts)
+        assert [(c.label, c.amount) for c in totals[A]] == [
+            ("Bank Accounts", Decimal("12"))
+        ]
+
 
 class TestCategoryBars:
     def bars(self, assets, liabilities=()):
@@ -428,7 +436,7 @@ class TestAccountCards:
         assert cards[A]["groups"][0]["rows"][0]["amount"] is None
 
 
-class TestFormatting:
+class TestComputedLabel:
     @pytest.mark.parametrize(
         "rate, expected",
         [("0.15", "15"), ("0.325", "32.5"), ("0", "0"), ("1", "100"), ("0.2", "20")],
@@ -439,145 +447,32 @@ class TestFormatting:
         assert label == f"{expected}% of gains, computed"
         assert computed_label(account(2)) is None
 
-    @pytest.mark.parametrize(
-        "amount, expected",
-        [
-            ("412380", "$412,380"),
-            ("412380.49", "$412,380"),
-            ("412380.50", "$412,381"),
-            ("0", "$0"),
-            ("-0.4", "$0"),
-            ("-1200", "−$1,200"),
-            ("1234567.89", "$1,234,568"),
-        ],
-    )
-    def test_money(self, amount, expected):
-        assert money(Decimal(amount)) == expected
 
-    @pytest.mark.parametrize(
-        "amount, expected",
-        [
-            ("6140", "+$6,140"),
-            ("-1200", "−$1,200"),
-            ("0", "$0"),
-            ("0.4", "$0"),
-            ("-0.4", "$0"),
-        ],
-    )
-    def test_signed_money(self, amount, expected):
-        assert signed_money(Decimal(amount)) == expected
+class TestGettingStarted:
+    """A new workspace's three steps (board Y). Action paths are relative to
+    the workspace."""
 
-    @pytest.mark.parametrize(
-        "percent, expected",
-        [
-            ("1.5", "+1.5%"),
-            ("1.46", "+1.5%"),
-            ("-0.3", "−0.3%"),
-            ("0", "0.0%"),
-            ("0.04", "0.0%"),
-            ("-0.04", "0.0%"),
-            ("12", "+12.0%"),
-        ],
-    )
-    def test_signed_percent(self, percent, expected):
-        assert signed_percent(Decimal(percent)) == expected
-
-    def test_dates(self):
-        assert short_date(date(2026, 9, 4), LATEST) == "Sep 4"
-        assert short_date(date(2025, 9, 24), LATEST) == "Sep 24, 2025"
-        assert long_date(date(2026, 10, 4)) == "Oct 4, 2026"
-
-
-class TestFigure:
-    def figure(self, points=None, categories=None):
-        points = points or [pt(days_ago(30), "90", "10"), pt(LATEST, "100", "20")]
-        accounts = [account(1, A, BANK), account(2, A, INVEST), account(3, L, CARDS)]
-        records = [
-            rec(LATEST, 1, "40"),
-            rec(LATEST, 2, "80"),
-            rec(LATEST, 3, "20", L),
+    def test_steps_for_a_workspace_with_no_accounts(self):
+        steps = getting_started(0)
+        assert [s["title"] for s in steps] == [
+            "Add your accounts",
+            "Enter today's balances",
+            "Come back now and then",
         ]
-        if categories is None:
-            categories = latest_category_totals(records, accounts)
-        return build_figure(points, categories)
-
-    def test_three_lines_on_the_first_x_axis(self):
-        fig = self.figure()
-        lines = [t for t in fig["data"] if t["type"] == "scatter"]
-        assert [(t["name"], t["meta"]["color"]) for t in lines] == [
-            ("Assets", "var(--asset)"),
-            ("Net worth", "var(--ink)"),
-            ("Liabilities", "var(--liability)"),
+        assert [s["done"] for s in steps] == [False, False, False]
+        assert [s["action"] for s in steps] == [
+            ("+ Add an account", "/accounts/new?type=asset"),
+            None,
+            None,
         ]
-        assert all(t["xaxis"] == "x" and t["yaxis"] == "y" for t in lines)
-        assert lines[0]["y"] == [100.0, 120.0]
-        assert lines[1]["y"] == [90.0, 100.0]
-        assert lines[2]["y"] == [10.0, 20.0]
-        assert lines[0]["x"] == [days_ago(30).isoformat(), LATEST.isoformat()]
-        assert lines[1]["line"]["width"] > lines[0]["line"]["width"]
-        assert lines[1]["line"]["width"] > lines[2]["line"]["width"]
 
-    def test_columns_share_the_y_axis_on_a_second_x_axis(self):
-        fig = self.figure()
-        bars = [t for t in fig["data"] if t["type"] == "bar"]
-        assert [(t["x"], t["name"], t["y"], t["meta"]["color"]) for t in bars] == [
-            (["Assets"], "Investment Accounts", [80.0], "var(--asset)"),
-            (["Assets"], "Bank Accounts", [40.0], "var(--asset-2)"),
-            (["Liabilities"], "Credit Cards", [20.0], "var(--liability)"),
+    @pytest.mark.parametrize(("count", "text"), [(1, "1 account"), (3, "3 accounts")])
+    def test_steps_once_accounts_exist(self, count, text):
+        steps = getting_started(count)
+        assert [s["done"] for s in steps] == [True, False, False]
+        assert steps[0]["text"].startswith(f"Done: {text} added.")
+        assert [s["action"] for s in steps] == [
+            None,
+            ("Enter balances", "/accounts"),
+            None,
         ]
-        assert all(t["xaxis"] == "x2" and t["yaxis"] == "y" for t in bars)
-        assert all(t["meta"]["gap"] == "var(--surface)" for t in bars)
-        layout = fig["layout"]
-        assert layout["barmode"] == "stack"
-        assert layout["xaxis2"]["anchor"] == "y"
-        assert "yaxis2" not in layout
-
-    def test_the_domains_do_not_overlap_and_the_divider_sits_between(self):
-        layout = self.figure()["layout"]
-        lines, columns = layout["xaxis"]["domain"], layout["xaxis2"]["domain"]
-        [divider] = layout["shapes"]
-        assert lines[0] == 0 and columns[1] == 1
-        assert lines[1] < divider["x0"] == divider["x1"] < columns[0]
-        assert divider["line"]["dash"] == "dash"
-        narrow = layout["meta"]["narrow"]
-        assert narrow["lines"][1] < narrow["divider"] < narrow["columns"][0]
-
-    def test_the_chart_never_drags_so_a_swipe_scrolls_the_page(self):
-        layout = self.figure()["layout"]
-        assert layout["dragmode"] is False
-        assert all(layout[axis]["fixedrange"] for axis in ("xaxis", "xaxis2", "yaxis"))
-
-    def test_the_phone_layout_is_named_for_the_page_script(self):
-        phone = self.figure()["layout"]["meta"]["phone"]
-        assert phone == {"query": "(max-width: 600px)", "height": 240}
-
-    def test_the_y_axis_includes_zero(self):
-        assert self.figure()["layout"]["yaxis"]["rangemode"] == "tozero"
-
-    def test_a_single_point_gets_a_marker(self):
-        fig = self.figure(points=[pt(LATEST, "1")])
-        modes = {t["mode"] for t in fig["data"] if t["type"] == "scatter"}
-        assert modes == {"lines+markers"}
-        assert {t["mode"] for t in self.figure()["data"] if t["type"] == "scatter"} == {
-            "lines"
-        }
-
-    def test_a_single_point_sits_at_the_end_of_a_month_wide_axis(self):
-        # Left alone, Plotly zooms one date into milliseconds of axis.
-        xaxis = self.figure(points=[pt(LATEST, "1")])["layout"]["xaxis"]
-        start, end = (date.fromisoformat(d[:10]) for d in xaxis["range"])
-        assert end == LATEST + timedelta(days=1)
-        assert start == LATEST - timedelta(days=30)
-        assert "range" not in self.figure()["layout"]["xaxis"]
-
-    def test_no_categories_means_no_columns(self):
-        fig = self.figure(categories={A: [], L: []})
-        assert [t["type"] for t in fig["data"]] == ["scatter"] * 3
-
-    def test_every_color_is_named_by_a_token(self):
-        fig = self.figure()
-        for trace in fig["data"]:
-            assert trace["meta"]["color"].startswith(("var(--", "color-mix("))
-        for value in fig["layout"]["meta"].values():
-            if isinstance(value, str):
-                assert value.startswith("var(--")

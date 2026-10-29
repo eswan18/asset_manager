@@ -1,9 +1,8 @@
 """The Cash flows page's figures, unformatted.
 
-One computation for both readers: `cash_flows_routes.cash_flows_view` turns
-these into the Jinja page's text, and `api_cash_flows` serializes them for
-the JSON API, so the page and the API can't drift. Pure: no database, no
-request.
+`api_cash_flows` serializes them for the JSON API, and the React app
+(frontend/src/routes/cash-flows.tsx) turns them into the page's text. Pure:
+no database, no request.
 
 Amounts are summed unrounded per year and rounded once per figure (to cents,
 in the page's period), so a category's total is its flows' exact sum, not a

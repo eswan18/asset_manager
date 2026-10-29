@@ -1,9 +1,9 @@
 """The Accounts page and account drawer as data, and account writes, over
 /api/workspaces/{id}/accounts/...
 
-The page models are checked against the helpers the Jinja pages render from
-(accounts_view, retire_warning), and every write's refusals carry the
-service's own message.
+The page models are checked against the helpers they are computed from
+(accounts_model.accounts_view, retire_warning), and every write's refusals
+carry the service's own message.
 """
 
 from datetime import date
@@ -15,7 +15,7 @@ from sensibility import repository as repo
 from sensibility.accounts import create_account, retire_account, retire_warning
 from sensibility.clock import today
 from sensibility.models import AccountCategory, ProportionalFormula, RecordType
-from sensibility.web.accounts_routes import accounts_view, format_money
+from sensibility.web.accounts_model import accounts_view, saved_total
 from sensibility.workspaces import create_workspace
 from tests.support import WS
 from tests.web_support import STRANGER, TZ, add_user, login, session_for
@@ -117,7 +117,7 @@ class TestOverview:
             {"key": c.value, "label": c.label} for c in AccountCategory
         ]
 
-    def test_matches_the_page(self, client, db_connection, ids):
+    def test_follows_the_accounts_model(self, client, db_connection, ids):
         accounts = repo.get_accounts(db_connection, WS)
         latest = repo.get_latest_snapshot_records(db_connection, WS)
         as_of = today(TZ)
@@ -127,19 +127,21 @@ class TestOverview:
 
         assert body["as_of"] == as_of.isoformat()
         assert body["snapshot_is_today"] is view["snapshot_is_today"]
-        assert format_money(Decimal(body["net_worth"])) == view["net_worth"]
-        for ours, theirs in zip(body["sections"], view["sections"]):
-            assert format_money(Decimal(ours["total"])) == theirs["total"]
+        assert body["retired_count"] == view["retired_count"]
+        rows = view["rows"]
+        totals = {
+            kind: saved_total([r for r in rows if r["type"] == kind])
+            for kind in ("asset", "liability")
+        }
+        assert Decimal(body["net_worth"]) == totals["asset"] - totals["liability"]
+        for ours, theirs in zip(body["sections"], view["sections"], strict=True):
+            assert ours["kind"] == theirs["kind"]
+            assert Decimal(ours["total"]) == totals[theirs["kind"]]
             assert [
-                (
-                    g["key"],
-                    g["label"],
-                    format_money(Decimal(g["subtotal"])),
-                    g["retired"],
-                )
+                (g["key"], g["label"], Decimal(g["subtotal"]), g["retired"])
                 for g in ours["groups"]
             ] == [
-                (g["key"], g["label"], g["subtotal"], g["retired"])
+                (g["key"], g["label"], saved_total(g["rows"]), g["retired"])
                 for g in theirs["groups"]
             ]
             assert [[a["id"] for a in g["accounts"]] for g in ours["groups"]] == [

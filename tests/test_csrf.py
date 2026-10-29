@@ -70,12 +70,11 @@ def test_it_is_checked_before_login(client):
     assert client.post("/api/workspaces", json={"name": "x"}).status_code == 403
 
 
-def test_the_pages_own_form_posts_are_not_affected(bare):
-    """The Jinja forms post outside /api/ and cannot send headers."""
-    response = bare.post(
-        f"{PAGES}/settings", data={"name": "Renamed"}, follow_redirects=False
-    )
-    assert response.status_code == 303
+def test_only_the_api_is_checked(bare):
+    """Outside /api/ the rule does not apply: a POST to a page's path is the
+    router's 405 (the pages are the React app's, read-only), not this 403."""
+    response = bare.post(PAGES, data={"name": "Renamed"}, follow_redirects=False)
+    assert response.status_code == 405
 
 
 def test_mcp_is_exempt(bare, mcp_env):

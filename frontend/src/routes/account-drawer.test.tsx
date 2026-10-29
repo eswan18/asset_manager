@@ -252,6 +252,37 @@ describe("the new account drawer", () => {
     expect(router.state.location.pathname).toBe(`${ACCOUNTS}/new`);
   });
 
+  it("keeps every field of a refused computed account", async () => {
+    const { user, router } = open(`${ACCOUNTS}/new?type=liability`, {
+      [`POST ${API}`]: {
+        status: 400,
+        body: { error: "A liability named 'Cap gains tax' already exists" },
+      },
+    });
+    const dialog = await screen.findByRole("dialog");
+    const field = (label: string) => within(dialog).getByLabelText(label);
+    await user.type(field("Name"), "Cap gains tax");
+    await user.selectOptions(field("Category"), "tax_liability");
+    await user.click(field("Computed from other accounts"));
+    await user.type(field("Rate (%)"), "20");
+    await user.type(field("Cost basis ($)"), "1,000");
+    await user.click(field("Schwab"));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "A liability named 'Cap gains tax' already exists",
+    );
+    expect(field("Name")).toHaveValue("Cap gains tax");
+    expect(field("Liability")).toBeChecked();
+    expect(field("Category")).toHaveValue("tax_liability");
+    expect(field("Computed from other accounts")).toBeChecked();
+    expect(field("Rate (%)")).toHaveValue("20");
+    expect(field("Cost basis ($)")).toHaveValue("1,000");
+    expect(field("Schwab")).toBeChecked();
+    expect(field("Checking")).not.toBeChecked();
+    expect(router.state.location.pathname).toBe(`${ACCOUNTS}/new`);
+  });
+
   it("is editor-only", async () => {
     open(`${ACCOUNTS}/new`, {}, VIEWER);
     const dialog = await screen.findByRole("dialog", { name: "New account" });

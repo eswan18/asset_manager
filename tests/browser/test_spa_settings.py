@@ -1,10 +1,9 @@
-"""The React settings and welcome pages under /app (frontend/src/routes/
-settings.tsx and welcome.tsx), in a real browser against the built app: the
-Jinja pages' behaviors (test_settings_page.py, test_welcome_page.py) and
-phone layouts (test_mobile_settings.py), at /app paths.
+"""The settings and welcome pages (frontend/src/routes/settings.tsx and
+welcome.tsx), in a real browser against the built app: their behaviors and
+their phone layouts.
 
 Every write goes through the JSON API; the confirms are in the page, through
-`?confirm=`, as the Jinja page's are."""
+`?confirm=`."""
 
 import re
 from typing import Any
@@ -22,9 +21,9 @@ from tests.web_support import USER, add_user
 
 pytestmark = [pytest.mark.browser, pytest.mark.db]
 
-APP = f"/app/workspaces/{WS}"
+APP = f"/workspaces/{WS}"
 SETTINGS = f"{APP}/settings"
-WELCOME = "/app/welcome"
+WELCOME = "/welcome"
 
 LONG_NAME: dict[str, Any] = {
     "id": 2,
@@ -332,7 +331,7 @@ def test_deleting_goes_to_your_next_workspace(open_page, db_connection, team):
     confirm = confirms(page)
     expect(confirm).to_contain_text("Delete Test for all 3 members?")
     confirm.get_by_role("button", name="Delete workspace").click()
-    page.wait_for_url(f"**/app/workspaces/{other.id}")
+    page.wait_for_url(f"**/workspaces/{other.id}")
     flashed(page, "Deleted Test.")
     expect(page.get_by_role("combobox", name="Workspace")).to_have_value(str(other.id))
     gone = repo.get_workspace(db_connection, WS)
@@ -390,7 +389,7 @@ def test_welcome_creates_and_goes_into_it(open_page, db_connection):
     page = open_page(WELCOME)
     page.get_by_role("textbox", name="Name").fill(" Personal ")
     page.get_by_role("button", name="Create workspace").click()
-    page.wait_for_url("**/app/workspaces/2")
+    page.wait_for_url("**/workspaces/2")
     flashed(page, "Created Personal.")
     expect(page.get_by_role("combobox", name="Workspace")).to_have_value("2")
     found = repo.get_access(db_connection, 2, USER_ID)
@@ -401,7 +400,7 @@ def test_welcome_joins(open_page, db_connection, invited_elsewhere):
     _no_workspace(db_connection)
     page = open_page(WELCOME)
     page.get_by_role("button", name=f"Join {TRUST}").click()
-    page.wait_for_url(f"**/app/workspaces/{invited_elsewhere.id}")
+    page.wait_for_url(f"**/workspaces/{invited_elsewhere.id}")
     flashed(page, f"Joined {TRUST} as an editor.")
     expect(page.get_by_role("combobox", name="Workspace")).to_have_value(
         str(invited_elsewhere.id)

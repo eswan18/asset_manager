@@ -11,6 +11,7 @@ pytestmark = [pytest.mark.browser, pytest.mark.db]
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
 def test_a_phone_page_is_as_wide_as_the_phone(open_page, seeded, width):
     page = open_page(PAGES, phone=width)
+    page.locator("main h2").first.wait_for()  # the React app has rendered
     assert page.evaluate("window.innerWidth") == width
     assert page.evaluate("navigator.maxTouchPoints") > 0
     assert layout_problems(page)["overflow"] == 0
@@ -18,6 +19,7 @@ def test_a_phone_page_is_as_wide_as_the_phone(open_page, seeded, width):
 
 def test_layout_problems_finds_a_small_target_and_a_small_field(open_page, seeded):
     page = open_page(PAGES, phone=390)
+    page.locator("main h2").first.wait_for()  # the React app has rendered
     page.evaluate(
         """() => {
         const a = document.createElement('a');

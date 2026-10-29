@@ -18,6 +18,7 @@ from sensibility import repository as repo
 from sensibility.accounts import AccountError, save_snapshot
 from sensibility.cashflows import (
     CashFlowError,
+    CashFlowNotFound,
     create_cash_flow,
     create_category,
     delete_cash_flow,
@@ -50,6 +51,7 @@ from sensibility.models import (
 )
 from sensibility.repository import get_accounts, get_latest_snapshot_records
 from sensibility.workspaces import (
+    MemberNotFound,
     WorkspaceError,
     change_role,
     create_workspace,
@@ -174,10 +176,13 @@ async def list_members(access: ViewerAccess) -> JSONResponse:
 async def change_member_role(
     user_id: int, payload: RoleUpdate, access: OwnerAccess
 ) -> JSONResponse:
-    """Owners only. The last owner cannot be demoted."""
+    """Owners only. The last owner cannot be demoted. Someone who is not a
+    member here (another workspace's, or no one) is a 404."""
     try:
         with get_connection_context() as conn:
             change_role(conn, access.workspace.id, user_id, payload.role)
+    except MemberNotFound:
+        return error("Member not found", 404)
     except WorkspaceError as e:
         return error(str(e))
     return JSONResponse({"user_id": user_id, "role": payload.role.value})
@@ -191,6 +196,8 @@ async def remove_member_route(user_id: int, access: ViewerAccess) -> JSONRespons
     try:
         with get_connection_context() as conn:
             remove_member(conn, access.workspace.id, user_id)
+    except MemberNotFound:
+        return error("Member not found", 404)
     except WorkspaceError as e:
         return error(str(e))
     return JSONResponse({"removed": user_id})
@@ -339,7 +346,7 @@ async def update_snapshot(
     """Save today's snapshot from the given values plus the latest snapshot.
 
     Today is the caller's: in the zone named by the `X-Timezone` header, else
-    the browser's `tz` cookie, else the server default. Plain accounts left out
+    the server default. Plain accounts left out
     keep their latest amount; computed accounts are re-evaluated. Each
     account in the response says which of those happened.
     """
@@ -430,6 +437,8 @@ async def update_category_route(
                 name=payload.name,
                 position=payload.position,
             )
+    except CashFlowNotFound as e:
+        return error(str(e), 404)
     except CashFlowError as e:
         return error(str(e))
     return JSONResponse(category_json(category))
@@ -441,6 +450,8 @@ async def delete_category_route(category_id: int, access: EditorAccess) -> JSONR
     try:
         with get_connection_context() as conn:
             delete_category(conn, access.workspace.id, category_id)
+    except CashFlowNotFound as e:
+        return error(str(e), 404)
     except CashFlowError as e:
         return error(str(e))
     return JSONResponse({"deleted": category_id})
@@ -525,6 +536,8 @@ async def update_cash_flow_route(
     try:
         with get_connection_context() as conn:
             flow = update_cash_flow(conn, access.workspace.id, cash_flow_id, changes)
+    except CashFlowNotFound as e:
+        return error(str(e), 404)
     except CashFlowError as e:
         return error(str(e))
     return JSONResponse(cash_flow_json(flow))
@@ -537,6 +550,8 @@ async def delete_cash_flow_route(
     try:
         with get_connection_context() as conn:
             delete_cash_flow(conn, access.workspace.id, cash_flow_id)
+    except CashFlowNotFound as e:
+        return error(str(e), 404)
     except CashFlowError as e:
         return error(str(e))
     return JSONResponse({"deleted": cash_flow_id})

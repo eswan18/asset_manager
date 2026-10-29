@@ -82,7 +82,7 @@ def spa_dist() -> Path:
 @pytest.fixture(scope="session")
 def server_url(db_url, _run_migrations, spa_dist, tmp_path_factory) -> Iterator[str]:
     """The app under uvicorn on a free port, for the whole session, serving
-    the built React app at /app."""
+    the built React app from the root."""
     port = _free_port()
     env = {
         **os.environ,
@@ -143,6 +143,16 @@ def browser_type_launch_args(browser_type_launch_args, _chromium_installed):
 OpenPage = Callable[..., Page]
 
 
+# The web fonts (Google Fonts, display=swap) arrive after the page does, and
+# until they do the text is set in a wider fallback. Load every face the app
+# uses before a test measures anything, or a title that fits in Inter wraps
+# in the fallback depending on how the download races the test.
+LOAD_FONTS = """Promise.all([
+  '400 16px Inter', '500 16px Inter', '600 16px Inter',
+  '500 16px "Space Grotesk"', '600 16px "Space Grotesk"', '700 16px "Space Grotesk"',
+].map((font) => document.fonts.load(font)))"""
+
+
 @pytest.fixture
 def open_page(browser: Browser, server_url: str, db_connection) -> Iterator[OpenPage]:
     """Open a logged-in page at `path`, in a fresh context (own cookies and
@@ -184,6 +194,10 @@ def open_page(browser: Browser, server_url: str, db_connection) -> Iterator[Open
         page = context.new_page()
         page.on("pageerror", lambda exc: errors.append(str(exc)))
         page.goto(path)
+        try:
+            page.evaluate(LOAD_FONTS)
+        except Error:
+            pass  # The page went elsewhere first (a lost session, to /login).
         return page
 
     yield open_

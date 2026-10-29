@@ -1,10 +1,9 @@
-"""The React Cash flows page and its drawers under /app, in a real browser
-against the built app: the page in every state and period, the period
-toggle (no reload), the cash flow drawer (the rates strip against the
-server's `form_rates`, the header colors, save and delete), the categories
-drawer (rename on blur, Enter's single save, the 44px move targets, delete,
-add), and every state fitting a phone. The ports of test_cash_flow_drawers.py
-and test_mobile_cash_flows.py, which keep covering the Jinja pages."""
+"""The Cash flows page and its drawers, in a real browser against the built
+app: the page in every state and period, the period toggle (no reload), the
+cash flow drawer (the rates strip against the service's arithmetic, the
+header colors, save and delete), the categories drawer (rename on blur,
+Enter's single save, the 44px move targets, delete, add), and every state
+fitting a phone."""
 
 import random
 import re
@@ -13,15 +12,22 @@ from decimal import Decimal
 import pytest
 from playwright.sync_api import Page, expect
 
-from sensibility.cashflows import create_cash_flow, create_category
+from sensibility.accounts import MAX_AMOUNT
+from sensibility.cashflows import (
+    MAX_EVERY,
+    create_cash_flow,
+    create_category,
+    per_year,
+    rates,
+)
+from sensibility.formulas import quantize_cents
 from sensibility.models import CashFlow, CashFlowDirection, FrequencyUnit
-from sensibility.web.cash_flows_routes import form_rates
 from tests.browser.mobile import PHONE_WIDTHS, assert_fits_phone
 from tests.support import USER_ID, WS
 
 pytestmark = [pytest.mark.browser, pytest.mark.db]
 
-APP = f"/app/workspaces/{WS}"
+APP = f"/workspaces/{WS}"
 FLOWS = f"{APP}/cash-flows"
 CATEGORIES = f"{APP}/cash-flow-categories"
 DASHES = ["—", "—", "—"]
@@ -40,8 +46,7 @@ def flow(name, amount, every, unit, direction="expense", **extra) -> CashFlow:
 
 @pytest.fixture
 def seed(db_connection):
-    """test_cash_flow_drawers.py's flows: Work holds only income, Gifts
-    nothing; a seven-figure Gym."""
+    """Work holds only income, Gifts nothing; a seven-figure Gym."""
     conn = db_connection
     cats = {
         n: create_category(conn, WS, n) for n in ("Work", "Housing", "Food", "Gifts")
@@ -321,19 +326,27 @@ def strip(page: Page) -> list[str]:
 
 
 def server(amount: str, every: str, unit: str) -> list[str]:
-    form = {
-        "name": "",
-        "direction": "expense",
-        "category_id": "",
-        "description": "",
-        "is_estimate": False,
-    }
-    rates = form_rates({**form, "amount": amount, "every": every, "unit": unit})
-    return (
-        DASHES
-        if rates is None
-        else [rates[k] for k in ("per_day", "per_month", "per_year")]
+    """The strip the service's own arithmetic gives for the drawer's fields:
+    plain digits only (a $ and commas allowed), an amount the service would
+    store and an `every` it accepts, rounded to cents, then `rates()`.
+    Anything else shows dashes."""
+    cleaned = re.sub(r"[$,\s]", "", amount)
+    if not re.fullmatch(r"[0-9]+\.?[0-9]*|\.[0-9]+", cleaned):
+        return DASHES
+    if not re.fullmatch(r"[0-9]+", every.strip()):
+        return DASHES
+    value, count = Decimal(cleaned), int(every)
+    if value >= MAX_AMOUNT or not 1 <= count <= MAX_EVERY:
+        return DASHES
+    flow = CashFlow(
+        name="",
+        direction=CashFlowDirection.INCOME,
+        amount=quantize_cents(value),
+        every=count,
+        unit=FrequencyUnit(unit),
     )
+    found = rates(per_year(flow))
+    return [f"${Decimal(found[k]):,.2f}" for k in ("per_day", "per_month", "per_year")]
 
 
 def enter(
@@ -356,7 +369,7 @@ def enter(
     ["Salary", "Mortgage", "Groceries", "Car insurance", "Domain", "Coffee", "Gym"],
 )
 def test_rates_strip_matches_the_server(open_page, seed, name):
-    """A flow's own values give the strip form_rates() draws on the server."""
+    """A flow's own values give the strip the service's arithmetic gives."""
     _, flows = seed
     f = flows[name]
     page = open_page(f"{FLOWS}/{f.id}/edit?per=month")

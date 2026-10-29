@@ -1,6 +1,6 @@
-/** The dashboard's formatting and chart scales (web/dashboard.py's money,
- * signed_money, signed_percent, short_date and long_date, in TypeScript,
- * plus the axis ticks Plotly worked out for the Jinja chart). Pure.
+/** The dashboard's formatting and chart scales (ported from the Jinja
+ * page's money, signed_money, signed_percent, short_date and long_date,
+ * plus the axis ticks Plotly worked out for its chart). Pure.
  *
  * Amounts arrive from the API as exact decimal strings ("12400.00",
  * "-17.44") and dates as ISO dates ("2026-10-24"); nothing here goes
@@ -97,7 +97,7 @@ export function dayValue(day: string): number {
 const DAY_MS = 86_400_000;
 
 /** With one snapshot, the x range is the month before it, with the point at
- * the right edge (charts.py's LONE_POINT_DAYS). */
+ * the right edge (as the Jinja chart had it). */
 export const LONE_POINT_DAYS = 30;
 
 /** The x range of the lines: first to last snapshot, or for a lone one the

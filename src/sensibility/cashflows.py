@@ -188,6 +188,11 @@ class CashFlowError(ValueError):
     """A rule violation with a user-facing message."""
 
 
+class CashFlowNotFound(CashFlowError):
+    """The cash flow or category acted on is not in this workspace (the
+    API's 404). A category named in a flow's fields is a CashFlowError."""
+
+
 def _clean_name(name: str) -> str:
     cleaned = " ".join(name.split())
     if not cleaned:
@@ -266,7 +271,7 @@ def update_cash_flow(
     """Apply `changes` (field name to new value) to one cash flow."""
     existing = repo.get_cash_flow(conn, workspace_id, cash_flow_id)
     if existing is None:
-        raise CashFlowError(f"Cash flow {cash_flow_id} does not exist")
+        raise CashFlowNotFound(f"Cash flow {cash_flow_id} does not exist")
     flow = _validated(conn, workspace_id, existing.model_copy(update=changes))
     try:
         with conn.transaction():
@@ -281,7 +286,7 @@ def update_cash_flow(
 
 def delete_cash_flow(conn: Connection, workspace_id: int, cash_flow_id: int) -> None:
     if not repo.delete_cash_flow(conn, workspace_id, cash_flow_id):
-        raise CashFlowError(f"Cash flow {cash_flow_id} does not exist")
+        raise CashFlowNotFound(f"Cash flow {cash_flow_id} does not exist")
     conn.commit()
 
 
@@ -307,7 +312,7 @@ def update_category(
 ) -> CashFlowCategory:
     existing = repo.get_cash_flow_category(conn, workspace_id, category_id)
     if existing is None:
-        raise CashFlowError(f"Category {category_id} does not exist")
+        raise CashFlowNotFound(f"Category {category_id} does not exist")
     updated = existing.model_copy(
         update={
             "name": existing.name if name is None else _clean_name(name),
@@ -339,7 +344,7 @@ def move_category(
     ordered = repo.get_cash_flow_categories(conn, workspace_id)
     index = next((i for i, c in enumerate(ordered) if c.id == category_id), None)
     if index is None:
-        raise CashFlowError(f"Category {category_id} does not exist")
+        raise CashFlowNotFound(f"Category {category_id} does not exist")
     target = index + step
     if 0 <= target < len(ordered):
         ordered[index], ordered[target] = ordered[target], ordered[index]
@@ -357,5 +362,5 @@ def move_category(
 def delete_category(conn: Connection, workspace_id: int, category_id: int) -> None:
     """Its cash flows become uncategorized (the foreign key nulls them)."""
     if not repo.delete_cash_flow_category(conn, workspace_id, category_id):
-        raise CashFlowError(f"Category {category_id} does not exist")
+        raise CashFlowNotFound(f"Category {category_id} does not exist")
     conn.commit()

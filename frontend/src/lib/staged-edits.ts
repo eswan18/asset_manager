@@ -154,8 +154,8 @@ export function collectSnapshot(
   return { body, problem: null };
 }
 
-/** Where staged edits wait across reloads (and the drawer's round trips on
- * the Jinja page, which shares the key). */
+/** Where staged edits wait across reloads (the Jinja page's key, so edits
+ * staged there before the cutover survive it). */
 export const STORAGE_KEY = "sensibility:staged-edits";
 
 export function readStaged(): Record<string, string> {

@@ -131,6 +131,22 @@ describe("the Accounts page", () => {
     expect(screen.getByText("Uncategorized")).toBeInTheDocument();
   });
 
+  it("counts a retired account's saved amount in no total", async () => {
+    const data = overview();
+    data.sections[0].groups[0].accounts[1] = {
+      ...data.sections[0].groups[0].accounts[1],
+      amount: "5000.00",
+    };
+    const { user } = open(data);
+    await screen.findByLabelText("Amount for Checking");
+    expect(netWorth()).toHaveTextContent("$165,233.26");
+    expect(total("asset")).toHaveTextContent("$180,265.00");
+    expect(status()).toHaveTextContent("No unsaved changes");
+    await user.click(screen.getByLabelText("Show retired (1)"));
+    expect(screen.queryByLabelText("Amount for Old savings")).toBeNull();
+    expect(netWorth()).toHaveTextContent("$165,233.26");
+  });
+
   it("has no Show retired without retired accounts", async () => {
     open(overview({ retired_count: 0 }));
     await screen.findByLabelText("Amount for Checking");
@@ -180,6 +196,20 @@ describe("staged edits", () => {
     expect(status()).toHaveTextContent("1 unsaved change");
     expect(card).not.toHaveAttribute("data-edited");
     expect(staged()).toEqual({ "amount:1": "1,500.00" });
+  });
+
+  it("says was nothing yet for an account with no saved amount", async () => {
+    const data = overview();
+    data.sections[0].groups[0].accounts.push({
+      ...CHECKING,
+      id: 9,
+      name: "Brand New",
+      amount: null,
+    });
+    const { user } = open(data);
+    const field = await screen.findByLabelText("Amount for Brand New");
+    await user.type(field, "5");
+    expect(row(9)).toHaveTextContent("was nothing yet");
   });
 
   it("recomputes a computed account from its input and basis", async () => {

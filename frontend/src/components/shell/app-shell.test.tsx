@@ -44,6 +44,22 @@ describe("the shell", () => {
     ).toHaveAttribute("aria-current", "page");
   });
 
+  it("marks the gear current on settings, and only there", async () => {
+    mockApi(shellApi());
+    renderRoute("/workspaces/1/settings");
+    expect(
+      await screen.findByRole("link", { name: "Workspace settings" }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("leaves the gear unmarked on other pages", async () => {
+    mockApi(shellApi());
+    renderRoute("/workspaces/1/accounts");
+    expect(
+      await screen.findByRole("link", { name: "Workspace settings" }),
+    ).not.toHaveAttribute("aria-current");
+  });
+
   it("switches workspace, keeping the section", async () => {
     mockApi(shellApi());
     // (Deeper paths map to their section: sections.test.ts.)
@@ -80,6 +96,24 @@ describe("the shell", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Workspace settings" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the account menu outside a workspace", async () => {
+    mockApi(shellApi());
+    const { user } = renderRoute("/welcome");
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Account menu for Ethan Swan",
+      }),
+    );
+    expect(
+      within(screen.getByRole("menu")).getByRole("menuitem", {
+        name: "Log out",
+      }),
+    ).toHaveAttribute("href", "/logout");
   });
 
   it("is not found in a workspace you are not in", async () => {

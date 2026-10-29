@@ -16,6 +16,10 @@ class WorkspaceError(ValueError):
     """A rule violation with a user-facing message."""
 
 
+class MemberNotFound(WorkspaceError):
+    """The user is not a member of this workspace (the API's 404)."""
+
+
 def _clean_name(name: str) -> str:
     cleaned = " ".join(name.split())
     if not cleaned:
@@ -59,7 +63,7 @@ def _locked_member(
     for member in members:
         if member.user_id == user_id:
             return member, members
-    raise WorkspaceError(f"User {user_id} is not a member of this workspace")
+    raise MemberNotFound(f"User {user_id} is not a member of this workspace")
 
 
 def is_last_owner(member: Member, members: list[Member]) -> bool:

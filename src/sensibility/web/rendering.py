@@ -1,4 +1,5 @@
-"""Template rendering with one-shot flash messages."""
+"""Rendering the one server-side page, login.html (every other page is the
+React app in frontend/)."""
 
 from __future__ import annotations
 
@@ -12,27 +13,15 @@ from fastapi.templating import Jinja2Templates
 templates_path = resources.files("sensibility.web").joinpath("templates")
 templates = Jinja2Templates(directory=str(templates_path))
 
-# The one place the app's name lives for the pages. Its full name is
-# "Sensibility Money"; pages use the short form.
+# The app's name on the login page. Its full name is "Sensibility Money";
+# pages use the short form.
 APP_NAME = "Sensibility"
-
-
-def set_flash(request: Request, kind: str, text: str) -> None:
-    """Queue a message for the next rendered page. kind is "success" or "error"."""
-    request.session["flash"] = {"kind": kind, "text": text}
-
-
-def pop_flash(request: Request) -> dict[str, str] | None:
-    return request.session.pop("flash", None)
 
 
 def render(
     request: Request, name: str, context: dict[str, Any], status_code: int = 200
 ) -> HTMLResponse:
-    """Render a template with the pending flash message, if any."""
+    """Render a template with the app's name."""
     return templates.TemplateResponse(
-        request,
-        name,
-        {**context, "app_name": APP_NAME, "flash": pop_flash(request)},
-        status_code=status_code,
+        request, name, {**context, "app_name": APP_NAME}, status_code=status_code
     )

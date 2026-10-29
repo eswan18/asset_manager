@@ -1,6 +1,6 @@
 /** Reading and writing amounts as the Accounts page and the account drawer
- * show them (accounts.html's script and web/accounts_routes.py's
- * formatters). Pure. */
+ * show them (ported from the Jinja page's script and formatters, which went
+ * at the cutover; these tests now pin the figures). Pure. */
 import {
   abs,
   grouped,

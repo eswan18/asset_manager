@@ -1,10 +1,8 @@
-"""The React Accounts page and account drawer under /app
-(frontend/src/routes/accounts.tsx, account-drawer.tsx), in a real browser
-against the built app: staged edits, "was $X", the save bar's count and live
-net worth, computed accounts recomputing, Discard, sessionStorage across
-reloads, a save dated in the browser's zone, the drawer in every state, and
-every state fitting a phone. Ported from test_accounts_page.py,
-test_account_drawer.py and test_mobile_accounts.py."""
+"""The Accounts page and account drawer (frontend/src/routes/accounts.tsx,
+account-drawer.tsx), in a real browser against the built app: staged edits,
+"was $X", the save bar's count and live net worth, computed accounts
+recomputing, Discard, sessionStorage across reloads, a save dated in the
+browser's zone, the drawer in every state, and every state fitting a phone."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -22,7 +20,7 @@ from tests.web_support import TZ
 
 pytestmark = [pytest.mark.browser, pytest.mark.db]
 
-ACCOUNTS = f"/app/workspaces/{WS}/accounts"
+ACCOUNTS = f"/workspaces/{WS}/accounts"
 STORAGE_KEY = "sensibility:staged-edits"
 
 
