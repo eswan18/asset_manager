@@ -5,7 +5,7 @@ metadata:
 data:
   ENV: "staging"
   IDP_URL: "http://identity.identity-staging.svc.cluster.local"
-  ALLOWED_EMAILS: "ethanpswan@gmail.com"
+  ALLOWED_EMAILS: "ethanpswan@gmail.com,annaluisakambas@gmail.com"
   # /mcp: the OAuth resource (the exact `aud`), and identity's external
   # issuer (its JWT_ISSUER); keys come from IDP_URL, the in-cluster address.
   MCP_RESOURCE_URL: "https://staging.sensibility.money/mcp"
