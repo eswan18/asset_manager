@@ -1,11 +1,9 @@
-"""The React dashboard under /app (frontend/src/routes/dashboard.tsx), in a
-real browser against the built app: the headline, the range toggle (the URL
+"""The dashboard (frontend/src/routes/dashboard.tsx), in a real browser against the built app: the headline, the range toggle (the URL
 changes, the page does not reload, the old numbers stay while the new range
 loads), the Recharts chart (lines and columns on a desktop; lines only with
 the stacked bars under them on a phone; re-laid across the breakpoint;
 re-themed with the color scheme; a tap shows the values), and the
-getting-started state for editors and viewers. Ports test_mobile_dashboard.py
-and test_dashboard_chart.py, which cover the Jinja page."""
+getting-started state for editors and viewers."""
 
 from datetime import date
 from decimal import Decimal
@@ -21,7 +19,7 @@ from tests.support import WS
 
 pytestmark = [pytest.mark.browser, pytest.mark.db]
 
-APP = f"/app/workspaces/{WS}"
+APP = f"/workspaces/{WS}"
 CHART = '[role=img][aria-label^="Assets, net worth and liabilities"]'
 WELCOME = "Let's get your first net worth on the board."
 

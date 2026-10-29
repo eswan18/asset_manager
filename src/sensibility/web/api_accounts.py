@@ -7,8 +7,8 @@
     POST  /api/workspaces/{id}/accounts/{aid}/retire        (editor)
     POST  /api/workspaces/{id}/accounts/{aid}/unretire      (editor)
 
-The page models come from the helpers the Jinja pages use
-(web/accounts_routes.py), and every rule is the service's (accounts.py), so
+The page models come from accounts_model.py, and every rule is the
+service's (accounts.py), so
 its messages come back as {"error": ...} with a 400. An account id from
 another workspace is a 404, like one that does not exist. The plain
 `GET .../accounts` list (api_routes.py) is unchanged: scripts use it.
@@ -49,12 +49,12 @@ from sensibility.repository import (
 )
 
 from .access import EditorAccess, ViewerAccess
-from .accounts_routes import (
-    _candidate_groups,
-    _retire_state,
+from .accounts_model import (
     accounts_view,
+    candidate_groups,
     format_percent,
     formula_text,
+    retire_state,
     saved_total,
 )
 from .api_models import (
@@ -379,7 +379,7 @@ async def account_detail(access: ViewerAccess, account_id: int) -> AccountDetail
         account = _existing(conn, workspace_id, account_id)
         accounts = get_accounts(conn, workspace_id)
         latest = get_latest_snapshot_records(conn, workspace_id)
-        blocker, warning = _retire_state(conn, workspace_id, account)
+        blocker, warning = retire_state(conn, workspace_id, account)
         history = get_account_history(conn, workspace_id, account_id)
     by_id = {a.id: a for a in accounts if a.id is not None}
     amounts = {r.account_id: r.amount for r in latest if r.account_id is not None}
@@ -392,14 +392,12 @@ async def account_detail(access: ViewerAccess, account_id: int) -> AccountDetail
                 label=label,
                 accounts=[
                     InputOption(
-                        id=m["id"],
-                        name=m["name"],
-                        amount=money(Decimal(m["amount"])) if m["amount"] else None,
+                        id=m["id"], name=m["name"], amount=maybe_money(m["amount"])
                     )
                     for m in members
                 ],
             )
-            for label, members in _candidate_groups(accounts, account_id, amounts)
+            for label, members in candidate_groups(accounts, account_id, amounts)
         ],
         retire_blocker=blocker,
         retire_warning=warning,

@@ -1,8 +1,8 @@
 """GET /api/workspaces/{id}/dashboard: the dashboard page as data.
 
-Computed by the same helpers as the Jinja dashboard (web/dashboard.py), so
-the two cannot disagree. Amounts are exact two-place strings; the page shows
-whole dollars, rounded half up, and the client does that rounding.
+Computed by the helpers in web/dashboard.py, which the MCP tools share.
+Amounts are exact two-place strings; the page shows whole dollars, rounded
+half up, and the client does that rounding.
 """
 
 from __future__ import annotations
@@ -228,8 +228,8 @@ def _cards(
                 Card(kind=type, title=title, total=money(card["total"]), groups=groups)
             )
         else:
-            # As onboarding_context: "—" over listed accounts, else $0 and
-            # the empty card's text and add button.
+            # No snapshot yet: "—" over listed accounts, else $0 and the
+            # empty card's text and add button.
             empty, add = EMPTY_CARDS[type.value]
             out.append(
                 Card(
@@ -271,8 +271,7 @@ def dashboard_view(
                     if s["action"] is None
                     else Action(label=s["action"][0], path=s["action"][1]),
                 )
-                # base "": paths come out relative to the workspace.
-                for s in getting_started(active, "")
+                for s in getting_started(active)
             ],
             has_accounts=active > 0,
         )

@@ -10,9 +10,9 @@ const backend = process.env.SENSIBILITY_BACKEND ?? "http://127.0.0.1:8000";
 const serverSide = ["/api", "/auth", "/login", "/logout", "/health"];
 
 export default defineConfig({
-  // FastAPI serves the build under /app/ (src/sensibility/web/spa.py), with
-  // the hashed files at /app/assets/.
-  base: "/app/",
+  // FastAPI serves the build from the root (src/sensibility/web/spa.py),
+  // with the hashed files at /assets/.
+  base: "/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

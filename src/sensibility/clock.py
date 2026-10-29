@@ -4,8 +4,9 @@ Pods run in UTC; if we date snapshots with `date.today()`, an evening Save
 in Central time gets tomorrow's date. `today(tz)` instead converts the
 current instant into the viewer's zone before taking the date. The zone only
 ever chooses which day a save or a retirement is dated, so it belongs to the
-person acting, not the workspace: the browser reports it in a cookie, an API
-client may name it, and `zone_for` picks one, falling back to TIMEZONE.
+person acting, not the workspace: the React app names it in an `X-Timezone`
+header on every request (web/viewer_zone.py), as may any API client, and a
+request that names none falls back to TIMEZONE.
 """
 
 from __future__ import annotations
@@ -46,14 +47,3 @@ def is_known_zone(tz: str) -> bool:
     than by loading it, so a value like `../etc/passwd` never reaches the
     file system."""
     return tz in _known_zones()
-
-
-def zone_for(explicit: str | None, cookie: str | None) -> str:
-    """The zone a request's "today" is in: `explicit` (already validated by
-    the caller), else the browser's cookie if it names a known zone, else the
-    default. A bad or missing cookie falls back silently."""
-    if explicit is not None:
-        return explicit
-    if cookie and is_known_zone(cookie):
-        return cookie
-    return default_timezone()

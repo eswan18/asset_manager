@@ -10,12 +10,10 @@ import pytest
 
 from tests.web_support import (
     ACCOUNTS,
-    PAGES,
     STRANGER,
     USER,
     FakeIdp,
     claims,
-    login,
 )
 
 END_SESSION = "https://identity.example.com/oauth/logout"
@@ -298,10 +296,3 @@ class TestLogout:
         response = client.get("/logout", follow_redirects=False)
         assert response.headers["location"] == "/login"
         assert "Max-Age=0" in (_session_cookie(response) or "")
-
-    def test_the_user_menu_links_to_it(self, client):
-        login(client)
-        header = client.get(PAGES).text.split("<main")[0]
-        assert re.search(
-            r'<a href="/logout" class="btn btn-outline">Log out</a>', header
-        )

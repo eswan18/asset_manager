@@ -67,8 +67,8 @@ describe("formRates", () => {
     expect(formRates("9999999999999.99", "1000", "month")).not.toBeNull();
   });
 
-  // tests/browser/test_cash_flow_drawers.py's cases, which it checks against
-  // form_rates() on the server.
+  // tests/browser/test_spa_cash_flows.py's cases, which it checks against
+  // the service's arithmetic.
   it.each([
     ["100", "1", "week", ["$14.29", "$434.52", "$5,214.29"]],
     ["5100", "2", "week", ["$364.29", "$11,080.36", "$132,964.29"]],
@@ -105,7 +105,7 @@ describe("formRates", () => {
   });
 
   // The browser test's random cases (random.Random(20261026)), with what
-  // form_rates() answered for each.
+  // the server's arithmetic answered for each.
   it.each([
     ["29.689", "3", "year", ["$0.03", "$0.82", "$9.90"]],
     [

@@ -26,7 +26,7 @@ from sensibility.repository import (
     get_cash_flow_categories,
     get_cash_flows,
 )
-from sensibility.web.cash_flows_routes import cash_flows_view as page_view
+from sensibility.web.api_cash_flows import cash_flows_overview
 from tests.mcp_support import caller
 from tests.support import WS
 from tests.web_support import STRANGER, add_user
@@ -405,38 +405,33 @@ def seed_flows(conn) -> None:
         create_cash_flow(conn, WS, flow)
 
 
-def plain(text: str | None) -> str | None:
-    """A page amount as a decimal string: "−$1,234.56" -> "-1234.56"."""
-    if text is None:
-        return None
-    return text.replace("−", "-").replace("$", "").replace(",", "")
-
-
 class TestGetCashFlows:
     @pytest.mark.parametrize("per", ["day", "month", "year"])
     def test_matches_the_page(self, db_connection, per):
+        """The same figures as the Cash flows page's (the API's overview)."""
         seed_flows(db_connection)
         result = tools.get_cash_flows(db_connection, ME, per=per)
-        page = page_view(
+        page = cash_flows_overview(
             get_cash_flows(db_connection, WS),
             get_cash_flow_categories(db_connection, WS),
             Period(per),
+            can_edit=True,
         )
-        assert result.income == plain(page["income"])
-        assert result.expenses == plain(page["expenses"])
-        assert result.left_over == plain(page["net"]).lstrip("+")
-        assert result.expenses_share == page["expenses_share"]
-        assert result.estimates == page["estimates"]
-        cards = page["cards"][1:]
+        assert result.income == page.income
+        assert result.expenses == page.expenses
+        assert result.left_over == page.net
+        assert result.expenses_share == page.expenses_share
+        assert result.estimates == page.estimates
+        cards = page.cards[1:]
         assert [(c.name, c.total) for c in result.expense_categories] == [
-            (c["name"], plain(c["total"])) for c in cards
+            (c.name, c.total) for c in cards
         ]
         assert [c.share_of_income for c in result.expense_categories] == [
-            c["note"].removesuffix(" of income") for c in cards
+            c.share for c in cards
         ]
         assert [
             (f.name, f.per_period) for c in result.expense_categories for f in c.flows
-        ] == [(r["name"], plain(r["value"])) for c in cards for r in c["rows"]]
+        ] == [(f.name, f.per_period) for c in cards for f in c.flows]
 
     def test_month(self, db_connection):
         seed_flows(db_connection)

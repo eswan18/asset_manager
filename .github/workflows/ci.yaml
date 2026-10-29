@@ -101,7 +101,7 @@ jobs:
         run: |
           sudo curl -fsSL https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 -o /usr/local/bin/dbmate
           sudo chmod +x /usr/local/bin/dbmate
-      # The browser tests open the React app under /app; build it once here
+      # The browser tests open the React app; build it once here
       # (tests/browser/conftest.py finds it fresh and doesn't rebuild).
       - name: Set up Node
         uses: actions/setup-node@v4

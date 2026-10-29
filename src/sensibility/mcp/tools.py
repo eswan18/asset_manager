@@ -67,7 +67,7 @@ from sensibility.models import (
     User,
     Workspace,
 )
-from sensibility.web.accounts_routes import format_percent, formula_text
+from sensibility.web.accounts_model import format_percent, formula_text
 from sensibility.web.dashboard import (
     account_cards,
     change_since,

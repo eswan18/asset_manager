@@ -1,5 +1,5 @@
-/** The settings and welcome pages' wording (web/settings_routes.py's
- * settings_view and web/welcome_routes.py, in TypeScript). Pure. */
+/** The settings and welcome pages' wording (ported from the Jinja pages'
+ * view code, which went at the cutover). Pure. */
 import { aRole, dayText, type Role } from "./wording";
 
 /** "Owner", "Editor", "Viewer". */

@@ -82,7 +82,7 @@ def spa_dist() -> Path:
 @pytest.fixture(scope="session")
 def server_url(db_url, _run_migrations, spa_dist, tmp_path_factory) -> Iterator[str]:
     """The app under uvicorn on a free port, for the whole session, serving
-    the built React app at /app."""
+    the built React app from the root."""
     port = _free_port()
     env = {
         **os.environ,

@@ -1,6 +1,8 @@
 import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import pageRoutes from "@/page-routes.json";
+import { pagePaths } from "@/router";
 import { ME, mockApi, renderRoute, shellApi } from "@/test/utils";
 
 describe("the router", () => {
@@ -18,6 +20,26 @@ describe("the router", () => {
     await waitFor(() =>
       expect(router.state.location.pathname).toBe("/welcome"),
     );
+  });
+
+  it("sends a bare /accounts to Accounts in your oldest workspace", async () => {
+    mockApi(shellApi());
+    const { router } = renderRoute("/accounts");
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/workspaces/1/accounts"),
+    );
+  });
+
+  it("sends a bare /accounts to welcome when you have no workspace", async () => {
+    mockApi(shellApi({ ...ME, workspaces: [] }));
+    const { router } = renderRoute("/accounts");
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/welcome"),
+    );
+  });
+
+  it("lists every page in page-routes.json, which the phone sweep reads", () => {
+    expect(pagePaths()).toEqual(pageRoutes);
   });
 
   // Each page and drawer has its own tests beside it in routes/.

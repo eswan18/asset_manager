@@ -8,7 +8,7 @@ from sensibility.invites import create_invite
 from sensibility.models import Role
 from sensibility.workspaces import create_workspace
 from tests.support import USER_ID, WS
-from tests.web_support import USER, STRANGER, add_user, login, session_for
+from tests.web_support import STRANGER, add_user, login, session_for
 
 SETTINGS = f"/api/workspaces/{WS}/settings"
 THIRD = {"id": 3, "sub": "user-3", "email": "third@example.com", "name": "Third Person"}
@@ -130,33 +130,6 @@ class TestWorkspaceSettings:
         login(client)
         last = client.get(SETTINGS).json()["members"][-1]
         assert (last["name"], last["display_name"]) == (None, NAMELESS["email"])
-
-    def test_agrees_with_the_settings_page(self, client, db_connection, team):
-        """The page and the API read the same facts."""
-        from sensibility.db import get_connection_context
-        from sensibility.web.access import WorkspaceAccess
-        from sensibility.web.settings_routes import settings_view
-
-        workspace = repo.get_workspace(db_connection, WS)
-        assert workspace is not None
-        for user, role in (
-            (USER, Role.OWNER),
-            (STRANGER, Role.EDITOR),
-            (THIRD, Role.VIEWER),
-        ):
-            access = WorkspaceAccess(user=dict(user), workspace=workspace, role=role)
-            with get_connection_context() as conn:
-                view = settings_view(conn, access, "UTC")
-            session_for(client, user)
-            body = client.get(SETTINGS).json()
-            assert body["can_leave"] == view["can_leave"]
-            assert body["is_owner"] == view["is_owner"]
-            page_members = [p for p in view["people"] if p["kind"] == "member"]
-            assert [
-                (m["user_id"], m["you"], m["removable"]) for m in body["members"]
-            ] == [(p["id"], p["you"], p["removable"]) for p in page_members]
-            page_invites = [p for p in view["people"] if p["kind"] == "invite"]
-            assert [i["id"] for i in body["invites"]] == [p["id"] for p in page_invites]
 
     def test_another_workspace_is_404(self, client, db_connection, team):
         create_workspace(db_connection, STRANGER["id"], "Theirs")

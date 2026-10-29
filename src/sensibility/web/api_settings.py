@@ -4,8 +4,7 @@ The writes these pages make already exist in `api_routes` (rename, delete,
 roles, remove/leave, invite, revoke, create, accept, decline). What is here
 is what the pages read that the older endpoints did not say: who may leave
 (the last-owner rule), whose row can be removed, which pending invites have
-lapsed, and who sent each invite. `settings_model.settings_facts` is shared
-with the Jinja settings page, so the rules can't drift.
+lapsed, and who sent each invite (`settings_model.settings_facts`).
 
 Times are ISO 8601 instants; the browser shows them as days in its own zone.
 """

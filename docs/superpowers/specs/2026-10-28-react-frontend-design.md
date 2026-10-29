@@ -1,8 +1,10 @@
 # React Frontend
 
 **Date:** 2026-10-28
-**Status:** Approved in conversation ("we should do this… parallelize as much
-as possible"); Phase A (foundation and API) built, Phases B and C to come.
+**Status:** Done. Approved in conversation ("we should do this… parallelize
+as much as possible"); Phase A (foundation and API), Phase B (every page
+under `/app`) and Phase C (the cutover: the SPA at the canonical URLs, the
+Jinja pages and their tests deleted) are all built.
 
 ## Why
 
@@ -187,4 +189,4 @@ breakpoint, 44px targets, 16px fields, nothing scrolls sideways, safe areas.
 | B | **Accounts** page + account drawer | Foundation, API 1 |
 | B | **Cash flows** page + both drawers | Foundation, API 2 |
 | B | **Settings + Welcome** | Foundation, API 2 |
-| C | **Cutover:** canonical routes, delete Jinja pages and their tests, docs | all of B |
+| C | **Cutover** (done): canonical routes, delete Jinja pages and their tests, docs | all of B |

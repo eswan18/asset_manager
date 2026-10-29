@@ -7,11 +7,11 @@ import pytest
 
 from sensibility import repository as repo
 from sensibility.accounts import create_account
+from sensibility.invites import create_invite
 from sensibility.models import RecordType, Role
 from sensibility.workspaces import create_workspace
 from tests.support import USER_ID, WS
 from tests.web_support import (
-    PAGES,
     ACCOUNTS,
     SNAPSHOTS,
     STRANGER,
@@ -49,14 +49,11 @@ def ws1(db_connection):
 
 
 def in_workspace(path: str, workspace_id: int = WS) -> bool:
-    """An API route or a page that acts in this workspace."""
-    return path.startswith(
-        (f"/api/workspaces/{workspace_id}", f"/workspaces/{workspace_id}")
-    )
+    """An API route that acts in this workspace."""
+    return path.startswith(f"/api/workspaces/{workspace_id}")
 
 
-# Bare paths redirect into your oldest workspace rather than acting in one.
-BARE_PAGES = {("GET", "/"), ("GET", "/accounts")}
+THIRD = {"id": 3, "sub": "user-3", "email": "third@example.com", "name": "Third"}
 
 
 @pytest.mark.db
@@ -79,64 +76,25 @@ class TestIsolation:
         assert foreign and set(foreign.values()) == {404}
         assert ws1_state(db_connection) == before
 
-    def test_pages_show_only_your_own_workspace(self, client, db_connection, ws1):
+    def test_reads_show_only_your_own_workspace(self, client, db_connection, ws1):
         add_user(db_connection, STRANGER)
         create_workspace(db_connection, STRANGER["id"], "Theirs")
         create_account(db_connection, OTHER_WS, "Other", RecordType.ASSET)
         session_for(client, STRANGER)
-        theirs = f"/workspaces/{OTHER_WS}"
+        theirs = f"/api/workspaces/{OTHER_WS}"
 
-        assert "Other" in client.get(f"{theirs}/accounts").text
-        # Not "Cash": the nav's "Cash flows" would match it on every page.
-        assert "Checking" not in client.get(f"{theirs}/accounts").text
-        assert "Checking" not in client.get(theirs).text
-        assert "Checking" not in client.get(f"{theirs}/cash-flows").text
-        assert client.get(f"{theirs}/accounts/{ws1.id}/edit").status_code == 404
         for path in (
-            PAGES,
-            f"{PAGES}/accounts",
-            f"{PAGES}/accounts/{ws1.id}/edit",
-            f"{PAGES}/cash-flows",
+            f"{theirs}/accounts/overview?retired=true",
+            f"{theirs}/dashboard",
+            f"{theirs}/cash-flows/overview",
+            f"{theirs}/accounts",
         ):
-            assert client.get(path).status_code == 404, path
-
-    def test_bare_paths_go_to_your_own_oldest_workspace(
-        self, client, db_connection, ws1
-    ):
-        add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs")
-        repo.add_member(db_connection, WS, STRANGER["id"], Role.VIEWER)
-        db_connection.commit()
-        session_for(client, STRANGER)
-
-        home = client.get("/", follow_redirects=False)
-        accounts = client.get("/accounts", follow_redirects=False)
-
-        assert (home.status_code, home.headers["location"]) == (
-            302,
-            f"/workspaces/{OTHER_WS}",
-        )
-        assert accounts.headers["location"] == f"/workspaces/{OTHER_WS}/accounts"
-        # A trailing slash reaches the dashboard too.
-        assert client.get(f"/workspaces/{OTHER_WS}/").status_code == 200
-
-    def test_the_picker_lists_your_workspaces_on_the_same_page(
-        self, client, db_connection, ws1
-    ):
-        add_user(db_connection, STRANGER)
-        create_workspace(db_connection, STRANGER["id"], "Theirs")
-        theirs = create_account(db_connection, OTHER_WS, "Other", RecordType.ASSET)
-        repo.add_member(db_connection, WS, STRANGER["id"], Role.VIEWER)
-        db_connection.commit()
-        session_for(client, STRANGER)
-
-        text = client.get(f"/workspaces/{OTHER_WS}/accounts/{theirs.id}/edit").text
-
-        assert f'<option value="{PAGES}/accounts">Test</option>' in text
-        assert (
-            f'<option value="/workspaces/{OTHER_WS}/accounts" selected>Theirs</option>'
-            in text
-        )
+            response = client.get(path)
+            assert response.status_code == 200, path
+            assert "Checking" not in response.text, path
+        assert "Other" in client.get(f"{theirs}/accounts/overview").text
+        # Workspace 1's account, by id, through their own workspace.
+        assert client.get(f"{theirs}/accounts/{ws1.id}").status_code == 404
 
     def test_another_workspaces_account_ids_are_unknown_to_saves(
         self, client, db_connection, ws1
@@ -164,17 +122,16 @@ class TestIsolation:
         session_for(client, STRANGER)
 
         response = client.post(
-            f"/workspaces/{OTHER_WS}/accounts",
-            data={
+            f"/api/workspaces/{OTHER_WS}/accounts",
+            json={
                 "name": "Tax",
                 "type": "liability",
-                "computed": "true",
-                "rate_percent": "15",
-                "input_ids": [str(ws1.id)],
+                "formula": {"rate_percent": "15", "input_ids": [ws1.id]},
             },
         )
 
         assert response.status_code == 400
+        assert response.json() == {"error": f"Input account {ws1.id} does not exist"}
         assert repo.get_accounts(db_connection, OTHER_WS) == []
 
     def test_latest_snapshot_date_is_per_workspace(self, client, db_connection, ws1):
@@ -200,23 +157,16 @@ class TestIsolation:
 @pytest.mark.db
 class TestRoles:
     def _expected_403_for_viewer(self) -> set[tuple[str, str]]:
-        """Every write to the workspace, plus the owner-only invite list and
-        the forms that only exist to write: the add-account drawer and the
-        Cash flows page's drawers. Creating your own workspace and answering
-        your own invites are not workspace writes."""
+        """Every write to the workspace, plus the owner-only invite list.
+        Creating your own workspace and answering your own invites are not
+        workspace writes."""
         return {
             (method, path)
             for method, path in protected_routes()
             if method != "GET"
-            and path not in ("/api/workspaces", "/workspaces")
-            and not path.startswith(("/api/invites/", "/invites/"))
-        } | {
-            ("GET", f"{PAGES}/accounts/new"),
-            ("GET", f"{PAGES}/cash-flows/new"),
-            ("GET", f"{PAGES}/cash-flows/1/edit"),
-            ("GET", f"{PAGES}/cash-flow-categories"),
-            ("GET", f"/api/workspaces/{WS}/invites"),
-        }
+            and path != "/api/workspaces"
+            and not path.startswith("/api/invites/")
+        } | {("GET", f"/api/workspaces/{WS}/invites")}
 
     def test_a_viewer_can_read_but_not_write_anywhere(self, client, db_connection, ws1):
         add_user(db_connection, STRANGER, "viewer")
@@ -252,12 +202,9 @@ class TestRoles:
         assert statuses[("GET", f"{api}/cash-flows/overview")] == 200
         assert statuses[("GET", f"{api}/settings")] == 200
         reads = {
-            k: v
-            for k, v in statuses.items()
-            if k[0] == "GET" and k not in refused | BARE_PAGES
+            k: v for k, v in statuses.items() if k[0] == "GET" and k not in refused
         }
-        assert set(reads.values()) == {200}
-        assert {statuses[k] for k in BARE_PAGES} == {302}
+        assert reads and set(reads.values()) == {200}
         assert ws1_state(db_connection) == before
 
     def test_an_editor_can_change_data_but_not_the_workspace_or_members(
@@ -278,14 +225,6 @@ class TestRoles:
             ("POST", f"/api/workspaces/{WS}/invites"),
             ("GET", f"/api/workspaces/{WS}/invites"),
             ("DELETE", f"/api/workspaces/{WS}/invites/1"),
-            # The settings page's writes: the same owner-only routes. (The
-            # sweep's user 1 is the owner, so .../remove is not leaving.)
-            ("POST", f"{PAGES}/settings"),
-            ("POST", f"{PAGES}/delete"),
-            ("POST", f"{PAGES}/members/{USER_ID}"),
-            ("POST", f"{PAGES}/members/{USER_ID}/remove"),
-            ("POST", f"{PAGES}/invites"),
-            ("POST", f"{PAGES}/invites/1/revoke"),
         }
         workspace = repo.get_workspace(db_connection, WS)
         assert workspace is not None and workspace.deleted_at is None
@@ -293,15 +232,6 @@ class TestRoles:
             USER_ID: Role.OWNER,
             STRANGER["id"]: Role.EDITOR,
         }
-
-    def test_page_writes_are_refused_for_viewers(self, client, db_connection, ws1):
-        add_user(db_connection, STRANGER, "viewer")
-        session_for(client, STRANGER)
-        response = client.post(
-            f"{PAGES}/snapshots", json={"values": {str(ws1.id): "1"}, "cost_bases": {}}
-        )
-        assert response.status_code == 403
-        assert client.get(f"{PAGES}/accounts/new").status_code == 403
 
 
 @pytest.mark.db
@@ -340,7 +270,30 @@ class TestWorkspaceEndpoints:
         login(client)
         response = client.post("/api/workspaces", json={"name": " "})
         assert response.status_code == 400
+        assert response.json() == {"error": "Name is required"}
         assert repo.get_workspace(db_connection, OTHER_WS) is None
+
+    def test_create_tidies_the_name(self, client):
+        login(client)
+        response = client.post("/api/workspaces", json={"name": "  Personal  "})
+        assert response.status_code == 201
+        assert response.json()["name"] == "Personal"
+
+    def test_rename_tidies_the_name_and_refuses_a_blank_one(
+        self, client, db_connection
+    ):
+        login(client)
+        url = f"/api/workspaces/{WS}"
+
+        blank = client.patch(url, json={"name": "   "})
+        assert blank.status_code == 400
+        assert blank.json() == {"error": "Name is required"}
+        workspace = repo.get_workspace(db_connection, WS)
+        assert workspace is not None and workspace.name == "Test"
+
+        renamed = client.patch(url, json={"name": "  Household "})
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Household"
 
     def test_a_time_zone_field_is_ignored_like_any_unknown_field(
         self, client, db_connection
@@ -367,10 +320,7 @@ class TestWorkspaceEndpoints:
 
         assert client.get(ACCOUNTS).status_code == 404
         assert client.get("/api/me").json()["workspaces"] == []
-        assert client.get(f"{PAGES}/accounts").status_code == 404
-        # No workspace left: bare paths go to the welcome page.
-        bare = client.get("/accounts", follow_redirects=False)
-        assert bare.headers["location"] == "/welcome"
+        assert client.get(f"/api/workspaces/{WS}/settings").status_code == 404
         session_for(client, STRANGER)
         assert client.get(ACCOUNTS).status_code == 404
         assert repo.get_accounts(db_connection, WS) != []
@@ -413,6 +363,31 @@ class TestMemberEndpoints:
         last = client.delete(f"{members}/{USER_ID}")
         assert last.status_code == 400
         assert "at least one owner" in last.json()["error"]
+
+    def test_someone_not_a_member_is_not_found(self, client, db_connection):
+        """Another workspace's member, or no one: a 404, changing nothing."""
+        add_user(db_connection, STRANGER)
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
+        add_user(db_connection, THIRD, "viewer")
+        before = repo.get_members(db_connection, WS)
+        login(client)
+        members = f"/api/workspaces/{WS}/members"
+
+        for user_id in (STRANGER["id"], 99):
+            role = client.patch(f"{members}/{user_id}", json={"role": "editor"})
+            assert (role.status_code, role.json()) == (
+                404,
+                {"error": "Member not found"},
+            )
+            removed = client.delete(f"{members}/{user_id}")
+            assert (removed.status_code, removed.json()) == (
+                404,
+                {"error": "Member not found"},
+            )
+        assert repo.get_members(db_connection, WS) == before
+        # Only owners remove others: a viewer is refused before the lookup.
+        session_for(client, THIRD)
+        assert client.delete(f"{members}/99").status_code == 403
 
     def test_owner_removes_others(self, client, db_connection):
         add_user(db_connection, STRANGER, "editor")
@@ -468,9 +443,7 @@ class TestLogin:
             STRANGER["email"],
             [],
         )
-        bare = client.get("/accounts", follow_redirects=False)
-        assert bare.headers["location"] == "/welcome"
-        assert client.get(f"{PAGES}/accounts").status_code == 404
+        assert client.get(ACCOUNTS).status_code == 404
 
     def test_a_preprovisioned_admin_is_claimed_on_first_login(
         self, client, db_connection, monkeypatch
@@ -526,20 +499,65 @@ class TestInviteEndpoints:
 
     def test_someone_else_cannot_see_or_use_it(self, client, db_connection, ws1):
         add_user(db_connection, STRANGER)
-        third = {
-            "id": 3,
-            "sub": "user-3",
-            "email": "third@example.com",
-            "name": "Third",
-        }
-        add_user(db_connection, third)
+        add_user(db_connection, THIRD)
         invite = self._invite(client)
 
-        session_for(client, third)
+        session_for(client, THIRD)
         assert client.get("/api/invites").json()["invites"] == []
         assert client.post(f"/api/invites/{invite['id']}/accept").status_code == 404
         assert client.post(f"/api/invites/{invite['id']}/decline").status_code == 404
+        assert client.post("/api/invites/999/accept").status_code == 404
+        assert client.post("/api/invites/999/decline").status_code == 404
         assert client.get(ACCOUNTS).status_code == 404
+        found = repo.get_invite(db_connection, invite["id"])
+        assert found is not None and found.is_open
+
+    def test_a_member_cannot_accept_into_their_own_workspace(
+        self, client, db_connection, ws1
+    ):
+        add_user(db_connection, STRANGER)
+        invite = self._invite(client)
+        repo.add_member(db_connection, WS, STRANGER["id"], Role.VIEWER)
+        db_connection.commit()
+
+        session_for(client, STRANGER)
+        response = client.post(f"/api/invites/{invite['id']}/accept")
+
+        assert response.status_code == 400
+        assert response.json() == {
+            "error": "You are already a member of this workspace"
+        }
+
+    def test_resolved_invites_leave_your_list(self, client, db_connection, ws1):
+        add_user(db_connection, STRANGER)
+        create_workspace(db_connection, USER_ID, "Second")
+        revoked = self._invite(client)
+        declined = client.post(
+            f"/api/workspaces/{OTHER_WS}/invites",
+            json={"email": STRANGER["email"], "role": "editor"},
+        ).json()
+        assert (
+            client.delete(f"/api/workspaces/{WS}/invites/{revoked['id']}").status_code
+            == 200
+        )
+
+        session_for(client, STRANGER)
+        assert [i["id"] for i in client.get("/api/invites").json()["invites"]] == [
+            declined["id"]
+        ]
+        assert client.post(f"/api/invites/{declined['id']}/decline").status_code == 200
+        assert client.get("/api/invites").json() == {"invites": []}
+
+    def test_a_resolved_invite_cannot_be_revoked(self, client, db_connection, ws1):
+        invite = self._invite(client, "friend@example.com")
+        repo.set_invite_revoked(db_connection, invite["id"])
+        db_connection.commit()
+        url = f"/api/workspaces/{WS}/invites"
+
+        again = client.delete(f"{url}/{invite['id']}")
+        assert again.status_code == 400
+        assert again.json() == {"error": "This invite has already been resolved"}
+        assert client.delete(f"{url}/999").status_code == 404
 
     def test_decline_and_revoke(self, client, db_connection, ws1):
         add_user(db_connection, STRANGER)
@@ -569,23 +587,41 @@ class TestInviteEndpoints:
         assert response.status_code == 404
         assert repo.get_pending_workspace_invites(db_connection, WS) != []
 
-    def test_bad_input_is_400_or_422(self, client, ws1):
+    def test_bad_input_is_400_or_422(self, client, db_connection, ws1):
         login(client)
         url = f"/api/workspaces/{WS}/invites"
-        assert (
-            client.post(url, json={"email": "nope", "role": "viewer"}).status_code
-            == 400
-        )
+        bad = client.post(url, json={"email": "not-an-email", "role": "owner"})
+        assert bad.status_code == 400
+        assert bad.json() == {"error": "'not-an-email' is not an email address"}
+        assert repo.get_pending_workspace_invites(db_connection, WS) == []
         assert (
             client.post(url, json={"email": "a@b.com", "role": "admin"}).status_code
             == 422
         )
-        assert (
-            client.post(
-                url, json={"email": USER["email"], "role": "viewer"}
-            ).status_code
-            == 400
+        member = client.post(url, json={"email": USER["email"], "role": "viewer"})
+        assert member.status_code == 400
+        assert member.json() == {
+            "error": f"{USER['email']} is already a member of this workspace"
+        }
+
+    def test_a_second_open_invite_is_refused(self, client, db_connection, ws1):
+        create_invite(db_connection, WS, USER_ID, "sam.lee@example.com", Role.EDITOR)
+        login(client)
+
+        response = client.post(
+            f"/api/workspaces/{WS}/invites",
+            json={"email": "Sam.Lee@example.com", "role": "viewer"},
         )
+
+        assert response.status_code == 400
+        assert response.json() == {
+            "error": "sam.lee@example.com already has a pending invite. "
+            "Revoke it to change the role."
+        }
+        pending = repo.get_pending_workspace_invites(db_connection, WS)
+        assert [(i.email, i.role) for i in pending] == [
+            ("sam.lee@example.com", Role.EDITOR)
+        ]
 
 
 @pytest.mark.db
@@ -777,4 +813,176 @@ class TestCashFlowEndpoints:
         )
 
         assert response.status_code == 400
+        assert response.json() == {"error": f"Category {mine} does not exist"}
         assert repo.get_cash_flows(db_connection, OTHER_WS) == []
+
+    @pytest.mark.parametrize(
+        ("change", "message"),
+        [
+            ({"name": "   "}, "Name is required"),
+            ({"name": "Rent"}, "A cash flow named 'Rent' already exists"),
+            (
+                {"amount": "-5"},
+                "Amount cannot be negative; set the direction to expense instead",
+            ),
+            ({"amount": "10000000000000"}, "Amount is too large"),
+            ({"every": 0}, "Every must be between 1 and 1000"),
+            ({"every": 1001}, "Every must be between 1 and 1000"),
+            ({"every": -2}, "Every must be between 1 and 1000"),
+            ({"category_id": 9999}, "Category 9999 does not exist"),
+        ],
+    )
+    def test_refusals_say_why_and_write_nothing(
+        self, client, db_connection, change, message
+    ):
+        login(client)
+        self._flow(client, name="Rent", direction="expense", amount="1", unit="month")
+        before = repo.get_cash_flows(db_connection, WS)
+        body = {"name": "New", "direction": "expense", "amount": "1", "unit": "month"}
+
+        response = client.post(f"{self.BASE}/cash-flows", json=body | change)
+
+        assert (response.status_code, response.json()) == (400, {"error": message})
+        assert repo.get_cash_flows(db_connection, WS) == before
+
+    def test_missing_and_foreign_ids_are_not_found(self, client, db_connection):
+        """Another workspace's flow or category, or none: a 404 that changes
+        nothing, through every write that names one."""
+        add_user(db_connection, STRANGER)
+        create_workspace(db_connection, STRANGER["id"], "Theirs")
+        session_for(client, STRANGER)
+        theirs = f"/api/workspaces/{OTHER_WS}"
+        their_category = client.post(
+            f"{theirs}/cash-flow-categories", json={"name": "Theirs"}
+        ).json()["id"]
+        their_flow = client.post(
+            f"{theirs}/cash-flows",
+            json={
+                "name": "Theirs",
+                "direction": "expense",
+                "amount": "5",
+                "unit": "month",
+            },
+        ).json()["id"]
+        before = (
+            repo.get_cash_flows(db_connection, OTHER_WS),
+            repo.get_cash_flow_categories(db_connection, OTHER_WS),
+        )
+        login(client)
+
+        for flow_id in (their_flow, 9999):
+            url = f"{self.BASE}/cash-flows/{flow_id}"
+            message = {"error": f"Cash flow {flow_id} does not exist"}
+            patched = client.patch(url, json={"name": "Mine"})
+            assert (patched.status_code, patched.json()) == (404, message)
+            deleted = client.delete(url)
+            assert (deleted.status_code, deleted.json()) == (404, message)
+        for category_id in (their_category, 9999):
+            url = f"{self.BASE}/cash-flow-categories/{category_id}"
+            message = {"error": f"Category {category_id} does not exist"}
+            patched = client.patch(url, json={"name": "Mine"})
+            assert (patched.status_code, patched.json()) == (404, message)
+            deleted = client.delete(url)
+            assert (deleted.status_code, deleted.json()) == (404, message)
+            moved = client.post(f"{url}/move", json={"direction": "up"})
+            assert moved.status_code == 404
+        assert (
+            repo.get_cash_flows(db_connection, OTHER_WS),
+            repo.get_cash_flow_categories(db_connection, OTHER_WS),
+        ) == before
+
+    def test_category_names_are_tidied_and_must_be_new(self, client, db_connection):
+        login(client)
+        url = f"{self.BASE}/cash-flow-categories"
+        food = self._category(client, "Food")
+        self._category(client, "Housing")
+
+        for body, message in (
+            ({"name": "  "}, "Name is required"),
+            ({"name": "Food"}, "A category named 'Food' already exists"),
+        ):
+            response = client.post(url, json=body)
+            assert (response.status_code, response.json()) == (400, {"error": message})
+        for body, message in (
+            ({"name": ""}, "Name is required"),
+            ({"name": "Housing"}, "A category named 'Housing' already exists"),
+        ):
+            response = client.patch(f"{url}/{food}", json=body)
+            assert (response.status_code, response.json()) == (400, {"error": message})
+        assert [c.name for c in repo.get_cash_flow_categories(db_connection, WS)] == [
+            "Food",
+            "Housing",
+        ]
+
+        pets = client.post(url, json={"name": " Pets "})
+        assert (pets.status_code, pets.json()["name"]) == (201, "Pets")
+        renamed = client.patch(f"{url}/{food}", json={"name": "Groceries & eating out"})
+        assert (renamed.status_code, renamed.json()["name"]) == (
+            200,
+            "Groceries & eating out",
+        )
+        assert [c.name for c in repo.get_cash_flow_categories(db_connection, WS)] == [
+            "Groceries & eating out",
+            "Housing",
+            "Pets",
+        ]
+
+    def test_patch_every_field_then_move_and_delete(self, client, db_connection):
+        login(client)
+        food = self._category(client, "Food")
+        groceries = self._flow(
+            client,
+            name="Groceries",
+            direction="expense",
+            amount="180",
+            every=1,
+            unit="week",
+            category_id=food,
+            description="Costco + weekly shop",
+            is_estimate=True,
+        )
+        url = f"{self.BASE}/cash-flows/{groceries['id']}"
+
+        patched = client.patch(
+            url,
+            json={
+                "name": "Food shop",
+                "direction": "income",
+                "amount": "200",
+                "every": 3,
+                "unit": "day",
+                "category_id": None,
+                "description": "",
+                "is_estimate": False,
+            },
+        ).json()
+
+        fields = (
+            "name",
+            "direction",
+            "amount",
+            "every",
+            "unit",
+            "category_id",
+            "description",
+            "is_estimate",
+        )
+        assert {k: patched[k] for k in fields} == {
+            "name": "Food shop",
+            "direction": "income",
+            "amount": "200.00",
+            "every": 3,
+            "unit": "day",
+            "category_id": None,
+            "description": None,
+            "is_estimate": False,
+        }
+        moved = client.patch(url, json={"category_id": food})
+        assert moved.json()["category_id"] == food
+
+        deleted = client.delete(url)
+        assert (deleted.status_code, deleted.json()) == (
+            200,
+            {"deleted": groceries["id"]},
+        )
+        assert repo.get_cash_flows(db_connection, WS) == []

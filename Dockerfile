@@ -1,4 +1,4 @@
-# The React app (frontend/): built here, served by FastAPI under /app.
+# The React app (frontend/): built here, served by FastAPI from the root.
 FROM node:24-alpine AS frontend
 
 WORKDIR /frontend

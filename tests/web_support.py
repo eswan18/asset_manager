@@ -14,10 +14,10 @@ STRANGER = {
     "email": "stranger@example.com",
     "name": "Stranger",
 }
-TZ = "America/Chicago"  # the default zone (TIMEZONE): requests here send no tz cookie
+TZ = "America/Chicago"  # the default zone (TIMEZONE), for requests with no X-Timezone
 ACCOUNTS = f"/api/workspaces/{WS}/accounts"
 SNAPSHOTS = f"/api/workspaces/{WS}/snapshots"
-# The seeded workspace's pages: the API path without /api.
+# The seeded workspace's pages (the React app's): the API path without /api.
 PAGES = f"/workspaces/{WS}"
 # What the SPA sends on every API mutation (web/csrf.py); the client fixture
 # sends it on every request.
@@ -62,9 +62,9 @@ def add_user(conn, user: dict, role: str | None = None, workspace_id: int = WS) 
 
 # Routes reachable without a session. Every other route must refuse. The
 # docs routes are public too but are not in the schema, so not listed here;
-# nor is /mcp, which takes bearer tokens, not sessions (test_mcp_http.py).
-# /app is the React app's shell (web/spa.py): it holds no data, and the SPA
-# sends anyone the API answers 401 to /login.
+# nor is /mcp, which takes bearer tokens, not sessions (test_mcp_http.py),
+# nor the React app's catch-all (web/spa.py, test_spa.py), which serves a
+# shell holding no data.
 PUBLIC_PATHS = {
     "/login",
     "/auth/start",
@@ -73,8 +73,6 @@ PUBLIC_PATHS = {
     "/logout",
     "/health",
     "/.well-known/oauth-protected-resource/mcp",
-    "/app",
-    "/app/{path}",
 }
 
 
