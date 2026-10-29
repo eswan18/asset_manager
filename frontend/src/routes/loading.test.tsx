@@ -262,9 +262,13 @@ describe("a drawer opens at once", () => {
     const { user } = renderApp(`${WS}/accounts`);
     await user.click(await screen.findByRole("link", { name: "Checking" }));
 
-    const sheet = screen.getByRole("dialog", { name: "Checking" });
+    // The drawer's route is lazy, so its code may still be arriving; the
+    // detail stays held throughout, so this is still "before the detail".
+    const sheet = await screen.findByRole("dialog", { name: "Checking" });
     expect(sheet).toHaveTextContent("Edit asset");
-    expect(within(sheet).getByLabelText("Name")).toHaveFocus();
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText("Name")).toHaveFocus(),
+    );
     expect(within(sheet).getByText("Loading history")).toBeInTheDocument();
 
     // What's typed survives the detail landing.
