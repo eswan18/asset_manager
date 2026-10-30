@@ -4,46 +4,51 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}{% endblock %} · {{ app_name }}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <meta name="theme-color" content="#F4F3EE" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0D1412" media="(prefers-color-scheme: dark)">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500..700&display=swap" rel="stylesheet">
     <style>
         /* Design tokens: docs/superpowers/specs/2026-10-26-frontend-redesign-design.md.
            The same values as the React app's frontend/src/styles/tokens.css
            (tests/test_spa.py checks they match). Templates name tokens, never
            hex values. Light is the default; dark follows the system setting. */
         :root {
-            --bg: #F2F3F5;
+            --bg: #F4F3EE;
             --surface: #FFFFFF;
-            --ink: #15171A;
-            --muted: #4A505A;
-            --rule: #F0F1F3;
-            --rule-strong: #DADDE2;
-            --grid: #ECEEF1;
-            --chip: #F2F3F5;
+            --ink: #13211D;
+            --muted: #4C5753;
+            --rule: #EFEEE9;
+            --rule-strong: #D9D9D1;
+            --grid: #EAE9E3;
+            --chip: #F4F3EE;
             --input: #FFFFFF;
-            --asset: #2457C5;
-            --asset-2: #8FB0EE;
-            --asset-tint: #EEF3FC;
-            --primary: #2457C5;
+            --asset: #17694F;
+            --asset-2: #8CC4AC;
+            --asset-tint: #EAF3EE;
+            --primary: #053C32;
             --on-primary: #FFFFFF;
             --liability: #B4530F;
             --liability-2: #D9772E;
             --liability-3: #E9A066;
             --liability-4: #F3C79E;
-            --leftover: #DCE6F8;
+            --leftover: #D9ECE2;
             --estimate-bg: #FFF4E5;
             --estimate-fg: #8A4B0C;
             --danger: #B42318;
             --danger-tint: #FDECEA;
-            --bar-bg: #15171A;
+            --bar-bg: #13211D;
             --bar-fg: #FFFFFF;
-            --bar-muted: #B9BEC6;
-            --bar-border: #15171A;
+            --bar-muted: #B5BEBA;
+            --bar-border: #13211D;
             --shadow: rgba(0, 0, 0, 0.06);
-            --scrim: rgba(21, 23, 26, 0.35);
+            --scrim: rgba(19, 33, 29, 0.35);
 
-            --font-display: 'Space Grotesk', system-ui, sans-serif;
+            --font-display: 'Source Serif 4', Georgia, serif;
             --font-body: 'Inter', system-ui, -apple-system, sans-serif;
             --radius-card: 20px;
             --radius-input: 10px;
@@ -57,33 +62,33 @@
 
         @media (prefers-color-scheme: dark) {
             :root {
-                --bg: #0F1115;
-                --surface: #191C21;
-                --ink: #ECEEF1;
-                --muted: #9BA3AF;
-                --rule: #23272E;
-                --rule-strong: #3A404A;
-                --grid: #262A31;
-                --chip: #23272E;
-                --input: #12151A;
-                --asset: #6E9CF5;
-                --asset-2: #34558F;
-                --asset-tint: #1B2638;
-                --primary: #6E9CF5;
-                --on-primary: #0F1115;
+                --bg: #0D1412;
+                --surface: #161F1C;
+                --ink: #E9EEEB;
+                --muted: #9AA6A1;
+                --rule: #212B28;
+                --rule-strong: #374440;
+                --grid: #24302C;
+                --chip: #212B28;
+                --input: #111816;
+                --asset: #5EC29B;
+                --asset-2: #2B6A53;
+                --asset-tint: #16302A;
+                --primary: #5EC29B;
+                --on-primary: #0D1412;
                 --liability: #F08C4A;
                 --liability-2: #C46A2C;
                 --liability-3: #8F4F24;
                 --liability-4: #5E3A20;
-                --leftover: #2C3B5C;
+                --leftover: #1F3B31;
                 --estimate-bg: #3A2A12;
                 --estimate-fg: #F5C27A;
                 --danger: #F97066;
                 --danger-tint: #3A1C1A;
-                --bar-bg: #2A2F37;
-                --bar-fg: #ECEEF1;
-                --bar-muted: #A9B0BA;
-                --bar-border: #454B55;
+                --bar-bg: #25302C;
+                --bar-fg: #E9EEEB;
+                --bar-muted: #A8B3AE;
+                --bar-border: #3F4C47;
                 --shadow: rgba(0, 0, 0, 0.4);
                 --scrim: rgba(0, 0, 0, 0.55);
                 color-scheme: dark;
@@ -109,12 +114,35 @@
 
         a { color: var(--asset); }
 
+        /* The brand lockup (the React app's Logo): the coin, then the
+           outlined wordmark as a mask filled with --ink, so it follows the
+           theme. Both files are the React build's, served from the root. */
         .wordmark {
-            font-family: var(--font-display);
-            font-weight: 700;
-            font-size: 20px;
-            color: var(--ink);
-            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            align-self: flex-start;
+            gap: 8px;
+        }
+
+        .wordmark img {
+            width: 30px;
+            height: 30px;
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+
+        .wordmark-text {
+            height: 21px;
+            aspect-ratio: 1740 / 378;
+            background: var(--ink);
+            mask: url(/wordmark.svg) center / contain no-repeat;
         }
 
         .container {

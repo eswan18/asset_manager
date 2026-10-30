@@ -149,7 +149,7 @@ OpenPage = Callable[..., Page]
 # in the fallback depending on how the download races the test.
 LOAD_FONTS = """Promise.all([
   '400 16px Inter', '500 16px Inter', '600 16px Inter',
-  '500 16px "Space Grotesk"', '600 16px "Space Grotesk"', '700 16px "Space Grotesk"',
+  '500 16px "Source Serif 4"', '600 16px "Source Serif 4"', '700 16px "Source Serif 4"',
 ].map((font) => document.fonts.load(font)))"""
 
 

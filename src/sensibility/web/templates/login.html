@@ -22,7 +22,8 @@
         box-shadow: 0 8px 32px var(--shadow);
     }
 
-    .login-card .wordmark { font-size: 22px; }
+    .login-card .wordmark img { width: 34px; height: 34px; }
+    .login-card .wordmark-text { height: 24px; }
 
     .login-copy {
         display: flex;
@@ -88,7 +89,7 @@
 <div class="login-page">
     {% if state == "login" %}
     <section class="card login-card fade-in">
-        <span class="wordmark">{{ app_name }}</span>
+        <span class="wordmark"><img src="/favicon.svg" alt=""><span class="wordmark-text" aria-hidden="true"></span><span class="visually-hidden">{{ app_name }}</span></span>
         <div class="login-copy">
             <h1>What you own, what you owe.</h1>
             <p>Track your net worth and where your money goes, alone or with the people you share it with.</p>
@@ -98,7 +99,7 @@
     </section>
     {% elif state == "unverified" %}
     <section class="card login-card refused fade-in">
-        <span class="wordmark">{{ app_name }}</span>
+        <span class="wordmark"><img src="/favicon.svg" alt=""><span class="wordmark-text" aria-hidden="true"></span><span class="visually-hidden">{{ app_name }}</span></span>
         <div class="login-copy">
             <h1>Verify your email first</h1>
             <p><strong>{{ email }}</strong> isn't verified yet. Open the link in the verification email your sign-in account sent you, then log in again.</p>
@@ -108,7 +109,7 @@
     </section>
     {% else %}
     <section class="card login-card refused fade-in">
-        <span class="wordmark">{{ app_name }}</span>
+        <span class="wordmark"><img src="/favicon.svg" alt=""><span class="wordmark-text" aria-hidden="true"></span><span class="visually-hidden">{{ app_name }}</span></span>
         <div class="login-copy">
             <h1>This account isn't on the list yet</h1>
             <p>{% if email %}<strong>{{ email }}</strong>{% else %}This account{% endif %} can't use {{ app_name }} yet. Ask the person who invited you to check the address, or log in with a different account.</p>

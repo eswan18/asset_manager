@@ -6,35 +6,35 @@
    font and radius tokens live in index.css's @theme, which emits them under
    these same names. */
 :root {
-  --bg: #f2f3f5;
+  --bg: #f4f3ee;
   --surface: #ffffff;
-  --ink: #15171a;
-  --muted: #4a505a;
-  --rule: #f0f1f3;
-  --rule-strong: #dadde2;
-  --grid: #eceef1;
-  --chip: #f2f3f5;
+  --ink: #13211d;
+  --muted: #4c5753;
+  --rule: #efeee9;
+  --rule-strong: #d9d9d1;
+  --grid: #eae9e3;
+  --chip: #f4f3ee;
   --input: #ffffff;
-  --asset: #2457c5;
-  --asset-2: #8fb0ee;
-  --asset-tint: #eef3fc;
-  --primary: #2457c5;
+  --asset: #17694f;
+  --asset-2: #8cc4ac;
+  --asset-tint: #eaf3ee;
+  --primary: #053c32;
   --on-primary: #ffffff;
   --liability: #b4530f;
   --liability-2: #d9772e;
   --liability-3: #e9a066;
   --liability-4: #f3c79e;
-  --leftover: #dce6f8;
+  --leftover: #d9ece2;
   --estimate-bg: #fff4e5;
   --estimate-fg: #8a4b0c;
   --danger: #b42318;
   --danger-tint: #fdecea;
-  --bar-bg: #15171a;
+  --bar-bg: #13211d;
   --bar-fg: #ffffff;
-  --bar-muted: #b9bec6;
-  --bar-border: #15171a;
+  --bar-muted: #b5beba;
+  --bar-border: #13211d;
   --shadow: rgba(0, 0, 0, 0.06);
-  --scrim: rgba(21, 23, 26, 0.35);
+  --scrim: rgba(19, 33, 29, 0.35);
 
   /* Layout: phones are max-width 600px (docs/superpowers/specs/2026-10-26-mobile-design.md).
      --tabbar-h is the bottom tab bar's height there, 0 elsewhere; anything
@@ -46,33 +46,33 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1115;
-    --surface: #191c21;
-    --ink: #eceef1;
-    --muted: #9ba3af;
-    --rule: #23272e;
-    --rule-strong: #3a404a;
-    --grid: #262a31;
-    --chip: #23272e;
-    --input: #12151a;
-    --asset: #6e9cf5;
-    --asset-2: #34558f;
-    --asset-tint: #1b2638;
-    --primary: #6e9cf5;
-    --on-primary: #0f1115;
+    --bg: #0d1412;
+    --surface: #161f1c;
+    --ink: #e9eeeb;
+    --muted: #9aa6a1;
+    --rule: #212b28;
+    --rule-strong: #374440;
+    --grid: #24302c;
+    --chip: #212b28;
+    --input: #111816;
+    --asset: #5ec29b;
+    --asset-2: #2b6a53;
+    --asset-tint: #16302a;
+    --primary: #5ec29b;
+    --on-primary: #0d1412;
     --liability: #f08c4a;
     --liability-2: #c46a2c;
     --liability-3: #8f4f24;
     --liability-4: #5e3a20;
-    --leftover: #2c3b5c;
+    --leftover: #1f3b31;
     --estimate-bg: #3a2a12;
     --estimate-fg: #f5c27a;
     --danger: #f97066;
     --danger-tint: #3a1c1a;
-    --bar-bg: #2a2f37;
-    --bar-fg: #eceef1;
-    --bar-muted: #a9b0ba;
-    --bar-border: #454b55;
+    --bar-bg: #25302c;
+    --bar-fg: #e9eeeb;
+    --bar-muted: #a8b3ae;
+    --bar-border: #3f4c47;
     --shadow: rgba(0, 0, 0, 0.4);
     --scrim: rgba(0, 0, 0, 0.55);
     color-scheme: dark;
