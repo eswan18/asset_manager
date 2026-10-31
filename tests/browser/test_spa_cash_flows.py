@@ -248,7 +248,7 @@ def test_the_page_follows_the_dark_theme(open_page, seed):
     light = card.evaluate("e => getComputedStyle(e).backgroundColor")
     page.emulate_media(color_scheme="dark")
     dark = card.evaluate("e => getComputedStyle(e).backgroundColor")
-    assert (light, dark) == ("rgb(255, 255, 255)", "rgb(25, 28, 33)")
+    assert (light, dark) == ("rgb(255, 255, 255)", "rgb(22, 31, 28)")
 
 
 @pytest.mark.parametrize("width", PHONE_WIDTHS)
@@ -452,7 +452,7 @@ def test_header_follows_direction_and_category(open_page, seed):
     dialog.get_by_text("Income", exact=True).click()
     expect(eyebrow).to_have_text("Edit income · Food")
     assert section() == "var(--asset)"
-    assert rule() == "rgb(36, 87, 197)"  # --asset, light
+    assert rule() == "rgb(23, 105, 79)"  # --asset, light
 
     dialog.get_by_text("Expense", exact=True).click()
     expect(eyebrow).to_have_text("Edit expense · Food")

@@ -20,8 +20,9 @@ import {
   DashboardIcon,
   GearIcon,
 } from "./icons";
+import { Logo } from "./logo";
 import { sameSectionIn, sectionOf, tabOf, type Tab } from "./sections";
-import { APP_NAME, type CurrentWorkspace } from "./workspace-context";
+import type { CurrentWorkspace } from "./workspace-context";
 
 /**
  * The top bar (base.html's .shell-header). Desktop: wordmark, the pill nav,
@@ -51,12 +52,12 @@ export function ShellHeader({
       <Link
         to={workspace ? workspace.base : "/"}
         className={cn(
-          "font-display text-[20px] font-bold text-ink no-underline",
-          "phone:inline-flex phone:min-h-11 phone:items-center",
+          "inline-flex min-h-11 items-center rounded-md no-underline",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asset",
           workspace && "phone:hidden",
         )}
       >
-        {APP_NAME}
+        <Logo />
       </Link>
       {workspace && <MainNav workspace={workspace} tab={tab} />}
       <div

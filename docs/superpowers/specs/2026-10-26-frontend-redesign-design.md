@@ -40,45 +40,58 @@ built in parallel once the shell exists. Nothing here changes the data model.
 Taken from mockup direction C. It is the app's own look, not the Footstrike
 design system.
 
+### Brand
+
+The brand assets (Oct 2026) are a silver coin with a deep green serif S
+(`#053C32`) and an outlined serif wordmark. They live in `frontend/public/`:
+`favicon.svg`/`.ico`, `apple-touch-icon.png`, `icon-192`/`512.png` and
+`site.webmanifest`, and `wordmark.svg` (the wordmark alone, cut from the
+lockup). The header's lockup is the favicon coin beside the wordmark, drawn
+as a mask filled with `--ink` so it follows the theme (`Logo` in
+`components/shell/logo.tsx`; `login.html` draws the same). The palette took
+its green from the coin and its warm neutrals from the brand's paper ground.
+
 ### Tokens
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--bg` | `#F2F3F5` | `#0F1115` | Page background |
-| `--surface` | `#FFFFFF` | `#191C21` | Cards, inactive toggle segment |
-| `--ink` | `#15171A` | `#ECEEF1` | Text, active nav pill (with `--surface` text), net worth line |
-| `--muted` | `#4A505A` | `#9BA3AF` | Secondary text (passes 4.5:1 on both `--bg` and `--surface`) |
-| `--rule` | `#F0F1F3` | `#23272E` | Row dividers |
-| `--rule-strong` | `#DADDE2` | `#3A404A` | Input borders, axes, dashed dividers |
-| `--grid` | `#ECEEF1` | `#262A31` | Chart gridlines |
-| `--chip` | `#F2F3F5` | `#23272E` | Secondary buttons (+ Add), toggle track, tag background |
-| `--input` | `#FFFFFF` | `#12151A` | Input background |
-| `--asset` | `#2457C5` | `#6E9CF5` | Assets, income, links, focus/edited border |
-| `--asset-2` | `#8FB0EE` | `#34558F` | Second asset category |
-| `--asset-tint` | `#EEF3FC` | `#1B2638` | Edited input background |
-| `--primary` / `--on-primary` | `#2457C5` / `#FFFFFF` | `#6E9CF5` / `#0F1115` | Primary buttons |
+| `--bg` | `#F4F3EE` | `#0D1412` | Page background |
+| `--surface` | `#FFFFFF` | `#161F1C` | Cards, inactive toggle segment |
+| `--ink` | `#13211D` | `#E9EEEB` | Text, active nav pill (with `--surface` text), net worth line |
+| `--muted` | `#4C5753` | `#9AA6A1` | Secondary text (passes 4.5:1 on both `--bg` and `--surface`) |
+| `--rule` | `#EFEEE9` | `#212B28` | Row dividers |
+| `--rule-strong` | `#D9D9D1` | `#374440` | Input borders, axes, dashed dividers |
+| `--grid` | `#EAE9E3` | `#24302C` | Chart gridlines |
+| `--chip` | `#F4F3EE` | `#212B28` | Secondary buttons (+ Add), toggle track, tag background |
+| `--input` | `#FFFFFF` | `#111816` | Input background |
+| `--asset` | `#17694F` | `#5EC29B` | Assets, income, links, focus/edited border |
+| `--asset-2` | `#8CC4AC` | `#2B6A53` | Second asset category |
+| `--asset-tint` | `#EAF3EE` | `#16302A` | Edited input background |
+| `--primary` / `--on-primary` | `#053C32` / `#FFFFFF` | `#5EC29B` / `#0D1412` | Primary buttons |
 | `--liability` | `#B4530F` | `#F08C4A` | Liabilities, expenses |
 | `--liability-2` | `#D9772E` | `#C46A2C` | More liability / expense categories |
 | `--liability-3` | `#E9A066` | `#8F4F24` | |
 | `--liability-4` | `#F3C79E` | `#5E3A20` | |
-| `--leftover` | `#DCE6F8` | `#2C3B5C` | "Left over" slice on Cash flows |
+| `--leftover` | `#D9ECE2` | `#1F3B31` | "Left over" slice on Cash flows |
 | `--estimate-bg` / `--estimate-fg` | `#FFF4E5` / `#8A4B0C` | `#3A2A12` / `#F5C27A` | `≈` estimate tag |
 | `--danger` | `#B42318` | `#F97066` | Delete, short each month |
 | `--danger-tint` | `#FDECEA` | `#3A1C1A` | Behind danger text ("Access is invite-only for now.") |
-| `--bar-bg` / `--bar-fg` | `#15171A` / `#FFFFFF` | `#2A2F37` / `#ECEEF1` | Sticky save bar |
-| `--bar-muted` / `--bar-border` | `#B9BEC6` / `#15171A` | `#A9B0BA` / `#454B55` | Save bar secondary text, its border and the Discard outline |
+| `--bar-bg` / `--bar-fg` | `#13211D` / `#FFFFFF` | `#25302C` / `#E9EEEB` | Sticky save bar |
+| `--bar-muted` / `--bar-border` | `#B5BEBA` / `#13211D` | `#A8B3AE` / `#3F4C47` | Save bar secondary text, its border and the Discard outline |
 | `--shadow` | `rgba(0,0,0,.06)` | `rgba(0,0,0,.4)` | Nav, picker and toggle shadows |
-| `--scrim` | `rgba(21,23,26,.35)` | `rgba(0,0,0,.55)` | Over the page behind a drawer |
+| `--scrim` | `rgba(19,33,29,.35)` | `rgba(0,0,0,.55)` | Over the page behind a drawer |
 
 Each category takes a color from its ramp, strongest first in order of
 size, so the largest segment of a bar is the strongest color. Assets and
-income are always blue; liabilities and expenses are always orange. In both
+income are always green; liabilities and expenses are always orange. In both
 themes the ramps fade toward the page background, and two colors that must
 be told apart also differ in lightness.
 
 ### Type
 
-- **Space Grotesk** (500–700) for headings, the wordmark and the large figures.
+- **Source Serif 4** (500–700) for headings and the large figures, to sit
+  with the serif wordmark (it replaced Space Grotesk with the brand assets,
+  Oct 2026).
 - **Inter** (400–600) for everything else.
 - Every number uses `font-variant-numeric: tabular-nums`.
 - Scale: hero figure 64px, card titles 20px, body 15px, labels 13px,

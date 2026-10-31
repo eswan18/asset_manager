@@ -13,8 +13,8 @@ import { NotFound } from "@/routes/not-found";
 
 import { ShellHeader } from "./header";
 import { InviteStrips } from "./invite-strip";
+import { Logo } from "./logo";
 import {
-  APP_NAME,
   currentWorkspace,
   WorkspaceContext,
   type CurrentWorkspace,
@@ -75,9 +75,7 @@ export function ShellSkeleton() {
           "phone:min-h-[60px] phone:gap-2 phone:py-2",
         )}
       >
-        <span className="font-display text-[20px] font-bold text-ink">
-          {APP_NAME}
-        </span>
+        <Logo className="min-h-11" />
         <Skeleton
           on="bg"
           className="h-12 w-[300px] rounded-full phone:hidden"

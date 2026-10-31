@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="silver" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f5f5f2"/><stop offset=".48" stop-color="#c5c8c5"/><stop offset="1" stop-color="#898f8b"/></linearGradient></defs>
+<circle cx="32" cy="32" r="30" fill="url(#silver)" stroke="#555b58" stroke-width="1.3"/>
+<circle cx="32" cy="32" r="25.6" fill="none" stroke="#69716d" stroke-width=".9"/>
+<path d="M447 676H426C422 654 411 642 394 642C384 642 367 646 350 654C313 668 276 676 243 676C201 676 157 659 124 630C89 599 71 557 71 505C71 425 115 369 227 310C299 271 351 231 376 193C385 180 390 159 390 134C390 68 340 22 267 22C177 22 115 77 65 199H42L72 -13H94C95 6 107 20 122 20C133 20 150 16 169 9C207 -6 248 -14 287 -14C403 -14 491 65 491 169C491 251 436 315 304 387C199 444 157 488 157 543C157 598 199 635 261 635C306 635 348 616 383 580C414 548 428 522 444 463H469Z" transform="translate(13.079 55.501) scale(.071 -.071)" fill="#06372e"/>
+</svg>

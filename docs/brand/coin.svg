@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title"><title id="title">Sensibility silver coin with green S</title>
+<defs>
+<linearGradient id="outer" x1="0" y1="0" x2=".95" y2="1"><stop offset="0" stop-color="#f5f5f2"/><stop offset=".16" stop-color="#a3a5a4"/><stop offset=".37" stop-color="#faf9f5"/><stop offset=".64" stop-color="#838987"/><stop offset=".83" stop-color="#d2d3cf"/><stop offset="1" stop-color="#777c78"/></linearGradient>
+<linearGradient id="rim" x1=".1" y1="0" x2=".9" y2=".92"><stop offset="0" stop-color="#e5e5e2"/><stop offset=".17" stop-color="#7e8583"/><stop offset=".35" stop-color="#e7e8e4"/><stop offset=".58" stop-color="#6e7573"/><stop offset=".79" stop-color="#e0e0dc"/><stop offset="1" stop-color="#545a59"/></linearGradient>
+<linearGradient id="silver" x1=".02" y1=".05" x2=".95" y2=".93"><stop offset="0" stop-color="#f7f7f4"/><stop offset=".20" stop-color="#cbcfcc"/><stop offset=".4" stop-color="#f6f4f0"/><stop offset=".65" stop-color="#a4aaa7"/><stop offset=".79" stop-color="#d8d9d5"/><stop offset="1" stop-color="#8c9490"/></linearGradient>
+<radialGradient id="gleam" cx=".35" cy=".25" r=".8"><stop offset="0" stop-color="#ffffff" stop-opacity=".28"/><stop offset=".34" stop-color="#ffffff" stop-opacity="0"/><stop offset=".7" stop-color="#343d39" stop-opacity=".07"/><stop offset="1" stop-color="#252e2b" stop-opacity=".13"/></radialGradient>
+<linearGradient id="green" x1="0" y1="0" x2=".95" y2="1"><stop offset="0" stop-color="#0d4234"/><stop offset=".65" stop-color="#06372e"/><stop offset="1" stop-color="#062c26"/></linearGradient>
+</defs>
+<circle cx="512" cy="512" r="454" fill="url(#outer)" stroke="#747d78" stroke-width="3"/>
+<circle cx="512" cy="512" r="446" fill="none" stroke="#f5f4f0" stroke-opacity=".82" stroke-width="8"/>
+<circle cx="512" cy="512" r="428" fill="url(#rim)" stroke="#595f5c" stroke-width="4"/>
+<circle cx="512" cy="512" r="409" fill="none" stroke="#f8f9f5" stroke-opacity=".77" stroke-width="5"/>
+<circle cx="512" cy="512" r="402" fill="url(#silver)" stroke="#595e5b" stroke-width="4"/>
+<circle cx="512" cy="512" r="398" fill="url(#gleam)"/>
+<path d="M447 676H426C422 654 411 642 394 642C384 642 367 646 350 654C313 668 276 676 243 676C201 676 157 659 124 630C89 599 71 557 71 505C71 425 115 369 227 310C299 271 351 231 376 193C385 180 390 159 390 134C390 68 340 22 267 22C177 22 115 77 65 199H42L72 -13H94C95 6 107 20 122 20C133 20 150 16 169 9C207 -6 248 -14 287 -14C403 -14 491 65 491 169C491 251 436 315 304 387C199 444 157 488 157 543C157 598 199 635 261 635C306 635 348 616 383 580C414 548 428 522 444 463H469Z" transform="translate(320.815 749.457) scale(0.7173913 -0.7173913)" fill="url(#green)"/>
+</svg>
